@@ -295,7 +295,7 @@ public class Main {
 			{
 				listOfValues = new ArrayList<String>();
 				listOfValues.add(extractedValue);
-				goTerms.get(currentGOID).put(key, extractedValue);
+				goTerms.get(currentGOID).put(key, listOfValues);
 			}
 			else
 			{
