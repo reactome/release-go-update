@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * @author sshorser
@@ -24,15 +25,24 @@ public class Main {
 	private static final String NAME = "name";
 	private static final String NAMESPACE = "namespace";
 	private static final String DEF = "def";
-	private static final String SUBSET = "subset";
+	//private static final String SUBSET = "subset";
 	private static final String RELATIONSHIP = "relationship";
 	private static final String IS_A = "is_a";
 	private static final String CONSIDER = "consider";
 	private static final String REPLACED_BY = "replaced_by";
 	private static final String SYNONYM = "synonym";
+	private static final String HAS_PART = "has_part";
+	private static final String PART_OF = "part_of";
+	private static final String REGULATES = "regulates";
+	private static final String POSITIVELY_REGULATES = "positively_"+REGULATES;
+	private static final String NEGATIVELY_REGULATES = "negatively_"+REGULATES;
+	private static final String IS_OBSOLETE = "is_obsolete";
+	private static final String PENDING_OBSOLETION = "pending_obsoletion";
 	
-	private static final Pattern LINE_DECODER = Pattern.compile("^(id|alt_id|name|namespace|def|subset|relationship|is_a|consider|replaced_by|synonym):.*");
+	private static final Pattern LINE_DECODER = Pattern.compile("^(id|alt_id|name|namespace|def|subset|relationship|is_a|consider|replaced_by|synonym|is_obsolete):.*");
+	private static final Pattern RELATIONSHIP_DECODER = Pattern.compile("^relationship: (positively_regulates|negatively_regulates|has_part|part_of|regulates) GO:[0-9]+");
 	private static final Pattern OBSOLETION = Pattern.compile("(pending|scheduled for|slated for) obsoletion");
+	private static final Pattern IS_OBSOLETE_REGEX = Pattern.compile("^"+IS_OBSOLETE+": true");
 	private static final Pattern GO_ID_REGEX = Pattern.compile("^"+ID+": GO:([0-9]+)");
 	private static final Pattern ALT_ID_REGEX = Pattern.compile("^"+ALT_ID+": GO:([0-9]+)");
 	private static final Pattern NAME_REGEX = Pattern.compile("^"+NAME+": (.*)");
@@ -42,11 +52,11 @@ public class Main {
 	private static final Pattern SYNONYM_REGEX = Pattern.compile("^"+SYNONYM+": (.*)");
 	private static final Pattern CONSIDER_REGEX = Pattern.compile("^"+CONSIDER+": GO:([0-9]+)");
 	private static final Pattern REPLACED_BY_REGEX = Pattern.compile("^"+REPLACED_BY+": GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_PART_OF_REGEX = Pattern.compile("^"+RELATIONSHIP+": part_of GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_HAS_PART_REGEX = Pattern.compile("^"+RELATIONSHIP+": has_part GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": regulates GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_POSITIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": positively_regulates GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_NEGATIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": negatively_regulates GO:([0-9]+)");
+	private static final Pattern RELATIONSHIP_PART_OF_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+PART_OF+" GO:([0-9]+)");
+	private static final Pattern RELATIONSHIP_HAS_PART_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+HAS_PART+" GO:([0-9]+)");
+	private static final Pattern RELATIONSHIP_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+REGULATES+" GO:([0-9]+)");
+	private static final Pattern RELATIONSHIP_POSITIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+POSITIVELY_REGULATES+" GO:([0-9]+)");
+	private static final Pattern RELATIONSHIP_NEGATIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+NEGATIVELY_REGULATES+" GO:([0-9]+)");
 
 	/**
 	 * @param args
@@ -129,23 +139,6 @@ public class Main {
 								}
 								case ALT_ID:
 								{
-//									m = ALT_ID_REGEX.matcher(line);
-//									String altID = m.matches() ? m.group(1) : "";
-//									if (!altID.trim().isEmpty())
-//									{
-//										@SuppressWarnings("unchecked")
-//										List<String> altIDs = (List<String>) goTerms.get(currentGOID).get(ALT_ID);
-//										if (altIDs == null)
-//										{
-//											altIDs = new ArrayList<String>();
-//											altIDs.add(altID);
-//											goTerms.get(currentGOID).put(ALT_ID, altIDs);
-//										}
-//										else
-//										{
-//											((List<String>) goTerms.get(currentGOID).get(ALT_ID)).add(altID);
-//										}
-//									}
 									addToMultivaluedAttribute(goTerms, currentGOID, line, ALT_ID_REGEX, ALT_ID);
 									break;
 								}
@@ -190,45 +183,11 @@ public class Main {
 								}
 								case IS_A:
 								{
-//									m = IS_A_REGEX.matcher(line);
-//									String isA = m.matches() ? m.group(1) : "";
-//									if (!isA.trim().isEmpty())
-//									{
-//										@SuppressWarnings("unchecked")
-//										List<String> isAs = (List<String>) goTerms.get(currentGOID).get(IS_A);
-//										if (isAs == null)
-//										{
-//											isAs = new ArrayList<String>();
-//											isAs.add(isA);
-//											goTerms.get(currentGOID).put(IS_A, isAs);
-//										}
-//										else
-//										{
-//											((List<String>) goTerms.get(currentGOID).get(IS_A)).add(isA);
-//										}
-//									}
 									addToMultivaluedAttribute(goTerms, currentGOID, line, IS_A_REGEX, IS_A);
 									break;
 								}
 								case SYNONYM:
 								{
-//									m = SYNONYM_REGEX.matcher(line);
-//									String synonym = m.matches() ? m.group(1) : "";
-//									if (!synonym.trim().isEmpty())
-//									{
-//										@SuppressWarnings("unchecked")
-//										List<String> synonyms = (List<String>) goTerms.get(currentGOID).get(SYNONYM);
-//										if (synonyms == null)
-//										{
-//											synonyms = new ArrayList<String>();
-//											synonyms.add(synonym);
-//											goTerms.get(currentGOID).put(SYNONYM, synonym);
-//										}
-//										else
-//										{
-//											((List<String>) goTerms.get(currentGOID).get(SYNONYM)).add(synonym);
-//										}
-//									}
 									addToMultivaluedAttribute(goTerms, currentGOID, line, SYNONYM_REGEX, SYNONYM);
 									break;
 								}
@@ -239,26 +198,68 @@ public class Main {
 								}
 								case REPLACED_BY:
 								{
-//									m = REPLACED_BY_REGEX.matcher(line);
-//									String replacement = m.matches() ? m.group(1) : "";
-//									if (!replacement.trim().isEmpty())
-//									{
-//										@SuppressWarnings("unchecked")
-//										List<String> replacements = (List<String>) goTerms.get(currentGOID).get(REPLACED_BY);
-//										if (replacements == null)
-//										{
-//											replacements = new ArrayList<String>();
-//											replacements.add(replacement);
-//											goTerms.get(currentGOID).put(REPLACED_BY, replacement);
-//										}
-//										else
-//										{
-//											((List<String>) goTerms.get(currentGOID).get(REPLACED_BY)).add(replacement);
-//										}
-//									}
 									addToMultivaluedAttribute(goTerms, currentGOID, line, REPLACED_BY_REGEX, REPLACED_BY);
 									break;
 								}
+								case IS_OBSOLETE:
+								{
+									m = IS_OBSOLETE_REGEX.matcher(line);
+									if (m.matches())
+									{
+										goTerms.get(currentGOID).put(IS_OBSOLETE, true);
+									}
+								}
+								case RELATIONSHIP:
+								{
+									m = RELATIONSHIP_DECODER.matcher(line);
+									if (m.matches())
+									{
+										String relationShipType = m.group(1);
+										switch (relationShipType)
+										{
+											case HAS_PART:
+											{
+												addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_HAS_PART_REGEX, HAS_PART);
+												break;
+											}
+											case PART_OF:
+											{
+												addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_PART_OF_REGEX, PART_OF);
+												break;
+											}
+											case REGULATES:
+											{
+												addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_REGULATES_REGEX, REGULATES);
+												break;
+											}
+											case POSITIVELY_REGULATES:
+											{
+												addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_POSITIVELY_REGULATES_REGEX, POSITIVELY_REGULATES);
+												break;
+											}
+											case NEGATIVELY_REGULATES:
+											{
+												addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_NEGATIVELY_REGULATES_REGEX, NEGATIVELY_REGULATES);
+												break;
+											}
+
+										}
+									}
+									break;
+								}
+								default:
+								{
+									// handle other cases here...
+									
+									// check for pending obsoletion
+									m = OBSOLETION.matcher(line);
+									if (m.matches())
+									{
+										goTerms.get(currentGOID).put(PENDING_OBSOLETION, true);
+									}
+									break;
+								}
+								
 							}
 						}
 					}
@@ -275,6 +276,12 @@ public class Main {
 			}
 			System.out.println(goTerms.size() + " GO terms were read from the file.");
 			System.out.println(lineCount + " lines were processed.");
+			
+			// Now, update the objects in the database.
+			for (String goId : goTerms.keySet()/*.stream().sorted().collect(Collectors.toList())*/)
+			{
+				System.out.println(goId + ": " + goTerms.get(goId).toString());
+			}
 		}
 		catch (IOException e)
 		{
