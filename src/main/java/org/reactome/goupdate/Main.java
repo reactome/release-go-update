@@ -31,47 +31,8 @@ import org.gk.schema.SchemaClass;
  * @author sshorser
  *
  */
-public class Main {
-
-	private static final String ID = "id";
-	private static final String ALT_ID = "alt_id";
-	private static final String NAME = "name";
-	private static final String NAMESPACE = "namespace";
-	private static final String DEF = "def";
-	//private static final String SUBSET = "subset";
-	private static final String RELATIONSHIP = "relationship";
-	private static final String IS_A = "is_a";
-	private static final String CONSIDER = "consider";
-	private static final String REPLACED_BY = "replaced_by";
-	private static final String SYNONYM = "synonym";
-	private static final String HAS_PART = "has_part";
-	private static final String PART_OF = "part_of";
-	private static final String REGULATES = "regulates";
-	private static final String POSITIVELY_REGULATES = "positively_"+REGULATES;
-	private static final String NEGATIVELY_REGULATES = "negatively_"+REGULATES;
-	private static final String IS_OBSOLETE = "is_obsolete";
-	private static final String PENDING_OBSOLETION = "pending_obsoletion";
-	
-	private static final Pattern LINE_DECODER = Pattern.compile("^(id|alt_id|name|namespace|def|subset|relationship|is_a|consider|replaced_by|synonym|is_obsolete):.*");
-	private static final Pattern RELATIONSHIP_DECODER = Pattern.compile("^relationship: (positively_regulates|negatively_regulates|has_part|part_of|regulates) GO:[0-9]+");
-	private static final Pattern OBSOLETION = Pattern.compile("(pending|scheduled for|slated for) obsoletion");
-	private static final Pattern IS_OBSOLETE_REGEX = Pattern.compile("^"+IS_OBSOLETE+": true");
-	private static final Pattern GO_ID_REGEX = Pattern.compile("^"+ID+": GO:([0-9]+)");
-	private static final Pattern ALT_ID_REGEX = Pattern.compile("^"+ALT_ID+": GO:([0-9]+)");
-	private static final Pattern NAME_REGEX = Pattern.compile("^"+NAME+": (.*)");
-	private static final Pattern NAMESPACE_REGEX = Pattern.compile("^"+NAMESPACE+": ([a-zA-Z_]*)");
-	private static final Pattern DEF_REGEX = Pattern.compile("^"+DEF+": (.*)");
-	private static final Pattern IS_A_REGEX = Pattern.compile("^"+IS_A+": GO:([0-9]+)");
-	private static final Pattern SYNONYM_REGEX = Pattern.compile("^"+SYNONYM+": (.*)");
-	private static final Pattern CONSIDER_REGEX = Pattern.compile("^"+CONSIDER+": GO:([0-9]+)");
-	private static final Pattern REPLACED_BY_REGEX = Pattern.compile("^"+REPLACED_BY+": GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_PART_OF_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+PART_OF+" GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_HAS_PART_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+HAS_PART+" GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+REGULATES+" GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_POSITIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+POSITIVELY_REGULATES+" GO:([0-9]+)");
-	private static final Pattern RELATIONSHIP_NEGATIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+NEGATIVELY_REGULATES+" GO:([0-9]+)");
-
-	
+public class Main
+{
 	private static String currentGOID = "";
 	private static String currentCategory = "";
 	private static String currentDefinition = "";
@@ -190,7 +151,7 @@ public class Main {
 						// Now we need to process the Term that was just finished.
 						List<GKInstance> goInstances = allGoInstances.get(currentGOID);
 						// First let's make sure the GO Term is not obsolete.
-						if ( !goTerms.get(currentGOID).containsKey(IS_OBSOLETE) && !goTerms.get(currentGOID).containsKey(PENDING_OBSOLETION))
+						if ( !goTerms.get(currentGOID).containsKey(GoUpdateConstants.IS_OBSOLETE) && !goTerms.get(currentGOID).containsKey(GoUpdateConstants.PENDING_OBSOLETION))
 						{
 							if (goInstances==null)
 							{
@@ -224,7 +185,7 @@ public class Main {
 								}
 							}
 						}
-						else if (goTerms.get(currentGOID).containsKey(PENDING_OBSOLETION) && goTerms.get(currentGOID).get(PENDING_OBSOLETION).equals(true))
+						else if (goTerms.get(currentGOID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTerms.get(currentGOID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
 						{
 							// If we have this in our database, it must be reported!
 							if (goInstances!=null)
@@ -233,7 +194,7 @@ public class Main {
 								System.out.println("GO Instance "+goInstances.toString() + " are marked as PENDING obsolete!");
 							}
 						}
-						else if (goTerms.get(currentGOID).containsKey(IS_OBSOLETE) && goTerms.get(currentGOID).get(IS_OBSOLETE).equals(true))
+						else if (goTerms.get(currentGOID).containsKey(GoUpdateConstants.IS_OBSOLETE) && goTerms.get(currentGOID).get(GoUpdateConstants.IS_OBSOLETE).equals(true))
 						{
 							// If we have this in our database, it must be reported!
 							if (goInstances!=null)
@@ -281,8 +242,8 @@ public class Main {
 		try
 		{
 			newGOTerm.setAttributeValue(ReactomeJavaConstants.accession, currentGOID);
-			newGOTerm.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(NAME));
-			newGOTerm.setAttributeValue(ReactomeJavaConstants.definition, goTerms.get(currentGOID).get(DEF));
+			newGOTerm.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
+			newGOTerm.setAttributeValue(ReactomeJavaConstants.definition, goTerms.get(currentGOID).get(GoUpdateConstants.DEF));
 			newGOTerm.setAttributeValue(ReactomeJavaConstants.referenceDatabase, goRefDB);
 			InstanceDisplayNameGenerator.setDisplayName(newGOTerm);
 			// TODO: Set Created and Modified.
@@ -321,7 +282,7 @@ public class Main {
 			// the one in the file, we update with the new name and def'n, and then set
 			// InstanceOf and ComponentOf to NULL, and I guess those get updated later.
 			
-			goInst.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(NAME));
+			goInst.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
 //			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.name);
 			
 			goInst.setAttributeValue(ReactomeJavaConstants.definition, currentDefinition);
@@ -367,15 +328,15 @@ public class Main {
 		Matcher m;
 		try
 		{
-			m = LINE_DECODER.matcher(line);
+			m = GoUpdateConstants.LINE_DECODER.matcher(line);
 			if (m.matches())
 			{
 				String lineCode = m.group(1);
 				switch (lineCode)
 				{
-					case ID:
+					case GoUpdateConstants.ID:
 					{
-						m = GO_ID_REGEX.matcher(line);
+						m = GoUpdateConstants.GO_ID_REGEX.matcher(line);
 						String goID = m.matches() ? m.group(1) : "";
 						// Were we able to extract a GO ID?
 						if (!goID.trim().isEmpty())
@@ -395,20 +356,20 @@ public class Main {
 						}
 						break;
 					}
-					case ALT_ID:
+					case GoUpdateConstants.ALT_ID:
 					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, ALT_ID_REGEX, ALT_ID);
+						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.ALT_ID_REGEX, GoUpdateConstants.ALT_ID);
 						break;
 					}
-					case NAME:
+					case GoUpdateConstants.NAME:
 					{
-						m = NAME_REGEX.matcher(line);
+						m = GoUpdateConstants.NAME_REGEX.matcher(line);
 						String name = m.matches() ? m.group(1) : "";
 						if (!name.trim().isEmpty())
 						{
 							if (!goTerms.get(currentGOID).containsKey(name))
 							{
-								goTerms.get(currentGOID).put(NAME, name);
+								goTerms.get(currentGOID).put(GoUpdateConstants.NAME, name);
 							}
 							else
 							{
@@ -419,9 +380,9 @@ public class Main {
 						}
 						break;
 					}
-					case NAMESPACE:
+					case GoUpdateConstants.NAMESPACE:
 					{
-						m = NAMESPACE_REGEX.matcher(line);
+						m = GoUpdateConstants.NAMESPACE_REGEX.matcher(line);
 						String namespace = m.matches() ? m.group(1) : "";
 						if (!namespace.trim().isEmpty())
 						{
@@ -429,9 +390,9 @@ public class Main {
 						}
 						break;
 					}
-					case DEF:
+					case GoUpdateConstants.DEF:
 					{
-						m = DEF_REGEX.matcher(line);
+						m = GoUpdateConstants.DEF_REGEX.matcher(line);
 						String def = m.matches() ? m.group(1) : "";
 						if (!def.trim().isEmpty())
 						{
@@ -439,65 +400,65 @@ public class Main {
 						}
 						break;
 					}
-					case IS_A:
+					case GoUpdateConstants.IS_A:
 					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, IS_A_REGEX, IS_A);
+						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.IS_A_REGEX, GoUpdateConstants.IS_A);
 						break;
 					}
-					case SYNONYM:
+					case GoUpdateConstants.SYNONYM:
 					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, SYNONYM_REGEX, SYNONYM);
+						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.SYNONYM_REGEX, GoUpdateConstants.SYNONYM);
 						break;
 					}
-					case CONSIDER:
+					case GoUpdateConstants.CONSIDER:
 					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, CONSIDER_REGEX, CONSIDER);
+						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.CONSIDER_REGEX, GoUpdateConstants.CONSIDER);
 						break;
 					}
-					case REPLACED_BY:
+					case GoUpdateConstants.REPLACED_BY:
 					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, REPLACED_BY_REGEX, REPLACED_BY);
+						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.REPLACED_BY_REGEX, GoUpdateConstants.REPLACED_BY);
 						break;
 					}
-					case IS_OBSOLETE:
+					case GoUpdateConstants.IS_OBSOLETE:
 					{
-						m = IS_OBSOLETE_REGEX.matcher(line);
+						m = GoUpdateConstants.IS_OBSOLETE_REGEX.matcher(line);
 						if (m.matches())
 						{
-							goTerms.get(currentGOID).put(IS_OBSOLETE, true);
+							goTerms.get(currentGOID).put(GoUpdateConstants.IS_OBSOLETE, true);
 						}
 					}
-					case RELATIONSHIP:
+					case GoUpdateConstants.RELATIONSHIP:
 					{
-						m = RELATIONSHIP_DECODER.matcher(line);
+						m = GoUpdateConstants.RELATIONSHIP_DECODER.matcher(line);
 						if (m.matches())
 						{
 							String relationShipType = m.group(1);
 							switch (relationShipType)
 							{
-								case HAS_PART:
+								case GoUpdateConstants.HAS_PART:
 								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_HAS_PART_REGEX, HAS_PART);
+									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_HAS_PART_REGEX, GoUpdateConstants.HAS_PART);
 									break;
 								}
-								case PART_OF:
+								case GoUpdateConstants.PART_OF:
 								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_PART_OF_REGEX, PART_OF);
+									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_PART_OF_REGEX, GoUpdateConstants.PART_OF);
 									break;
 								}
-								case REGULATES:
+								case GoUpdateConstants.REGULATES:
 								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_REGULATES_REGEX, REGULATES);
+									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_REGULATES_REGEX, GoUpdateConstants.REGULATES);
 									break;
 								}
-								case POSITIVELY_REGULATES:
+								case GoUpdateConstants.POSITIVELY_REGULATES:
 								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_POSITIVELY_REGULATES_REGEX, POSITIVELY_REGULATES);
+									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_POSITIVELY_REGULATES_REGEX, GoUpdateConstants.POSITIVELY_REGULATES);
 									break;
 								}
-								case NEGATIVELY_REGULATES:
+								case GoUpdateConstants.NEGATIVELY_REGULATES:
 								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, RELATIONSHIP_NEGATIVELY_REGULATES_REGEX, NEGATIVELY_REGULATES);
+									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_NEGATIVELY_REGULATES_REGEX, GoUpdateConstants.NEGATIVELY_REGULATES);
 									break;
 								}
 
@@ -511,10 +472,10 @@ public class Main {
 						// ...such as...
 						//
 						// check for pending obsoletion
-						m = OBSOLETION.matcher(line);
+						m = GoUpdateConstants.OBSOLETION.matcher(line);
 						if (m.matches())
 						{
-							goTerms.get(currentGOID).put(PENDING_OBSOLETION, true);
+							goTerms.get(currentGOID).put(GoUpdateConstants.PENDING_OBSOLETION, true);
 						}
 						break;
 					}
