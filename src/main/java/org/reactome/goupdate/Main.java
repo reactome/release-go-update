@@ -1,6 +1,3 @@
-/**
- * 
- */
 package org.reactome.goupdate;
 
 import java.io.IOException;
@@ -87,47 +84,7 @@ public class Main
 				System.out.println("This program should run within a transaction. Aborting.");
 				System.exit(1);
 			}
-			Collection<GKInstance> bioProcesses = new ArrayList<GKInstance>();
-			Collection<GKInstance> molecularFunctions = new ArrayList<GKInstance>();
-			Collection<GKInstance> cellComponents = new ArrayList<GKInstance>();
-			try
-			{
-				bioProcesses = adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
-				System.out.println(bioProcesses.size() + " GO_BiologicalProcesses in the database.");
-				molecularFunctions = adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
-				System.out.println(molecularFunctions.size() + " GO_MolecularFunction in the database.");
-				cellComponents = adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
-				System.out.println(cellComponents.size() + " GO_CellularComponent in the database.");
-			}
-			catch (Exception e)
-			{
-				e.printStackTrace();
-			}
-			
-			Map<String, List<GKInstance>> allGoInstances = new HashMap<String, List<GKInstance>>();
-			Consumer<? super GKInstance> populateAllGoInstMap = inst -> {
-				try
-				{
-					if (!allGoInstances.containsKey((String)(inst.getAttributeValue(ReactomeJavaConstants.accession))))
-					{
-						allGoInstances.put((String)(inst.getAttributeValue(ReactomeJavaConstants.accession)), new ArrayList<GKInstance>( Arrays.asList(inst) ) );
-					}
-					else
-					{
-						allGoInstances.get((String)(inst.getAttributeValue(ReactomeJavaConstants.accession))).add(inst);
-					}
-				}
-				catch (Exception e)
-				{
-					e.printStackTrace();
-				}
-			};
-			
-			bioProcesses.forEach( populateAllGoInstMap);
-			
-			cellComponents.forEach( populateAllGoInstMap);
-			
-			molecularFunctions.forEach( populateAllGoInstMap);
+			Map<String, List<GKInstance>> allGoInstances = populateMapOfAllGOInstances(adaptor);
 			
 			System.out.println(allGoInstances.size() + " items in the allGoInstances map.");
 			
@@ -138,6 +95,7 @@ public class Main
 			int obsoleteCount = 0;
 			int pendingObsoleteCount = 0;
 			int mismatchCount = 0;
+			int goTermCount = 0;
 			for (String line : goLines)
 			{
 				lineCount ++;
@@ -181,6 +139,8 @@ public class Main
 									{
 										mismatchCount++;
 										System.out.println("Category mismatch! GO ID: "+currentGOID+" Category in DB: "+goInst.getSchemClass().getName()+ " category in GO file: "+currentCategory);
+										goTerms.remove(currentGOID);
+										// deleteGoInstance(goInst);
 									}
 								}
 							}
@@ -201,6 +161,8 @@ public class Main
 							{
 								obsoleteCount++;
 								System.out.println("GO Instance "+goInstances.toString() + " are marked as OBSOLETE!");
+								goTerms.remove(currentGOID);
+								// deleteGoInstance(goInstances);
 							}
 							
 						}
@@ -212,18 +174,41 @@ public class Main
 				else if (line.equals("[Term]"))
 				{
 					termStarted = true;
+					goTermCount++;
 				}
 				else if (termStarted)
 				{
 					processLine(line, goTerms);
 				}
 			}
-			System.out.println(goTerms.size() + " GO terms were read from the file.");
-			System.out.println(lineCount + " lines were processed.");
-			System.out.println(newGoTermCount + " new GO terms.");
-			System.out.println(mismatchCount + " had mismatched categories.");
-			System.out.println(obsoleteCount + " are obsolete.");
-			System.out.println(pendingObsoleteCount + " are pending obsolescence.");
+			
+			//Reload the list of GO Instances, since new ones have been created, and old ones have been deleted.
+			allGoInstances = populateMapOfAllGOInstances(adaptor);
+			// Now that the main loop has run, update relationships between GO terms.
+			for (String goId : goTerms.keySet())
+			{
+				List<GKInstance> goInsts = (List<GKInstance>) allGoInstances.get(goId);
+				Map<String, Object> goProps = goTerms.get(goId);
+				if (goInsts != null && !goInsts.isEmpty())
+				{
+					for (GKInstance goInst : goInsts)
+					{
+						updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
+						updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.HAS_PART, "hasPart");
+						updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
+						updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.REGULATES, "regulate");
+						updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate");
+						updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate");
+					}
+				}
+			}
+			
+			System.out.println(lineCount + " lines from the file were processed.");
+			System.out.println(goTermCount + " GO terms were read from the file.");
+			System.out.println(newGoTermCount + " new GO terms were found (and added to the database).");
+			System.out.println(mismatchCount + " existing GO terms had mismatched categories (and were deleted).");
+			System.out.println(obsoleteCount + " were obsolete (and were deleted).");
+			System.out.println(pendingObsoleteCount + " are pending obsolescence (and will probably be deleted at some point in the future).");
 			
 			adaptor.rollback();	
 		}
@@ -232,6 +217,106 @@ public class Main
 			e.printStackTrace();
 		}
 		
+	}
+
+	/**
+	 * @param adaptor
+	 * @param allGoInstances
+	 * @param goInst
+	 * @param goProps
+	 */
+	private static void updateRelationship(MySQLAdaptor adaptor, Map<String, List<GKInstance>> allGoInstances, GKInstance goInst, Map<String, Object> goProps, String relationshipKey, String reactomeRelationshipName)
+	{
+		if (goProps.containsKey(relationshipKey))
+		{
+			@SuppressWarnings("unchecked")
+			List<String> otherIDs = (List<String>) goProps.get(relationshipKey);
+			for (String otherID : otherIDs)
+			{				
+				List<GKInstance> otherInsts = allGoInstances.get(otherID);
+				try
+				{
+					goInst.getAttributeValuesList(reactomeRelationshipName);
+					if (otherInsts != null && !otherInsts.isEmpty())
+					{
+						for (GKInstance inst : otherInsts)
+						{
+							try
+							{
+								goInst.addAttributeValue(reactomeRelationshipName, inst);
+								//System.out.println("Relationship updated! "+inst+ " added to "+goInst+" via "+reactomeRelationshipName);	
+							}
+							catch (InvalidAttributeValueException e)
+							{
+								System.err.println("InvalidAttributeValueException was caught! Instance was \""+goInst.toString()+"\" with GO ID: "+goInst.getAttributeValue(ReactomeJavaConstants.accession)+", attribute was: "+reactomeRelationshipName+ ", Value was: \""+inst+"\", with GO ID: "+inst.getAttributeValue(ReactomeJavaConstants.accession));
+								e.printStackTrace();
+							}
+						}
+					}
+					else
+					{
+						System.out.println("Could not find instance with GO ID "+otherID);
+					}
+					//adaptor.updateInstanceAttribute(goInst, reactomeRelationshipName);
+				}
+				
+				catch (Exception e)
+				{
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
+	/**
+	 * @param adaptor
+	 * @return
+	 */
+	private static Map<String, List<GKInstance>> populateMapOfAllGOInstances(MySQLAdaptor adaptor)
+	{
+		Collection<GKInstance> bioProcesses = new ArrayList<GKInstance>();
+		Collection<GKInstance> molecularFunctions = new ArrayList<GKInstance>();
+		Collection<GKInstance> cellComponents = new ArrayList<GKInstance>();
+		try
+		{
+			bioProcesses = adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
+			System.out.println(bioProcesses.size() + " GO_BiologicalProcesses in the database.");
+			molecularFunctions = adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
+			System.out.println(molecularFunctions.size() + " GO_MolecularFunction in the database.");
+			cellComponents = adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
+			System.out.println(cellComponents.size() + " GO_CellularComponent in the database.");
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		
+		Map<String, List<GKInstance>> allGoInstances = new HashMap<String, List<GKInstance>>();
+		Consumer<? super GKInstance> populateInstMap = inst -> {
+			try
+			{
+				if (!allGoInstances.containsKey((String)(inst.getAttributeValue(ReactomeJavaConstants.accession))))
+				{
+					allGoInstances.put((String)(inst.getAttributeValue(ReactomeJavaConstants.accession)), new ArrayList<GKInstance>( Arrays.asList(inst) ) );
+				}
+				else
+				{
+					allGoInstances.get((String)(inst.getAttributeValue(ReactomeJavaConstants.accession))).add(inst);
+				}
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
+			}
+		};
+		
+		bioProcesses.forEach( populateInstMap);
+		
+		cellComponents.forEach( populateInstMap);
+		
+		molecularFunctions.forEach( populateInstMap);
+		
+		return allGoInstances;
 	}
 
 	private static void createNewGOTerm(MySQLAdaptor adaptor, GKInstance goRefDB, Map<String, Map<String, Object>> goTerms, String currentGOID, String currentCategory)
@@ -247,9 +332,15 @@ public class Main
 			newGOTerm.setAttributeValue(ReactomeJavaConstants.referenceDatabase, goRefDB);
 			InstanceDisplayNameGenerator.setDisplayName(newGOTerm);
 			// TODO: Set Created and Modified.
-			//adaptor.storeInstance(newGOTerm);
+			newGOTerm.setDbAdaptor(adaptor);
+			adaptor.storeInstance(newGOTerm);
 		}
 		catch (InvalidAttributeException | InvalidAttributeValueException e)
+		{
+			System.err.println("Attribute/value error! "+ e.getMessage());
+			e.printStackTrace();
+		}
+		catch (Exception e)
 		{
 			e.printStackTrace();
 		}
@@ -294,7 +385,12 @@ public class Main
 		}
 		catch (InvalidAttributeException | InvalidAttributeValueException e)
 		{
+			System.err.println("Attribute/Value problem with "+goInst.toString()+ " " + e.getMessage());
 			e.printStackTrace();
+		}
+		catch (NullPointerException e)
+		{
+			System.err.println("Got a NPE! GO ID: "+currentGOID+" GO Instance: "+goInst + " GO Term: "+goTerms.get(currentGOID));
 		}
 		catch (Exception e)
 		{
@@ -303,7 +399,8 @@ public class Main
 	}
 
 	@SuppressWarnings("unchecked")
-	private static void addToMultivaluedAttribute(Map<String, Map<String, Object>> goTerms, String currentGOID, String line, Pattern pattern, String key) {
+	private static void addToMultivaluedAttribute(Map<String, Map<String, Object>> goTerms, String currentGOID, String line, Pattern pattern, String key)
+	{
 		Matcher m;
 		m = pattern.matcher(line);
 		String extractedValue = m.matches() ? m.group(1) : "";
@@ -461,7 +558,6 @@ public class Main
 									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_NEGATIVELY_REGULATES_REGEX, GoUpdateConstants.NEGATIVELY_REGULATES);
 									break;
 								}
-
 							}
 						}
 						break;
