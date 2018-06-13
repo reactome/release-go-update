@@ -139,7 +139,7 @@ public class Main
 									{
 										mismatchCount++;
 										System.out.println("Category mismatch! GO ID: "+currentGOID+" Category in DB: "+goInst.getSchemClass().getName()+ " category in GO file: "+currentCategory);
-										// deleteGoInstance(goInst);
+										deleteGoInstance(goInst, adaptor);
 									}
 								}
 							}
@@ -160,7 +160,10 @@ public class Main
 							{
 								obsoleteCount++;
 								System.out.println("GO Instance "+goInstances.toString() + " are marked as OBSOLETE!");
-								// deleteGoInstance(goInstances);
+								for (GKInstance inst : goInstances)
+								{
+									deleteGoInstance(inst, adaptor);
+								}
 							}
 							
 						}
@@ -215,6 +218,19 @@ public class Main
 			e.printStackTrace();
 		}
 		
+	}
+
+	private static void deleteGoInstance(GKInstance goInst, MySQLAdaptor adaptor)
+	{
+		try
+		{
+			adaptor.deleteInstance(goInst);
+		}
+		catch (Exception e)
+		{
+			System.err.println("Error occurred while trying to delete instance: \""+goInst.toString()+"\": "+e.getMessage());
+			e.printStackTrace();
+		}
 	}
 
 	/**
