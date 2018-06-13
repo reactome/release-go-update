@@ -139,7 +139,6 @@ public class Main
 									{
 										mismatchCount++;
 										System.out.println("Category mismatch! GO ID: "+currentGOID+" Category in DB: "+goInst.getSchemClass().getName()+ " category in GO file: "+currentCategory);
-										goTerms.remove(currentGOID);
 										// deleteGoInstance(goInst);
 									}
 								}
@@ -161,7 +160,6 @@ public class Main
 							{
 								obsoleteCount++;
 								System.out.println("GO Instance "+goInstances.toString() + " are marked as OBSOLETE!");
-								goTerms.remove(currentGOID);
 								// deleteGoInstance(goInstances);
 							}
 							
@@ -390,7 +388,7 @@ public class Main
 		}
 		catch (NullPointerException e)
 		{
-			System.err.println("Got a NPE! GO ID: "+currentGOID+" GO Instance: "+goInst + " GO Term: "+goTerms.get(currentGOID));
+			System.err.println("NullPointerException occurred! GO ID: "+currentGOID+" GO Instance: "+goInst + " GO Term: "+goTerms.get(currentGOID));
 		}
 		catch (Exception e)
 		{
