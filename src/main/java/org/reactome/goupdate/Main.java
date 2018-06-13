@@ -84,18 +84,23 @@ public class Main
 				System.out.println("This program should run within a transaction. Aborting.");
 				System.exit(1);
 			}
+
+			// This map is keyed by GO Accession number (GO ID).
 			Map<String, List<GKInstance>> allGoInstances = populateMapOfAllGOInstances(adaptor);
 			
 			System.out.println(allGoInstances.size() + " items in the allGoInstances map.");
-			
+			// Load the file.
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
+			// This map is keyed by GO ID. Values are maps of strings that map to values from the file.
 			Map<String, Map<String,Object>> goTerms = new HashMap<String, Map<String,Object>>();
+			Map<String, List<String>> altGoIdToMainGoId = new HashMap<String, List<String>>();
 			int lineCount = 0;
 			int newGoTermCount = 0;
 			int obsoleteCount = 0;
 			int pendingObsoleteCount = 0;
 			int mismatchCount = 0;
 			int goTermCount = 0;
+			List<GKInstance> instancesForDeletion = new ArrayList<GKInstance>();
 			for (String line : goLines)
 			{
 				lineCount ++;
@@ -139,7 +144,8 @@ public class Main
 									{
 										mismatchCount++;
 										System.out.println("Category mismatch! GO ID: "+currentGOID+" Category in DB: "+goInst.getSchemClass().getName()+ " category in GO file: "+currentCategory);
-										deleteGoInstance(goInst, adaptor);
+										//deleteGoInstance(goInst, goTerms, adaptor);
+										instancesForDeletion.add(goInst);
 									}
 								}
 							}
@@ -162,7 +168,8 @@ public class Main
 								System.out.println("GO Instance "+goInstances.toString() + " are marked as OBSOLETE!");
 								for (GKInstance inst : goInstances)
 								{
-									deleteGoInstance(inst, adaptor);
+									//deleteGoInstance(inst, goTerms, adaptor);
+									instancesForDeletion.add(inst);
 								}
 							}
 							
@@ -179,10 +186,15 @@ public class Main
 				}
 				else if (termStarted)
 				{
-					processLine(line, goTerms);
+					processLine(line, goTerms, altGoIdToMainGoId);
 				}
 			}
 			
+			// Now that the full goTerms structure is complete, and the alternate GO IDs are set up, we can delete the obsolete/category-mismatched GO instances from the database.
+			for (GKInstance instance : instancesForDeletion)
+			{
+				deleteGoInstance(instance, goTerms, altGoIdToMainGoId, allGoInstances, adaptor);
+			}
 			//Reload the list of GO Instances, since new ones have been created, and old ones have been deleted.
 			allGoInstances = populateMapOfAllGOInstances(adaptor);
 			// Now that the main loop has run, update relationships between GO terms.
@@ -220,10 +232,71 @@ public class Main
 		
 	}
 
-	private static void deleteGoInstance(GKInstance goInst, MySQLAdaptor adaptor)
+	private static void deleteGoInstance(GKInstance goInst, Map<String, Map<String,Object>> goTerms, Map<String, List<String>> altGoIDsToMainGoIDs, Map<String, List<GKInstance>> allGoInstances, MySQLAdaptor adaptor)
 	{
 		try
 		{
+			String goId = (String) goInst.getAttributeValue(ReactomeJavaConstants.accession);
+			System.out.println("Deleting GO instance: \""+goInst.toString()+"\" (GO:"+goId+")");
+			// before we do the actual delete, we should update referrers to refer to a GO Term whose *alternate* accession (GO ID) is the id of the 
+			// term being deleted.
+			String altGoId = null;
+			if (goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)!=null)
+			{
+				altGoId = ((List<String>)goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)).get(0);
+			}
+			else if (goTerms.get(goId).get(GoUpdateConstants.CONSIDER)!=null)
+			{
+				altGoId = ((List<String>)goTerms.get(goId).get(GoUpdateConstants.CONSIDER)).get(0);
+			}
+			else if (goTerms.get(goId).get(GoUpdateConstants.ALT_ID)!=null)
+			{
+				altGoId = ((List<String>)goTerms.get(goId).get(GoUpdateConstants.ALT_ID)).get(0);
+			}
+			
+			
+			//if (altGoIDsToMainGoIDs.containsKey(goId)) //TODO: remove altGoIDsToMainGoIDs
+			if (altGoId != null)
+			{
+				// The current instances GO ID is an alternate to others. So, we will re-direct referrers to that one.
+				// If there's more than one, just use the first one.
+				String replacementGoId = altGoId; //altGoIDsToMainGoIDs.get(goId).get(0);
+				if (allGoInstances.containsKey(replacementGoId))
+				{
+					GKInstance replacementGoInstance = allGoInstances.get(replacementGoId).get(0);
+					@SuppressWarnings("unchecked")
+					Map<String, List<GKInstance>> referrers = new HashMap<String, List<GKInstance>>();
+					for (String attribute : Arrays.asList(ReactomeJavaConstants.activity, "componentOf", "hasPart", "negativelyRegulate", "positivelyRegulat", "regulate"))
+					{
+						@SuppressWarnings("unchecked")
+						List<GKInstance> tmp = (List<GKInstance>) goInst.getReferers(attribute);
+						if (tmp!=null)
+						{
+							referrers.put(attribute, tmp );
+						}
+					}
+					
+					// for each of goInst's referrers, redirect them to the replacement instance.
+					for (String attribute : referrers.keySet())
+					{
+						for (GKInstance referringInstance : referrers.get(attribute))
+						{
+							GKInstance tmp = (GKInstance) referringInstance.getAttributeValue(attribute);
+							if (tmp.getDBID() == goInst.getDBID())
+							{
+								System.out.println("\""+referringInstance.toString()+"\" now refers to \""+replacementGoInstance+"\" (GO:"+replacementGoId+") via \""+attribute+"\"");
+								referringInstance.setAttributeValue(attribute, replacementGoInstance);
+								adaptor.updateInstanceAttribute(referringInstance, attribute);
+							}
+						}
+					}
+				}
+				else
+				{
+					System.out.println("Replacement GO Instance with GO ID: "+replacementGoId+ " could not be found in allGoInstances map."
+							+ "This was not expected. Instance \""+goInst.toString()+"\" will still be deleted but referrs will have nothing to refer to.");
+				}
+			}
 			adaptor.deleteInstance(goInst);
 		}
 		catch (Exception e)
@@ -258,7 +331,7 @@ public class Main
 							try
 							{
 								goInst.addAttributeValue(reactomeRelationshipName, inst);
-								//System.out.println("Relationship updated! "+inst+ " added to "+goInst+" via "+reactomeRelationshipName);	
+								//System.out.println("Relationship updated! \""+goInst.toString()+"\" (GO:"+goInst.getAttributeValue(ReactomeJavaConstants.accession)+" now has relationship \""+reactomeRelationshipName+"\" referring to \""+inst.toString()+"\" (GO:"+inst.getAttributeValue(ReactomeJavaConstants.accession)+")");
 							}
 							catch (InvalidAttributeValueException e)
 							{
@@ -271,7 +344,7 @@ public class Main
 					{
 						System.out.println("Could not find instance with GO ID "+otherID);
 					}
-					//adaptor.updateInstanceAttribute(goInst, reactomeRelationshipName);
+					adaptor.updateInstanceAttribute(goInst, reactomeRelationshipName);
 				}
 				
 				catch (Exception e)
@@ -388,13 +461,13 @@ public class Main
 			// InstanceOf and ComponentOf to NULL, and I guess those get updated later.
 			
 			goInst.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
-//			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.name);
+			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.name);
 			
 			goInst.setAttributeValue(ReactomeJavaConstants.definition, currentDefinition);
-//			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.definition);
+			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.definition);
 			
 			InstanceDisplayNameGenerator.setDisplayName(goInst);
-//			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants._displayName);
+			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants._displayName);
 			//TODO: add "modified" InstanceEdit.
 		}
 		catch (InvalidAttributeException | InvalidAttributeValueException e)
@@ -434,7 +507,7 @@ public class Main
 		}
 	}
 	
-	private static void processLine(String line, Map<String, Map<String,Object>> goTerms)
+	private static void processLine(String line, Map<String, Map<String,Object>> goTerms, Map<String,List<String>> altGoIdToMainGoId)
 	{
 		Matcher m;
 		try
@@ -470,6 +543,7 @@ public class Main
 					case GoUpdateConstants.ALT_ID:
 					{
 						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.ALT_ID_REGEX, GoUpdateConstants.ALT_ID);
+						updateAltGoIDsList(goTerms, altGoIdToMainGoId, GoUpdateConstants.ALT_ID);
 						break;
 					}
 					case GoUpdateConstants.NAME:
@@ -524,11 +598,13 @@ public class Main
 					case GoUpdateConstants.CONSIDER:
 					{
 						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.CONSIDER_REGEX, GoUpdateConstants.CONSIDER);
+						updateAltGoIDsList(goTerms, altGoIdToMainGoId, GoUpdateConstants.CONSIDER);
 						break;
 					}
 					case GoUpdateConstants.REPLACED_BY:
 					{
 						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.REPLACED_BY_REGEX, GoUpdateConstants.REPLACED_BY);
+						updateAltGoIDsList(goTerms, altGoIdToMainGoId, GoUpdateConstants.REPLACED_BY);
 						break;
 					}
 					case GoUpdateConstants.IS_OBSOLETE:
@@ -599,6 +675,29 @@ public class Main
 			{
 				// no match found is OK, but anything else should be raised.
 				throw e;
+			}
+		}
+	}
+
+	/**
+	 * @param goTerms
+	 * @param altGoIdToMainGoId
+	 */
+	private static void updateAltGoIDsList(Map<String, Map<String, Object>> goTerms, Map<String, List<String>> altGoIdToMainGoId, String key) {
+		@SuppressWarnings("unchecked")
+		List<String> altGoIds = (List<String>) goTerms.get(currentGOID).get(key);
+		// Build a mapping that maps alternate GO IDs to primary GO IDs.
+		for (String altGoId : altGoIds)
+		{
+			if (altGoIdToMainGoId.containsKey(altGoId))
+			{
+				altGoIdToMainGoId.get(altGoId).add(currentGOID);
+			}
+			else
+			{
+				List<String> primaryGoIds = new ArrayList<String>();
+				primaryGoIds.add(currentGOID);
+				altGoIdToMainGoId.put(altGoId, primaryGoIds);
 			}
 		}
 	}
