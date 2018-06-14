@@ -34,7 +34,12 @@ public class Main
 	private static String currentCategory = "";
 	private static String currentDefinition = "";
 	
-	
+	private static StringBuilder nameOrDefinitionChangeStringBuilder = new StringBuilder();
+	private static StringBuilder categoryMismatchStringBuilder = new StringBuilder();
+	private static StringBuilder obsoletionStringBuilder = new StringBuilder();
+	private static StringBuilder newGOTermStringBuilder = new StringBuilder();
+	private static StringBuilder deletionStringBuilder = new StringBuilder();
+	private static StringBuilder updatedRelationshipStringBuilder = new StringBuilder();
 	
 	/**
 	 * @param args
@@ -122,7 +127,8 @@ public class Main
 							if (goInstances==null)
 							{
 								// Create a new Instance if there is nothing in the current list of instances.
-								System.out.println("New GO Term to create: GO:"+ currentGOID + " " + goTerms.get(currentGOID));
+								//System.out.println("New GO Term to create: GO:"+ currentGOID + " " + goTerms.get(currentGOID));
+								newGOTermStringBuilder.append("New GO Term to create: GO:").append(currentGOID).append(" ").append(goTerms.get(currentGOID)).append("\n");
 								
 								
 								createNewGOTerm(adaptor, goRefDB, goTerms, currentGOID, currentCategory);
@@ -146,7 +152,8 @@ public class Main
 									else
 									{
 										mismatchCount++;
-										System.out.println("Category mismatch! GO ID: "+currentGOID+" Category in DB: "+goInst.getSchemClass().getName()+ " category in GO file: "+currentCategory);
+										//System.out.println("Category mismatch! GO ID: "+currentGOID+" Category in DB: "+goInst.getSchemClass().getName()+ " category in GO file: "+currentCategory);
+										categoryMismatchStringBuilder.append("Category mismatch! GO ID: ").append(currentGOID).append(" Category in DB: ").append(goInst.getSchemClass().getName()).append(" category in GO file: ").append(currentCategory).append("\n");
 										//deleteGoInstance(goInst, goTerms, adaptor);
 										instancesForDeletion.add(goInst);
 									}
@@ -159,7 +166,7 @@ public class Main
 							if (goInstances!=null)
 							{
 								pendingObsoleteCount++;
-								System.out.println("GO Instance "+goInstances.toString() + " are marked as PENDING obsolete!");
+								obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as PENDING obsolete!\n");
 							}
 						}
 						else if (goTerms.get(currentGOID).containsKey(GoUpdateConstants.IS_OBSOLETE) && goTerms.get(currentGOID).get(GoUpdateConstants.IS_OBSOLETE).equals(true))
@@ -168,7 +175,7 @@ public class Main
 							if (goInstances!=null)
 							{
 								obsoleteCount++;
-								System.out.println("GO Instance "+goInstances.toString() + " are marked as OBSOLETE!");
+								obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as OBSOLETE!\n");
 								for (GKInstance inst : goInstances)
 								{
 									//deleteGoInstance(inst, goTerms, adaptor);
@@ -219,6 +226,14 @@ public class Main
 				}
 			}
 			
+			System.out.println("\n*** New GO Terms: ***\n"+newGOTermStringBuilder.toString());
+			System.out.println("\n*** Category mismatches: ***\n"+categoryMismatchStringBuilder.toString());
+			System.out.println("\n*** Name/Definition mismatches: ***\n"+nameOrDefinitionChangeStringBuilder.toString());
+			System.out.println("\n*** Obsoletion warnings: ***\n"+obsoletionStringBuilder.toString());
+			System.out.println("\n*** Deletions: ***\n"+deletionStringBuilder.toString());
+			System.out.println("\n*** Relationship updates: ***\n"+updatedRelationshipStringBuilder.toString());
+			
+			
 			System.out.println(lineCount + " lines from the file were processed.");
 			System.out.println(goTermCount + " GO terms were read from the file.");
 			System.out.println(newGoTermCount + " new GO terms were found (and added to the database).");
@@ -240,7 +255,7 @@ public class Main
 		try
 		{
 			String goId = (String) goInst.getAttributeValue(ReactomeJavaConstants.accession);
-			System.out.println("Deleting GO instance: \""+goInst.toString()+"\" (GO:"+goId+")");
+			deletionStringBuilder.append("Deleting GO instance: \"").append(goInst.toString()).append("\" (GO:").append(goId).append(")\n");
 			// before we do the actual delete, we should update referrers to refer to a GO Term whose *alternate* accession (GO ID) is the id of the 
 			// term being deleted.
 			String altGoId = null;
@@ -287,7 +302,8 @@ public class Main
 							GKInstance tmp = (GKInstance) referringInstance.getAttributeValue(attribute);
 							if (tmp.getDBID() == goInst.getDBID())
 							{
-								System.out.println("\""+referringInstance.toString()+"\" now refers to \""+replacementGoInstance+"\" (GO:"+replacementGoId+") via \""+attribute+"\"");
+								//System.out.println("\""+referringInstance.toString()+"\" now refers to \""+replacementGoInstance+"\" (GO:"+replacementGoId+") via \""+attribute+"\"");
+								deletionStringBuilder.append("\"").append(referringInstance.toString()).append("\" now refers to \"").append(replacementGoInstance).append("\" (GO:").append(replacementGoId).append(") via \"").append(attribute).append("\"");
 								referringInstance.setAttributeValue(attribute, replacementGoInstance);
 								adaptor.updateInstanceAttribute(referringInstance, attribute);
 							}
@@ -297,8 +313,10 @@ public class Main
 				else
 				{
 					//TODO: when logging with log4j, log this as a WARNING!
-					System.out.println("Replacement GO Instance with GO ID: "+replacementGoId+ " could not be found in allGoInstances map."
-							+ "This was not expected. Instance \""+goInst.toString()+"\" will still be deleted but referrs will have nothing to refer to.");
+//					System.out.println("Replacement GO Instance with GO ID: "+replacementGoId+ " could not be found in allGoInstances map."
+//							+ "This was not expected. Instance \""+goInst.toString()+"\" will still be deleted but referrs will have nothing to refer to.");
+					deletionStringBuilder.append("Replacement GO Instance with GO ID: ").append(replacementGoId).append(" could not be found in allGoInstances map.")
+							.append("This was not expected. Instance \"").append(goInst.toString()).append("\" will still be deleted but referrs will have nothing to refer to.\n");
 				}
 			}
 			adaptor.deleteInstance(goInst);
@@ -336,6 +354,9 @@ public class Main
 							{
 								goInst.addAttributeValue(reactomeRelationshipName, inst);
 								//System.out.println("Relationship updated! \""+goInst.toString()+"\" (GO:"+goInst.getAttributeValue(ReactomeJavaConstants.accession)+" now has relationship \""+reactomeRelationshipName+"\" referring to \""+inst.toString()+"\" (GO:"+inst.getAttributeValue(ReactomeJavaConstants.accession)+")");
+								updatedRelationshipStringBuilder.append("Relationship updated! \"").append(goInst.toString()).append("\" (GO:").append(goInst.getAttributeValue(ReactomeJavaConstants.accession))
+								.append(" now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
+								.append(inst.getAttributeValue(ReactomeJavaConstants.accession)).append(")\n");
 							}
 							catch (InvalidAttributeValueException e)
 							{
@@ -466,10 +487,14 @@ public class Main
 			if ((goTerms.get(currentGOID).get(GoUpdateConstants.NAME)!=null && !goTerms.get(currentGOID).get(GoUpdateConstants.NAME).equals(goInst.getAttributeValue(ReactomeJavaConstants.name)))
 				|| (currentDefinition != null && !currentDefinition.equals(goInst.getAttributeValue(ReactomeJavaConstants.definition))))
 			{
-				System.out.println("Change in name/definition for GO ID "+currentGOID+"! "
-						+ "New name: \""+goTerms.get(currentGOID).get(GoUpdateConstants.NAME)+"\" vs. old name: \""+goInst.getAttributeValue(ReactomeJavaConstants.name)+"\""
-						+ " new def'n: \""+currentDefinition+"\" vs old def'n: \""+goInst.getAttributeValue(ReactomeJavaConstants.definition)+"\". "
-						+ "  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)");
+//				System.out.println("Change in name/definition for GO ID "+currentGOID+"! "
+//						+ "New name: \""+goTerms.get(currentGOID).get(GoUpdateConstants.NAME)+"\" vs. old name: \""+goInst.getAttributeValue(ReactomeJavaConstants.name)+"\""
+//						+ " new def'n: \""+currentDefinition+"\" vs old def'n: \""+goInst.getAttributeValue(ReactomeJavaConstants.definition)+"\". "
+//						+ "  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)");
+				nameOrDefinitionChangeStringBuilder.append("Change in name/definition for GO ID ").append(currentGOID).append("! ")
+						.append("New name: \"").append(goTerms.get(currentGOID).get(GoUpdateConstants.NAME)).append("\" vs. old name: \"").append(goInst.getAttributeValue(ReactomeJavaConstants.name)).append("\"")
+						.append(" new def'n: \"").append(currentDefinition).append("\" vs old def'n: \"").append(goInst.getAttributeValue(ReactomeJavaConstants.definition)).append("\". ")
+						.append("  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)\n");
 				goInst.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
 				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.instanceOf);
 				goInst.setAttributeValue(ReactomeJavaConstants.componentOf, null);
