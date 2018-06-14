@@ -101,7 +101,12 @@ public class Main
 			// Load the file.
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
 			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
+
+			GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines);
 			
+			StringBuilder report = goTermsUpdator.updateGoTerms();
+			System.out.println(report);
+/*			
 			Map<String,List<String>> goToECNumbers = new HashMap<String,List<String>>();
 			ec2GoLines.stream().filter(line -> !line.startsWith("!")).forEach(line -> processEc2GoLine(line, goToECNumbers));
 			
@@ -247,7 +252,7 @@ public class Main
 			System.out.println(mismatchCount + " existing GO terms had mismatched categories (and were deleted).");
 			System.out.println(obsoleteCount + " were obsolete (and were deleted).");
 			System.out.println(pendingObsoleteCount + " are pending obsolescence (and will probably be deleted at some point in the future).");
-			
+			*/
 			adaptor.rollback();	
 		}
 		catch (IOException e)
@@ -330,7 +335,6 @@ public class Main
 							GKInstance tmp = (GKInstance) referringInstance.getAttributeValue(attribute);
 							if (tmp.getDBID() == goInst.getDBID())
 							{
-								//System.out.println("\""+referringInstance.toString()+"\" now refers to \""+replacementGoInstance+"\" (GO:"+replacementGoId+") via \""+attribute+"\"");
 								deletionStringBuilder.append("\"").append(referringInstance.toString()).append("\" now refers to \"").append(replacementGoInstance).append("\" (GO:").append(replacementGoId).append(") via \"").append(attribute).append("\"");
 								referringInstance.setAttributeValue(attribute, replacementGoInstance);
 								adaptor.updateInstanceAttribute(referringInstance, attribute);
@@ -341,8 +345,6 @@ public class Main
 				else
 				{
 					//TODO: when logging with log4j, log this as a WARNING!
-//					System.out.println("Replacement GO Instance with GO ID: "+replacementGoId+ " could not be found in allGoInstances map."
-//							+ "This was not expected. Instance \""+goInst.toString()+"\" will still be deleted but referrs will have nothing to refer to.");
 					deletionStringBuilder.append("Replacement GO Instance with GO ID: ").append(replacementGoId).append(" could not be found in allGoInstances map.")
 							.append("This was not expected. Instance \"").append(goInst.toString()).append("\" will still be deleted but referrs will have nothing to refer to.\n");
 				}
@@ -526,18 +528,19 @@ public class Main
 			if ((goTerms.get(currentGOID).get(GoUpdateConstants.NAME)!=null && !goTerms.get(currentGOID).get(GoUpdateConstants.NAME).equals(goInst.getAttributeValue(ReactomeJavaConstants.name)))
 				|| (currentDefinition != null && !currentDefinition.equals(goInst.getAttributeValue(ReactomeJavaConstants.definition))))
 			{
-//				System.out.println("Change in name/definition for GO ID "+currentGOID+"! "
-//						+ "New name: \""+goTerms.get(currentGOID).get(GoUpdateConstants.NAME)+"\" vs. old name: \""+goInst.getAttributeValue(ReactomeJavaConstants.name)+"\""
-//						+ " new def'n: \""+currentDefinition+"\" vs old def'n: \""+goInst.getAttributeValue(ReactomeJavaConstants.definition)+"\". "
-//						+ "  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)");
-				nameOrDefinitionChangeStringBuilder.append("Change in name/definition for GO ID ").append(currentGOID).append("! ")
-						.append("New name: \"").append(goTerms.get(currentGOID).get(GoUpdateConstants.NAME)).append("\" vs. old name: \"").append(goInst.getAttributeValue(ReactomeJavaConstants.name)).append("\"")
-						.append(" new def'n: \"").append(currentDefinition).append("\" vs old def'n: \"").append(goInst.getAttributeValue(ReactomeJavaConstants.definition)).append("\". ")
-						.append("  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)\n");
+//				nameOrDefinitionChangeStringBuilder.append("Change in name/definition for GO ID ").append(currentGOID).append("! ")
+//						.append("New name: \"").append(goTerms.get(currentGOID).get(GoUpdateConstants.NAME)).append("\" vs. old name: \"").append(goInst.getAttributeValue(ReactomeJavaConstants.name)).append("\"")
+//						.append(" new def'n: \"").append(currentDefinition).append("\" vs old def'n: \"").append(goInst.getAttributeValue(ReactomeJavaConstants.definition)).append("\". ")
+//						.append("  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)\n");
 				goInst.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
 				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.instanceOf);
 				goInst.setAttributeValue(ReactomeJavaConstants.componentOf, null);
 				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.componentOf);
+				
+				goInst.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
+				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.name);
+				goInst.setAttributeValue(ReactomeJavaConstants.definition, currentDefinition);
+				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.definition);
 			}
 			
 			if (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
@@ -549,16 +552,11 @@ public class Main
 					for (String ecNumber : ecNumbers)
 					{
 						goInst.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
+						//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number: ").append(ecNumber).append("\n");
 					}
 					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.ecNumber);
 				}
 			}
-			
-			goInst.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
-			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.name);
-			
-			goInst.setAttributeValue(ReactomeJavaConstants.definition, currentDefinition);
-			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.definition);
 			
 			InstanceDisplayNameGenerator.setDisplayName(goInst);
 			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants._displayName);
