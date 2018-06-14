@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -63,7 +64,7 @@ public class Main
 		// 3) Update GO objects in Database.
 		//
 		// ...Of course, we could just do these together in one program: Read both files and populate one data structure containing everything.
-		
+		Long startTime = System.currentTimeMillis();
 		String pathToGOFile = "src/main/resources/gene_ontology_ext.obo";
 		String pathToEC2GOFile = "src/main/resources/ec2go";
 		boolean termStarted = false; 
@@ -99,6 +100,11 @@ public class Main
 			System.out.println(allGoInstances.size() + " items in the allGoInstances map.");
 			// Load the file.
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
+			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
+			
+			Map<String,List<String>> goToECNumbers = new HashMap<String,List<String>>();
+			ec2GoLines.stream().filter(line -> !line.startsWith("!")).forEach(line -> processEc2GoLine(line, goToECNumbers));
+			
 			// This map is keyed by GO ID. Values are maps of strings that map to values from the file.
 			Map<String, Map<String,Object>> goTerms = new HashMap<String, Map<String,Object>>();
 			Map<String, List<String>> altGoIdToMainGoId = new HashMap<String, List<String>>();
@@ -109,6 +115,7 @@ public class Main
 			int mismatchCount = 0;
 			int goTermCount = 0;
 			List<GKInstance> instancesForDeletion = new ArrayList<GKInstance>();
+			
 			for (String line : goLines)
 			{
 				lineCount ++;
@@ -131,7 +138,7 @@ public class Main
 								newGOTermStringBuilder.append("New GO Term to create: GO:").append(currentGOID).append(" ").append(goTerms.get(currentGOID)).append("\n");
 								
 								
-								createNewGOTerm(adaptor, goRefDB, goTerms, currentGOID, currentCategory);
+								createNewGOTerm(adaptor, goRefDB, goTerms, goToECNumbers, currentGOID, currentCategory);
 								
 								newGoTermCount++;
 							}
@@ -147,7 +154,7 @@ public class Main
 										|| ( goInst.getSchemClass().getName().equals(ReactomeJavaConstants.Compartment) && currentCategory.equals(ReactomeJavaConstants.GO_CellularComponent)))
 									{
 										//Now do the update.
-										updateGOInstance(adaptor, goTerms, currentGOID, currentDefinition, goInst);
+										updateGOInstance(adaptor, goTerms, goToECNumbers, currentGOID, currentDefinition, goInst);
 									}
 									else
 									{
@@ -231,7 +238,7 @@ public class Main
 			System.out.println("\n*** Name/Definition mismatches: ***\n"+nameOrDefinitionChangeStringBuilder.toString());
 			System.out.println("\n*** Obsoletion warnings: ***\n"+obsoletionStringBuilder.toString());
 			System.out.println("\n*** Deletions: ***\n"+deletionStringBuilder.toString());
-			System.out.println("\n*** Relationship updates: ***\n"+updatedRelationshipStringBuilder.toString());
+			//System.out.println("\n*** Relationship updates: ***\n"+updatedRelationshipStringBuilder.toString());
 			
 			
 			System.out.println(lineCount + " lines from the file were processed.");
@@ -247,7 +254,28 @@ public class Main
 		{
 			e.printStackTrace();
 		}
-		
+		Long endTime = System.currentTimeMillis();
+		System.out.println("Elapsed time (minutes): " + TimeUnit.MILLISECONDS.toMinutes(endTime-startTime));
+	}
+
+	private static void processEc2GoLine(String line, Map<String, List<String>> goToECNumbers)
+	{
+		Matcher m = GoUpdateConstants.EC_NUMBER_REGEX.matcher(line);
+		if (m.matches())
+		{
+			String ecNumber = m.group(1);
+			String goNumber = m.group(2);
+			if (goToECNumbers.containsKey(goNumber))
+			{
+				goToECNumbers.get(goNumber).add(ecNumber);
+			}
+			else
+			{
+				List<String> ecNumbers = new ArrayList<String>();
+				ecNumbers.add(ecNumber);
+				goToECNumbers.put(goNumber, ecNumbers);
+			}
+		}
 	}
 
 	private static void deleteGoInstance(GKInstance goInst, Map<String, Map<String,Object>> goTerms, Map<String, List<String>> altGoIDsToMainGoIDs, Map<String, List<GKInstance>> allGoInstances, MySQLAdaptor adaptor)
@@ -355,7 +383,7 @@ public class Main
 								goInst.addAttributeValue(reactomeRelationshipName, inst);
 								//System.out.println("Relationship updated! \""+goInst.toString()+"\" (GO:"+goInst.getAttributeValue(ReactomeJavaConstants.accession)+" now has relationship \""+reactomeRelationshipName+"\" referring to \""+inst.toString()+"\" (GO:"+inst.getAttributeValue(ReactomeJavaConstants.accession)+")");
 								updatedRelationshipStringBuilder.append("Relationship updated! \"").append(goInst.toString()).append("\" (GO:").append(goInst.getAttributeValue(ReactomeJavaConstants.accession))
-								.append(" now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
+								.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
 								.append(inst.getAttributeValue(ReactomeJavaConstants.accession)).append(")\n");
 							}
 							catch (InvalidAttributeValueException e)
@@ -431,7 +459,7 @@ public class Main
 		return allGoInstances;
 	}
 
-	private static void createNewGOTerm(MySQLAdaptor adaptor, GKInstance goRefDB, Map<String, Map<String, Object>> goTerms, String currentGOID, String currentCategory)
+	private static void createNewGOTerm(MySQLAdaptor adaptor, GKInstance goRefDB, Map<String, Map<String, Object>> goTerms, Map<String,List<String>> goToEcNumbers, String currentGOID, String currentCategory)
 	{
 		currentCategory = alignCategoryName(currentCategory);
 		SchemaClass schemaClass = adaptor.getSchema().getClassByName(currentCategory);
@@ -442,6 +470,17 @@ public class Main
 			newGOTerm.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
 			newGOTerm.setAttributeValue(ReactomeJavaConstants.definition, goTerms.get(currentGOID).get(GoUpdateConstants.DEF));
 			newGOTerm.setAttributeValue(ReactomeJavaConstants.referenceDatabase, goRefDB);
+			if (schemaClass.getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
+			{
+				List<String> ecNumbers = goToEcNumbers.get(currentGOID);
+				if (ecNumbers!=null)
+				{
+					for (String ecNumber : ecNumbers)
+					{
+						newGOTerm.setAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
+					}
+				}
+			}
 			InstanceDisplayNameGenerator.setDisplayName(newGOTerm);
 			// TODO: Set Created and Modified.
 			newGOTerm.setDbAdaptor(adaptor);
@@ -476,7 +515,7 @@ public class Main
 		return currentCategory;
 	}
 
-	private static void updateGOInstance(MySQLAdaptor adaptor, Map<String, Map<String, Object>> goTerms, String currentGOID, String currentDefinition, GKInstance goInst)
+	private static void updateGOInstance(MySQLAdaptor adaptor, Map<String, Map<String, Object>> goTerms, Map<String, List<String>> goToEcNumbers, String currentGOID, String currentDefinition, GKInstance goInst)
 	{
 		try
 		{
@@ -499,6 +538,20 @@ public class Main
 				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.instanceOf);
 				goInst.setAttributeValue(ReactomeJavaConstants.componentOf, null);
 				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.componentOf);
+			}
+			
+			if (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
+			{
+				List<String> ecNumbers = goToEcNumbers.get(currentGOID);
+				if (ecNumbers!=null)
+				{
+					goInst.setAttributeValue(ReactomeJavaConstants.ecNumber, null);
+					for (String ecNumber : ecNumbers)
+					{
+						goInst.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
+					}
+					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.ecNumber);
+				}
 			}
 			
 			goInst.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));

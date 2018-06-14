@@ -31,16 +31,17 @@ public final class GoUpdateConstants {
 	static final Pattern GO_ID_REGEX = Pattern.compile("^"+ID+": GO:([0-9]+)");
 	static final Pattern NAME_REGEX = Pattern.compile("^"+NAME+": (.*)");
 	static final Pattern DEF_REGEX = Pattern.compile("^"+DEF+": (.*)");
-	static final Pattern IS_A_REGEX = Pattern.compile("^"+IS_A+": GO:([0-9]+) .*");
+	static final Pattern IS_A_REGEX = Pattern.compile("^"+IS_A+": GO:([0-9]+).*");
 	static final Pattern SYNONYM_REGEX = Pattern.compile("^"+SYNONYM+": (.*)");
-	static final Pattern CONSIDER_REGEX = Pattern.compile("^"+CONSIDER+": GO:([0-9]+) .*");
-	static final Pattern REPLACED_BY_REGEX = Pattern.compile("^"+REPLACED_BY+": GO:([0-9]+) .*");
-	static final Pattern RELATIONSHIP_PART_OF_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+PART_OF+" GO:([0-9]+) .*");
-	static final Pattern RELATIONSHIP_HAS_PART_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+HAS_PART+" GO:([0-9]+) .*");
-	static final Pattern RELATIONSHIP_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+REGULATES+" GO:([0-9]+) .*");
-	static final Pattern RELATIONSHIP_POSITIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+POSITIVELY_REGULATES+" GO:([0-9]+) .*");
-	static final Pattern RELATIONSHIP_NEGATIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+NEGATIVELY_REGULATES+" GO:([0-9]+) .*");
-
+	static final Pattern CONSIDER_REGEX = Pattern.compile("^"+CONSIDER+": GO:([0-9]+).*");
+	static final Pattern REPLACED_BY_REGEX = Pattern.compile("^"+REPLACED_BY+": GO:([0-9]+).*");
+	static final Pattern RELATIONSHIP_PART_OF_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+PART_OF+" GO:([0-9]+).*");
+	static final Pattern RELATIONSHIP_HAS_PART_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+HAS_PART+" GO:([0-9]+).*");
+	static final Pattern RELATIONSHIP_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+REGULATES+" GO:([0-9]+).*");
+	static final Pattern RELATIONSHIP_POSITIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+POSITIVELY_REGULATES+" GO:([0-9]+).*");
+	static final Pattern RELATIONSHIP_NEGATIVELY_REGULATES_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+NEGATIVELY_REGULATES+" GO:([0-9]+).*");
+	static final Pattern EC_NUMBER_REGEX = Pattern.compile("^EC:([0-9\\.]+) > GO:.*GO:([0-9]+)");
+	
 	// prevent instantiation.
 	private GoUpdateConstants () {}
 	
