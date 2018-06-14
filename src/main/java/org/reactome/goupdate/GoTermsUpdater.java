@@ -27,18 +27,18 @@ class GoTermsUpdater
 	private MySQLAdaptor adaptor;
 	private List<String> goLines;
 	private List<String> ec2GoLines;
-	private String currentGOID = "";
-	private String currentCategory = "";
-	private String currentDefinition = "";
+//	private String currentGOID = "";
+//	private String currentCategory = "";
+//	private String currentDefinition = "";
 	private GKInstance instanceEdit;
 	private long personID;
 	
-	private StringBuilder nameOrDefinitionChangeStringBuilder = new StringBuilder();
-	private StringBuilder categoryMismatchStringBuilder = new StringBuilder();
-	private StringBuilder obsoletionStringBuilder = new StringBuilder();
-	private StringBuilder newGOTermStringBuilder = new StringBuilder();
-	private StringBuilder deletionStringBuilder = new StringBuilder();
-	private StringBuilder updatedRelationshipStringBuilder = new StringBuilder();
+	private StringBuffer nameOrDefinitionChangeStringBuilder = new StringBuffer();
+	private StringBuffer categoryMismatchStringBuilder = new StringBuffer();
+	private StringBuffer obsoletionStringBuilder = new StringBuffer();
+	private StringBuffer newGOTermStringBuilder = new StringBuffer();
+	private StringBuffer deletionStringBuilder = new StringBuffer();
+	private StringBuffer updatedRelationshipStringBuilder = new StringBuffer();
 	
 	private StringBuilder mainOutput = new StringBuilder();
 	
@@ -96,84 +96,15 @@ class GoTermsUpdater
 			System.exit(1);
 		}
 		
+		String currentGOID = "";
 		for (String line : this.goLines)
 		{
+
 			lineCount ++;
 			// Empty line means end of a Term.
 			if (line.trim().isEmpty())
 			{
-				// The first time we get here, is an empty line after the header but before the first GO term.
-				if (!currentGOID.trim().isEmpty())
-				{
-					termStarted = false;
-					// Now we need to process the Term that was just finished.
-					List<GKInstance> goInstances = allGoInstances.get(currentGOID);
-					// First let's make sure the GO Term is not obsolete.
-					if ( !goTerms.get(currentGOID).containsKey(GoUpdateConstants.IS_OBSOLETE) && !goTerms.get(currentGOID).containsKey(GoUpdateConstants.PENDING_OBSOLETION))
-					{
-						if (goInstances==null)
-						{
-							// Create a new Instance if there is nothing in the current list of instances.
-							//System.out.println("New GO Term to create: GO:"+ currentGOID + " " + goTerms.get(currentGOID));
-							newGOTermStringBuilder.append("New GO Term to create: GO:").append(currentGOID).append(" ").append(goTerms.get(currentGOID)).append("\n");
-							
-							
-							createNewGOTerm(adaptor, goRefDB, goTerms, goToECNumbers, currentGOID, currentCategory);
-							
-							newGoTermCount++;
-						}
-						else
-						{
-							// Try to update each goInstance that has the current GO ID.
-							for (GKInstance goInst : goInstances)
-							{
-								currentCategory = alignCategoryName(currentCategory);
-								// Compartment is a sub-class of GO_CellularComponent - but the GO namespaces don't seem to account for that,
-								// we we'll account for that here.
-								if (goInst.getSchemClass().getName().equals(currentCategory) 
-									|| ( goInst.getSchemClass().getName().equals(ReactomeJavaConstants.Compartment) && currentCategory.equals(ReactomeJavaConstants.GO_CellularComponent)))
-								{
-									//Now do the update.
-									updateGOInstance(adaptor, goTerms, goToECNumbers, currentGOID, currentDefinition, goInst);
-								}
-								else
-								{
-									mismatchCount++;
-									//System.out.println("Category mismatch! GO ID: "+currentGOID+" Category in DB: "+goInst.getSchemClass().getName()+ " category in GO file: "+currentCategory);
-									categoryMismatchStringBuilder.append("Category mismatch! GO ID: ").append(currentGOID).append(" Category in DB: ").append(goInst.getSchemClass().getName()).append(" category in GO file: ").append(currentCategory).append("\n");
-									//deleteGoInstance(goInst, goTerms, adaptor);
-									instancesForDeletion.add(goInst);
-								}
-							}
-						}
-					}
-					else if (goTerms.get(currentGOID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTerms.get(currentGOID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
-					{
-						// If we have this in our database, it must be reported!
-						if (goInstances!=null)
-						{
-							pendingObsoleteCount++;
-							obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as PENDING obsolete!\n");
-						}
-					}
-					else if (goTerms.get(currentGOID).containsKey(GoUpdateConstants.IS_OBSOLETE) && goTerms.get(currentGOID).get(GoUpdateConstants.IS_OBSOLETE).equals(true))
-					{
-						// If we have this in our database, it must be reported!
-						if (goInstances!=null)
-						{
-							obsoleteCount++;
-							obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as OBSOLETE!\n");
-							for (GKInstance inst : goInstances)
-							{
-								//deleteGoInstance(inst, goTerms, adaptor);
-								instancesForDeletion.add(inst);
-							}
-						}
-						
-					}
-					// else { // ... what? it has one of the OBSOLETE Keys but no value? That wouldn't make sense...
-					
-				}
+				termStarted = false;
 			}
 			// We are starting a new Term.
 			else if (line.equals("[Term]"))
@@ -183,7 +114,79 @@ class GoTermsUpdater
 			}
 			else if (termStarted)
 			{
-				processLine(line, goTerms, altGoIdToMainGoId);
+				currentGOID = processLine(line, currentGOID, goTerms, altGoIdToMainGoId);
+			}
+		}
+		
+		// Now process all the goTerms. Maybe find a way to do this in parallel.
+		for (String goID : goTerms.keySet())
+		{
+			String currentCategory = (String) goTerms.get(goID).get(GoUpdateConstants.NAMESPACE);
+			String currentDefinition = (String) goTerms.get(goID).get(GoUpdateConstants.DEF);
+			// Now we need to process the Term that was just finished.
+			List<GKInstance> goInstances = allGoInstances.get(goID);
+			// First let's make sure the GO Term is not obsolete.
+			if ( !goTerms.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && !goTerms.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION))
+			{
+				if (goInstances==null)
+				{
+					// Create a new Instance if there is nothing in the current list of instances.
+					//System.out.println("New GO Term to create: GO:"+ currentGOID + " " + goTerms.get(currentGOID));
+					newGOTermStringBuilder.append("New GO Term to create: GO:").append(goID).append(" ").append(goTerms.get(goID)).append("\n");
+					
+					
+					createNewGOTerm(adaptor, goRefDB, goTerms, goToECNumbers, goID, currentCategory);
+					
+					newGoTermCount++;
+				}
+				else
+				{
+					// Try to update each goInstance that has the current GO ID.
+					for (GKInstance goInst : goInstances)
+					{
+						currentCategory = alignCategoryName(currentCategory);
+						// Compartment is a sub-class of GO_CellularComponent - but the GO namespaces don't seem to account for that,
+						// we we'll account for that here.
+						if (goInst.getSchemClass().getName().equals(currentCategory) 
+							|| ( goInst.getSchemClass().getName().equals(ReactomeJavaConstants.Compartment) && currentCategory.equals(ReactomeJavaConstants.GO_CellularComponent)))
+						{
+							//Now do the update.
+							updateGOInstance(adaptor, goTerms, goToECNumbers, goID, currentDefinition, goInst);
+						}
+						else
+						{
+							mismatchCount++;
+							//System.out.println("Category mismatch! GO ID: "+currentGOID+" Category in DB: "+goInst.getSchemClass().getName()+ " category in GO file: "+currentCategory);
+							categoryMismatchStringBuilder.append("Category mismatch! GO ID: ").append(goID).append(" Category in DB: ").append(goInst.getSchemClass().getName()).append(" category in GO file: ").append(currentCategory).append("\n");
+							//deleteGoInstance(goInst, goTerms, adaptor);
+							instancesForDeletion.add(goInst);
+						}
+					}
+				}
+			}
+			else if (goTerms.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTerms.get(goID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
+			{
+				// If we have this in our database, it must be reported!
+				if (goInstances!=null)
+				{
+					pendingObsoleteCount++;
+					obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as PENDING obsolete!\n");
+				}
+			}
+			else if (goTerms.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && goTerms.get(goID).get(GoUpdateConstants.IS_OBSOLETE).equals(true))
+			{
+				// If we have this in our database, it must be reported!
+				if (goInstances!=null)
+				{
+					obsoleteCount++;
+					obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as OBSOLETE!\n");
+					for (GKInstance inst : goInstances)
+					{
+						//deleteGoInstance(inst, goTerms, adaptor);
+						instancesForDeletion.add(inst);
+					}
+				}
+				
 			}
 		}
 		
@@ -203,12 +206,12 @@ class GoTermsUpdater
 			{
 				for (GKInstance goInst : goInsts)
 				{
-					updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
-					updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.HAS_PART, "hasPart");
-					updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
-					updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.REGULATES, "regulate");
-					updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate");
-					updateRelationship(adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate");
+					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
+					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.HAS_PART, "hasPart");
+					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
+					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.REGULATES, "regulate");
+					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate");
+					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate");
 				}
 			}
 		}
@@ -238,11 +241,11 @@ class GoTermsUpdater
 		Collection<GKInstance> cellComponents = new ArrayList<GKInstance>();
 		try
 		{
-			bioProcesses = adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
+			bioProcesses = (Collection<GKInstance>) adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
 			System.out.println(bioProcesses.size() + " GO_BiologicalProcesses in the database.");
-			molecularFunctions = adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
+			molecularFunctions = (Collection<GKInstance>) adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
 			System.out.println(molecularFunctions.size() + " GO_MolecularFunction in the database.");
-			cellComponents = adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
+			cellComponents = (Collection<GKInstance>) adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
 			System.out.println(cellComponents.size() + " GO_CellularComponent in the database.");
 		}
 		catch (Exception e)
@@ -513,8 +516,9 @@ class GoTermsUpdater
 	 * @param goTerms
 	 * @param altGoIdToMainGoId
 	 */
-	private void processLine(String line, Map<String, Map<String,Object>> goTerms, Map<String,List<String>> altGoIdToMainGoId)
+	private String processLine(String line, String currentGOID, Map<String, Map<String,Object>> goTerms, Map<String,List<String>> altGoIdToMainGoId)
 	{
+		String goID = currentGOID;
 		Matcher m;
 		try
 		{
@@ -527,7 +531,7 @@ class GoTermsUpdater
 					case GoUpdateConstants.ID:
 					{
 						m = GoUpdateConstants.GO_ID_REGEX.matcher(line);
-						String goID = m.matches() ? m.group(1) : "";
+						goID = m.matches() ? m.group(1) : "";
 						// Were we able to extract a GO ID?
 						if (!goID.trim().isEmpty())
 						{
@@ -539,7 +543,7 @@ class GoTermsUpdater
 							else
 							{
 								// TODO: Use Log4j2 properly.
-								System.out.println("GO ID " + goID + " has appeared more than once in the input!");
+								logger.warn("GO ID {} has appeared more than once in the input!", goID);
 								// TODO: exit is probably not the best way to handle this. only for early-development debugging...
 								System.exit(1);
 							}
@@ -549,7 +553,7 @@ class GoTermsUpdater
 					case GoUpdateConstants.ALT_ID:
 					{
 						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.ALT_ID_REGEX, GoUpdateConstants.ALT_ID);
-						updateAltGoIDsList(goTerms, altGoIdToMainGoId, GoUpdateConstants.ALT_ID);
+						updateAltGoIDsList(currentGOID, goTerms, altGoIdToMainGoId, GoUpdateConstants.ALT_ID);
 						break;
 					}
 					case GoUpdateConstants.NAME:
@@ -577,7 +581,8 @@ class GoTermsUpdater
 						String namespace = m.matches() ? m.group(1) : "";
 						if (!namespace.trim().isEmpty())
 						{
-							currentCategory = namespace;
+							//currentCategory = namespace;
+							goTerms.get(currentGOID).put(GoUpdateConstants.NAMESPACE, namespace);
 						}
 						break;
 					}
@@ -587,7 +592,7 @@ class GoTermsUpdater
 						String def = m.matches() ? m.group(1) : "";
 						if (!def.trim().isEmpty())
 						{
-							currentDefinition = def;
+							goTerms.get(currentGOID).put(GoUpdateConstants.DEF, def);
 						}
 						break;
 					}
@@ -604,13 +609,13 @@ class GoTermsUpdater
 					case GoUpdateConstants.CONSIDER:
 					{
 						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.CONSIDER_REGEX, GoUpdateConstants.CONSIDER);
-						updateAltGoIDsList(goTerms, altGoIdToMainGoId, GoUpdateConstants.CONSIDER);
+						updateAltGoIDsList(currentGOID, goTerms, altGoIdToMainGoId, GoUpdateConstants.CONSIDER);
 						break;
 					}
 					case GoUpdateConstants.REPLACED_BY:
 					{
 						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.REPLACED_BY_REGEX, GoUpdateConstants.REPLACED_BY);
-						updateAltGoIDsList(goTerms, altGoIdToMainGoId, GoUpdateConstants.REPLACED_BY);
+						updateAltGoIDsList(currentGOID, goTerms, altGoIdToMainGoId, GoUpdateConstants.REPLACED_BY);
 						break;
 					}
 					case GoUpdateConstants.IS_OBSOLETE:
@@ -683,6 +688,7 @@ class GoTermsUpdater
 				throw e;
 			}
 		}
+		return goID;
 	}
 
 	/**
@@ -719,7 +725,7 @@ class GoTermsUpdater
 	 * @param goTerms
 	 * @param altGoIdToMainGoId
 	 */
-	private void updateAltGoIDsList(Map<String, Map<String, Object>> goTerms, Map<String, List<String>> altGoIdToMainGoId, String key) {
+	private void updateAltGoIDsList(String currentGOID, Map<String, Map<String, Object>> goTerms, Map<String, List<String>> altGoIdToMainGoId, String key) {
 		@SuppressWarnings("unchecked")
 		List<String> altGoIds = (List<String>) goTerms.get(currentGOID).get(key);
 		// Build a mapping that maps alternate GO IDs to primary GO IDs.
