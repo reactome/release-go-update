@@ -33,6 +33,9 @@ public class Main
 	private static String currentGOID = "";
 	private static String currentCategory = "";
 	private static String currentDefinition = "";
+	
+	
+	
 	/**
 	 * @param args
 	 * @throws SQLException 
@@ -293,6 +296,7 @@ public class Main
 				}
 				else
 				{
+					//TODO: when logging with log4j, log this as a WARNING!
 					System.out.println("Replacement GO Instance with GO ID: "+replacementGoId+ " could not be found in allGoInstances map."
 							+ "This was not expected. Instance \""+goInst.toString()+"\" will still be deleted but referrs will have nothing to refer to.");
 				}
@@ -459,6 +463,18 @@ public class Main
 			// match the name in the file or if the existing definition does not match
 			// the one in the file, we update with the new name and def'n, and then set
 			// InstanceOf and ComponentOf to NULL, and I guess those get updated later.
+			if ((goTerms.get(currentGOID).get(GoUpdateConstants.NAME)!=null && !goTerms.get(currentGOID).get(GoUpdateConstants.NAME).equals(goInst.getAttributeValue(ReactomeJavaConstants.name)))
+				|| (currentDefinition != null && !currentDefinition.equals(goInst.getAttributeValue(ReactomeJavaConstants.definition))))
+			{
+				System.out.println("Change in name/definition for GO ID "+currentGOID+"! "
+						+ "New name: \""+goTerms.get(currentGOID).get(GoUpdateConstants.NAME)+"\" vs. old name: \""+goInst.getAttributeValue(ReactomeJavaConstants.name)+"\""
+						+ " new def'n: \""+currentDefinition+"\" vs old def'n: \""+goInst.getAttributeValue(ReactomeJavaConstants.definition)+"\". "
+						+ "  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)");
+				goInst.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
+				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.instanceOf);
+				goInst.setAttributeValue(ReactomeJavaConstants.componentOf, null);
+				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.componentOf);
+			}
 			
 			goInst.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
 			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.name);
@@ -468,6 +484,7 @@ public class Main
 			
 			InstanceDisplayNameGenerator.setDisplayName(goInst);
 			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants._displayName);
+			
 			//TODO: add "modified" InstanceEdit.
 		}
 		catch (InvalidAttributeException | InvalidAttributeValueException e)
@@ -478,6 +495,7 @@ public class Main
 		catch (NullPointerException e)
 		{
 			System.err.println("NullPointerException occurred! GO ID: "+currentGOID+" GO Instance: "+goInst + " GO Term: "+goTerms.get(currentGOID));
+			e.printStackTrace();
 		}
 		catch (Exception e)
 		{
