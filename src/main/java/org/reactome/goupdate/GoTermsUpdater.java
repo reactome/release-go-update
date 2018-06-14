@@ -11,6 +11,8 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gk.model.GKInstance;
 import org.gk.model.InstanceDisplayNameGenerator;
 import org.gk.model.ReactomeJavaConstants;
@@ -21,13 +23,15 @@ import org.gk.schema.SchemaClass;
 
 class GoTermsUpdater
 {
-
+	private static final Logger logger = LogManager.getLogger("GoUpdateLogger");
 	private MySQLAdaptor adaptor;
 	private List<String> goLines;
 	private List<String> ec2GoLines;
 	private String currentGOID = "";
 	private String currentCategory = "";
 	private String currentDefinition = "";
+	private GKInstance instanceEdit;
+	private long personID;
 	
 	private StringBuilder nameOrDefinitionChangeStringBuilder = new StringBuilder();
 	private StringBuilder categoryMismatchStringBuilder = new StringBuilder();
@@ -38,12 +42,18 @@ class GoTermsUpdater
 	
 	private StringBuilder mainOutput = new StringBuilder();
 	
-	public GoTermsUpdater(MySQLAdaptor dba, List<String> goLines, List<String> ec2GoLines)
+	public GoTermsUpdater(MySQLAdaptor dba, List<String> goLines, List<String> ec2GoLines, long personID)
 	{
 		this.adaptor = dba;
 		this.goLines = goLines;
 		this.ec2GoLines = ec2GoLines;
-		
+		this.personID = personID;
+		instanceEdit = InstanceEditUtils.createInstanceEdit(this.adaptor, this.personID, this.getClass().getName());
+		if (instanceEdit == null)
+		{
+			logger.fatal("Cannot proceed without a valid InstanceEdit. Aborting.");
+			System.exit(1);
+		}
 	}
 	
 	/**
@@ -300,7 +310,7 @@ class GoTermsUpdater
 				}
 			}
 			InstanceDisplayNameGenerator.setDisplayName(newGOTerm);
-			// TODO: Set Created and Modified.
+			newGOTerm.setAttributeValue(ReactomeJavaConstants.created, this.instanceEdit);
 			newGOTerm.setDbAdaptor(adaptor);
 			adaptor.storeInstance(newGOTerm);
 		}
@@ -351,6 +361,7 @@ class GoTermsUpdater
 	{
 		try
 		{
+			boolean modified = false;
 			// according to the logic in the Perl code, if the existing name does not
 			// match the name in the file or if the existing definition does not match
 			// the one in the file, we update with the new name and def'n, and then set
@@ -371,6 +382,7 @@ class GoTermsUpdater
 				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.name);
 				goInst.setAttributeValue(ReactomeJavaConstants.definition, currentDefinition);
 				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.definition);
+				modified = true;
 			}
 			
 			if (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
@@ -382,16 +394,19 @@ class GoTermsUpdater
 					for (String ecNumber : ecNumbers)
 					{
 						goInst.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
+						modified = true;
 						//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number: ").append(ecNumber).append("\n");
 					}
 					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.ecNumber);
 				}
 			}
-			
-			InstanceDisplayNameGenerator.setDisplayName(goInst);
-			adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants._displayName);
-			
-			//TODO: add "modified" InstanceEdit.
+			if (modified)
+			{
+				goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
+				goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+				InstanceDisplayNameGenerator.setDisplayName(goInst);
+				adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants._displayName);
+			}
 		}
 		catch (InvalidAttributeException | InvalidAttributeValueException e)
 		{
