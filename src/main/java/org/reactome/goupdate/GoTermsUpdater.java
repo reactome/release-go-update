@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import org.gk.model.GKInstance;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
+import org.reactome.release.common.database.InstanceEditUtils;
 
 /**
  * This class can be used to update GO Terms in the "gk_central" database.
