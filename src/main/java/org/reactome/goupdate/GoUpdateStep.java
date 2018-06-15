@@ -40,24 +40,27 @@ public class GoUpdateStep extends ReleaseStep
 			// 3) Update GO objects in Database.
 			//
 			// ...Of course, we could just do these together in one program: Read both files and populate one data structure containing everything.
+			// 
+			// New process:
+			// 1) load GO file lines
+			// 2) load ec2go file lines
+			// 3) use these to sets of data to build in-memory data structure of all GO terms from the files
+			// 4) use this data structure to create/update/mark-for-deletion instances in database.
+			// 5) delete the marked-for-deletion instances.
+			// 6) update relationships between remaining instances, based on content of data structure.
 			
 			MySQLAdaptor adaptor = getMySQLAdaptorFromProperties(props);
-			boolean testMode = new Boolean(props.getProperty("testMode", "true"));
-			if (!testMode)
-			{
-				logger.info("Test mode is OFF - database will be updated!");
-			}
-			else
-			{
-				logger.info("Test mode is ON - no database changes will be made.");
-			}
+			this.loadTestModeFromProperties(props);
+			
 			long personID = new Long(props.getProperty("person.id"));
 			
 			String pathToGOFile = "src/main/resources/gene_ontology_ext.obo";
 			String pathToEC2GOFile = "src/main/resources/ec2go";
+			// Load the files.
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
 			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
 
+			// Start a transaction. If that fails, the program will exit.
 			try
 			{
 				adaptor.startTransaction();
@@ -65,12 +68,11 @@ public class GoUpdateStep extends ReleaseStep
 			catch (TransactionsNotSupportedException e1)
 			{
 				e1.printStackTrace();
-				logger.error("This program should run within a transaction. Aborting.");
+				logger.error("This program should run within a transaction. Exiting.");
 				System.exit(1);
 			}
 
-			// Load the file.
-
+			// Do the updatess.
 			GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines, personID);
 
 			StringBuilder report = goTermsUpdator.updateGoTerms();
