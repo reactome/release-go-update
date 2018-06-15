@@ -136,7 +136,7 @@ class GoTermsUpdater
 				{
 					// Create a new Instance if there is nothing in the current list of instances.
 					newGOTermStringBuilder.append("New GO Term to create: GO:").append(goID).append(" ").append(goTerms.get(goID)).append("\n");
-					goTermModifier = new GoTermInstanceModifier(this.adaptor, null, this.instanceEdit);
+					goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
 					goTermModifier.createNewGOTerm(goTerms, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
 					
 					newGoTermCount++;
