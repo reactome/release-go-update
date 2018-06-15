@@ -54,8 +54,9 @@ public class GoUpdateStep extends ReleaseStep
 			
 			long personID = new Long(props.getProperty("person.id"));
 			
-			String pathToGOFile = "src/main/resources/gene_ontology_ext.obo";
-			String pathToEC2GOFile = "src/main/resources/ec2go";
+			String pathToGOFile = props.getProperty("pathToGOFile","src/main/resources/gene_ontology_ext.obo");
+			String pathToEC2GOFile = props.getProperty("pathToEC2GOFile","src/main/resources/ec2go");
+			
 			// Load the files.
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
 			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
