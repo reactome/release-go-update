@@ -43,11 +43,12 @@ class GoTermsUpdater
 	private StringBuffer updatedRelationshipStringBuilder = new StringBuffer();
 	
 	private StringBuilder mainOutput = new StringBuilder();
-	
+	// this can be static, since there's only one "GO" ReferenceDatabase object in the database.
+	private static GKInstance goRefDB;
 	/**
 	 * Creates a new GoTermsUpdater
 	 * @param dba - The adaptor to use.
-	 * @param goLines - The lines from the GO file, probably it was named "gene_ontology_ext.obo".
+	 * @param goLines - The lines from the GO file, probably it was named "gene_ontology_ext.obo". The <em>must</em> be in the same sequnces as they were in the original file!!
 	 * @param ec2GoLines - The lines from the EC-to-GO mapping file, probably named "ec2go".
 	 * @param personID - The Person ID that will be used as the author for all created/modified InstanceEdits.
 	 */
@@ -63,6 +64,18 @@ class GoTermsUpdater
 			logger.fatal("Cannot proceed without a valid InstanceEdit. Aborting.");
 			System.exit(1);
 		}
+		try
+		{
+			GoTermsUpdater.goRefDB = ((Set<GKInstance>) adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.ReferenceDatabase, ReactomeJavaConstants.name, "=","GO")).stream().findFirst().get();
+			System.out.println("RefDB for GO: "+GoTermsUpdater.goRefDB.toString());
+		}
+		catch (Exception e1)
+		{
+			System.out.println("Couldn't even get a reference to the GO ReferenceDatabase object. There's no point in continuing, so this progam will exit. :(");
+			e1.printStackTrace();
+			System.exit(1);
+		}
+
 	}
 	
 	/**
@@ -73,8 +86,6 @@ class GoTermsUpdater
 	{
 		// This map is keyed by GO ID. Values are maps of strings that map to values from the file.
 		Map<String, Map<String,Object>> goTerms = new HashMap<String, Map<String,Object>>();
-		// A list of mapping "alt_id" GO IDs to primary GO IDs. Used when re-mapping references to deleted GO Terms.
-		Map<String, List<String>> altGoIdToMainGoId = new HashMap<String, List<String>>();
 		// This map is keyed by GO Accession number (GO ID).
 		Map<String, List<GKInstance>> allGoInstances = getMapOfAllGOInstances(adaptor);
 		// This list will track everything that needs to be deleted.
@@ -91,19 +102,6 @@ class GoTermsUpdater
 		int mismatchCount = 0;
 		int goTermCount = 0;
 		boolean termStarted = false; 
-		
-		GKInstance goRefDB = null;
-		try
-		{
-			goRefDB = ((Set<GKInstance>) adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.ReferenceDatabase, ReactomeJavaConstants.name, "=","GO")).stream().findFirst().get();
-			System.out.println("RefDB for GO: "+goRefDB.toString());
-		}
-		catch (Exception e1)
-		{
-			System.out.println("Couldn't even get a reference to the GO ReferenceDatabase object. There's no point in continuing, so this progam will exit. :(");
-			e1.printStackTrace();
-			System.exit(1);
-		}
 		
 		String currentGOID = "";
 		for (String line : this.goLines)
@@ -123,7 +121,7 @@ class GoTermsUpdater
 			}
 			else if (termStarted)
 			{
-				currentGOID = processLine(line, currentGOID, goTerms, altGoIdToMainGoId);
+				currentGOID = processLine(line, currentGOID, goTerms);
 			}
 		}
 		
@@ -141,7 +139,7 @@ class GoTermsUpdater
 				{
 					// Create a new Instance if there is nothing in the current list of instances.
 					newGOTermStringBuilder.append("New GO Term to create: GO:").append(goID).append(" ").append(goTerms.get(goID)).append("\n");
-					createNewGOTerm(adaptor, goRefDB, goTerms, goToECNumbers, goID, currentCategory.getReactomeName());
+					createNewGOTerm(adaptor, goTerms, goToECNumbers, goID, currentCategory.getReactomeName());
 					
 					newGoTermCount++;
 				}
@@ -287,13 +285,12 @@ class GoTermsUpdater
 	/**
 	 * Creates a new GO Term in the database.
 	 * @param adaptor - The adaptor.
-	 * @param goRefDB - ReferenceDatabase object (should always be GO).
 	 * @param goTerms - Map of GO terms, based on the file. Keyed by GO ID.
 	 * @param goToEcNumbers - Mapping of GO-to-EC numbers. Keyed by GO ID.
 	 * @param currentGOID - GO ID of the thing to insert.
 	 * @param currentCategory - Current category/namespace. Will help choose which Reactome SchemaClass to use: GO_BiologicalProcess, GO_MolecularFunction, GO_CellularCompartment.
 	 */
-	private void createNewGOTerm(MySQLAdaptor adaptor, GKInstance goRefDB, Map<String, Map<String, Object>> goTerms, Map<String,List<String>> goToEcNumbers, String currentGOID, String currentCategory)
+	private void createNewGOTerm(MySQLAdaptor adaptor, Map<String, Map<String, Object>> goTerms, Map<String,List<String>> goToEcNumbers, String currentGOID, String currentCategory)
 	{
 		SchemaClass schemaClass = adaptor.getSchema().getClassByName(currentCategory);
 		GKInstance newGOTerm = new GKInstance(schemaClass);
@@ -302,7 +299,7 @@ class GoTermsUpdater
 			newGOTerm.setAttributeValue(ReactomeJavaConstants.accession, currentGOID);
 			newGOTerm.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
 			newGOTerm.setAttributeValue(ReactomeJavaConstants.definition, goTerms.get(currentGOID).get(GoUpdateConstants.DEF));
-			newGOTerm.setAttributeValue(ReactomeJavaConstants.referenceDatabase, goRefDB);
+			newGOTerm.setAttributeValue(ReactomeJavaConstants.referenceDatabase, GoTermsUpdater.goRefDB);
 			if (schemaClass.getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
 			{
 				List<String> ecNumbers = goToEcNumbers.get(currentGOID);
@@ -508,9 +505,9 @@ class GoTermsUpdater
 	 * Process a line from the GO file.
 	 * @param line - The line.
 	 * @param goTerms - The GO terms map. This map will be updated by this function.
-	 * @param altGoIdToMainGoId
+	 * @param currentGOID - The ID of the GO term currently being processed, line by line.
 	 */
-	private String processLine(String line, String currentGOID, Map<String, Map<String,Object>> goTerms, Map<String,List<String>> altGoIdToMainGoId)
+	private String processLine(String line, String currentGOID, Map<String, Map<String,Object>> goTerms)
 	{
 		String goID = currentGOID;
 		Matcher m;
@@ -547,7 +544,6 @@ class GoTermsUpdater
 					case GoUpdateConstants.ALT_ID:
 					{
 						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.ALT_ID_REGEX, GoUpdateConstants.ALT_ID);
-						updateAltGoIDsList(currentGOID, goTerms, altGoIdToMainGoId, GoUpdateConstants.ALT_ID);
 						break;
 					}
 					case GoUpdateConstants.NAME:
@@ -602,13 +598,11 @@ class GoTermsUpdater
 					case GoUpdateConstants.CONSIDER:
 					{
 						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.CONSIDER_REGEX, GoUpdateConstants.CONSIDER);
-						updateAltGoIDsList(currentGOID, goTerms, altGoIdToMainGoId, GoUpdateConstants.CONSIDER);
 						break;
 					}
 					case GoUpdateConstants.REPLACED_BY:
 					{
 						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.REPLACED_BY_REGEX, GoUpdateConstants.REPLACED_BY);
-						updateAltGoIDsList(currentGOID, goTerms, altGoIdToMainGoId, GoUpdateConstants.REPLACED_BY);
 						break;
 					}
 					case GoUpdateConstants.IS_OBSOLETE:
@@ -710,30 +704,6 @@ class GoTermsUpdater
 			else
 			{
 				((List<String>) goTerms.get(currentGOID).get(key)).add(extractedValue);
-			}
-		}
-	}
-
-	/**
-	 * 
-	 * @param goTerms
-	 * @param altGoIdToMainGoId
-	 */
-	private void updateAltGoIDsList(String currentGOID, Map<String, Map<String, Object>> goTerms, Map<String, List<String>> altGoIdToMainGoId, String key) {
-		@SuppressWarnings("unchecked")
-		List<String> altGoIds = (List<String>) goTerms.get(currentGOID).get(key);
-		// Build a mapping that maps alternate GO IDs to primary GO IDs.
-		for (String altGoId : altGoIds)
-		{
-			if (altGoIdToMainGoId.containsKey(altGoId))
-			{
-				altGoIdToMainGoId.get(altGoId).add(currentGOID);
-			}
-			else
-			{
-				List<String> primaryGoIds = new ArrayList<String>();
-				primaryGoIds.add(currentGOID);
-				altGoIdToMainGoId.put(altGoId, primaryGoIds);
 			}
 		}
 	}
