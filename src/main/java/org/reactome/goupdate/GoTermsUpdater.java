@@ -14,12 +14,8 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.gk.model.GKInstance;
-import org.gk.model.InstanceDisplayNameGenerator;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
-import org.gk.schema.InvalidAttributeException;
-import org.gk.schema.InvalidAttributeValueException;
-import org.gk.schema.SchemaClass;
 
 /**
  * This class can be used to update GO Terms in the "gk_central" database.
@@ -128,6 +124,7 @@ class GoTermsUpdater
 		// Now process all the goTerms.
 		for (String goID : goTerms.keySet())
 		{
+			GoTermInstanceModifier goTermModifier;
 			GONamespace currentCategory = (GONamespace) goTerms.get(goID).get(GoUpdateConstants.NAMESPACE);
 			String currentDefinition = (String) goTerms.get(goID).get(GoUpdateConstants.DEF);
 			// Now we need to process the Term that was just finished.
@@ -139,7 +136,8 @@ class GoTermsUpdater
 				{
 					// Create a new Instance if there is nothing in the current list of instances.
 					newGOTermStringBuilder.append("New GO Term to create: GO:").append(goID).append(" ").append(goTerms.get(goID)).append("\n");
-					createNewGOTerm(adaptor, goTerms, goToECNumbers, goID, currentCategory.getReactomeName());
+					goTermModifier = new GoTermInstanceModifier(this.adaptor, null, this.instanceEdit);
+					goTermModifier.createNewGOTerm(goTerms, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
 					
 					newGoTermCount++;
 				}
@@ -154,7 +152,8 @@ class GoTermsUpdater
 							|| ( goInst.getSchemClass().getName().equals(ReactomeJavaConstants.Compartment) && currentCategory.getReactomeName().equals(ReactomeJavaConstants.GO_CellularComponent)))
 						{
 							//Now do the update.
-							updateGOInstance(adaptor, goTerms, goToECNumbers, currentDefinition, goInst);
+							goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
+							goTermModifier.updateGOInstance(goTerms, goToECNumbers, currentDefinition, this.nameOrDefinitionChangeStringBuilder);
 						}
 						else
 						{
@@ -193,7 +192,8 @@ class GoTermsUpdater
 		// Now that the full goTerms structure is complete, and the alternate GO IDs are set up, we can delete the obsolete/category-mismatched GO instances from the database.
 		for (GKInstance instance : instancesForDeletion)
 		{
-			deleteGoInstance(instance, goTerms, allGoInstances, adaptor);
+			GoTermInstanceModifier goTermModifier = new GoTermInstanceModifier(this.adaptor, instance, this.instanceEdit);
+			goTermModifier.deleteGoInstance(goTerms, allGoInstances, this.deletionStringBuilder);
 		}
 		//Reload the list of GO Instances, since new ones have been created, and old ones have been deleted.
 		allGoInstances = getMapOfAllGOInstances(adaptor);
@@ -206,12 +206,13 @@ class GoTermsUpdater
 			{
 				for (GKInstance goInst : goInsts)
 				{
-					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
-					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.HAS_PART, "hasPart");
-					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
-					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.REGULATES, "regulate");
-					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate");
-					updateRelationship(this.adaptor, allGoInstances, goInst, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate");
+					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf, this.updatedRelationshipStringBuilder);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart", this.updatedRelationshipStringBuilder);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf, this.updatedRelationshipStringBuilder);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.REGULATES, "regulate", this.updatedRelationshipStringBuilder);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate", this.updatedRelationshipStringBuilder);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate", this.updatedRelationshipStringBuilder);
 				}
 			}
 		}
@@ -283,225 +284,6 @@ class GoTermsUpdater
 	}
 	
 	/**
-	 * Creates a new GO Term in the database.
-	 * @param adaptor - The adaptor.
-	 * @param goTerms - Map of GO terms, based on the file. Keyed by GO ID.
-	 * @param goToEcNumbers - Mapping of GO-to-EC numbers. Keyed by GO ID.
-	 * @param currentGOID - GO ID of the thing to insert.
-	 * @param currentCategory - Current category/namespace. Will help choose which Reactome SchemaClass to use: GO_BiologicalProcess, GO_MolecularFunction, GO_CellularCompartment.
-	 */
-	private void createNewGOTerm(MySQLAdaptor adaptor, Map<String, Map<String, Object>> goTerms, Map<String,List<String>> goToEcNumbers, String currentGOID, String currentCategory)
-	{
-		SchemaClass schemaClass = adaptor.getSchema().getClassByName(currentCategory);
-		GKInstance newGOTerm = new GKInstance(schemaClass);
-		try
-		{
-			newGOTerm.setAttributeValue(ReactomeJavaConstants.accession, currentGOID);
-			newGOTerm.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
-			newGOTerm.setAttributeValue(ReactomeJavaConstants.definition, goTerms.get(currentGOID).get(GoUpdateConstants.DEF));
-			newGOTerm.setAttributeValue(ReactomeJavaConstants.referenceDatabase, GoTermsUpdater.goRefDB);
-			if (schemaClass.getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
-			{
-				List<String> ecNumbers = goToEcNumbers.get(currentGOID);
-				if (ecNumbers!=null)
-				{
-					for (String ecNumber : ecNumbers)
-					{
-						newGOTerm.setAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
-					}
-				}
-			}
-			InstanceDisplayNameGenerator.setDisplayName(newGOTerm);
-			newGOTerm.setAttributeValue(ReactomeJavaConstants.created, this.instanceEdit);
-			newGOTerm.setDbAdaptor(adaptor);
-			adaptor.storeInstance(newGOTerm);
-		}
-		catch (InvalidAttributeException | InvalidAttributeValueException e)
-		{
-			System.err.println("Attribute/value error! "+ e.getMessage());
-			e.printStackTrace();
-		}
-		catch (Exception e)
-		{
-			e.printStackTrace();
-		}
-	}
-	
-	/**
-	 * Updates a GO instance that's already in the database. 
-	 * @param adaptor - the adaptor to use.
-	 * @param goTerms - Mapping of GO terms from the file, keyed by GO ID.
-	 * @param goToEcNumbers - Mapping of GO IDs mapped to EC numbers.
-	 * @param currentDefinition - The category/namespace.
-	 * @param goInst - The GKInstance that will be updated.
-	 */
-	private void updateGOInstance(MySQLAdaptor adaptor, Map<String, Map<String, Object>> goTerms, Map<String, List<String>> goToEcNumbers, String currentDefinition, GKInstance goInst)
-	{
-		String currentGOID = null;
-		try
-		{
-			currentGOID = (String) goInst.getAttributeValue(ReactomeJavaConstants.accession);
-		}
-		catch (InvalidAttributeException e1)
-		{
-			logger.error("InvalidAttributeException happened somehow, when querying \"{}\" on {}",ReactomeJavaConstants.accession,goInst.toString());
-			e1.printStackTrace();
-		}
-		catch (Exception e1)
-		{
-			e1.printStackTrace();
-		}
-		if (currentGOID!=null)
-		{
-			try
-			{
-				boolean modified = false;
-				// according to the logic in the Perl code, if the existing name does not
-				// match the name in the file or if the existing definition does not match
-				// the one in the file, we update with the new name and def'n, and then set
-				// InstanceOf and ComponentOf to NULL, and I guess those get updated later.
-				if ((goTerms.get(currentGOID).get(GoUpdateConstants.NAME)!=null && !goTerms.get(currentGOID).get(GoUpdateConstants.NAME).equals(goInst.getAttributeValue(ReactomeJavaConstants.name)))
-					|| (currentDefinition != null && !currentDefinition.equals(goInst.getAttributeValue(ReactomeJavaConstants.definition))))
-				{
-	//				nameOrDefinitionChangeStringBuilder.append("Change in name/definition for GO ID ").append(currentGOID).append("! ")
-	//						.append("New name: \"").append(goTerms.get(currentGOID).get(GoUpdateConstants.NAME)).append("\" vs. old name: \"").append(goInst.getAttributeValue(ReactomeJavaConstants.name)).append("\"")
-	//						.append(" new def'n: \"").append(currentDefinition).append("\" vs old def'n: \"").append(goInst.getAttributeValue(ReactomeJavaConstants.definition)).append("\". ")
-	//						.append("  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)\n");
-					goInst.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
-					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.instanceOf);
-					goInst.setAttributeValue(ReactomeJavaConstants.componentOf, null);
-					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.componentOf);
-					
-					goInst.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
-					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.name);
-					goInst.setAttributeValue(ReactomeJavaConstants.definition, currentDefinition);
-					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.definition);
-					modified = true;
-				}
-				
-				if (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
-				{
-					List<String> ecNumbers = goToEcNumbers.get(currentGOID);
-					if (ecNumbers!=null)
-					{
-						goInst.setAttributeValue(ReactomeJavaConstants.ecNumber, null);
-						for (String ecNumber : ecNumbers)
-						{
-							goInst.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
-							modified = true;
-							//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number: ").append(ecNumber).append("\n");
-						}
-						adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.ecNumber);
-					}
-				}
-				if (modified)
-				{
-					goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
-					goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
-					InstanceDisplayNameGenerator.setDisplayName(goInst);
-					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants._displayName);
-				}
-			}
-			catch (InvalidAttributeException | InvalidAttributeValueException e)
-			{
-				System.err.println("Attribute/Value problem with "+goInst.toString()+ " " + e.getMessage());
-				e.printStackTrace();
-			}
-			catch (NullPointerException e)
-			{
-				System.err.println("NullPointerException occurred! GO ID: "+currentGOID+" GO Instance: "+goInst + " GO Term: "+goTerms.get(currentGOID));
-				e.printStackTrace();
-			}
-			catch (Exception e)
-			{
-				e.printStackTrace();
-			}
-		}
-	}
-	
-	/**
-	 * Deletes a GO term from the database.
-	 * @param goInst - The object to delete.
-	 * @param goTerms - The list of GO terms from the file. Needed to get the alternate GO IDs for things that refer to the thing that's about to be deleted.
-	 * @param allGoInstances - ALL GO instances from the database.
-	 * @param adaptor - The database adaptor to use.
-	 */
-	private void deleteGoInstance(GKInstance goInst, Map<String, Map<String,Object>> goTerms, Map<String, List<GKInstance>> allGoInstances, MySQLAdaptor adaptor)
-	{
-		try
-		{
-			String goId = (String) goInst.getAttributeValue(ReactomeJavaConstants.accession);
-			deletionStringBuilder.append("Deleting GO instance: \"").append(goInst.toString()).append("\" (GO:").append(goId).append(")\n");
-			// before we do the actual delete, we should update referrers to refer to a GO Term whose *alternate* accession (GO ID) is the id of the 
-			// term being deleted.
-			String altGoId = null;
-			if (goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)!=null)
-			{
-				altGoId = ((List<String>)goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)).get(0);
-			}
-			else if (goTerms.get(goId).get(GoUpdateConstants.CONSIDER)!=null)
-			{
-				altGoId = ((List<String>)goTerms.get(goId).get(GoUpdateConstants.CONSIDER)).get(0);
-			}
-			else if (goTerms.get(goId).get(GoUpdateConstants.ALT_ID)!=null)
-			{
-				altGoId = ((List<String>)goTerms.get(goId).get(GoUpdateConstants.ALT_ID)).get(0);
-			}
-			
-			
-			//if (altGoIDsToMainGoIDs.containsKey(goId)) //TODO: remove altGoIDsToMainGoIDs
-			if (altGoId != null)
-			{
-				// The current instances GO ID is an alternate to others. So, we will re-direct referrers to that one.
-				// If there's more than one, just use the first one.
-				String replacementGoId = altGoId; //altGoIDsToMainGoIDs.get(goId).get(0);
-				if (allGoInstances.containsKey(replacementGoId))
-				{
-					GKInstance replacementGoInstance = allGoInstances.get(replacementGoId).get(0);
-					@SuppressWarnings("unchecked")
-					Map<String, List<GKInstance>> referrers = new HashMap<String, List<GKInstance>>();
-					for (String attribute : Arrays.asList(ReactomeJavaConstants.activity, "componentOf", "hasPart", "negativelyRegulate", "positivelyRegulat", "regulate"))
-					{
-						@SuppressWarnings("unchecked")
-						List<GKInstance> tmp = (List<GKInstance>) goInst.getReferers(attribute);
-						if (tmp!=null)
-						{
-							referrers.put(attribute, tmp );
-						}
-					}
-					
-					// for each of goInst's referrers, redirect them to the replacement instance.
-					for (String attribute : referrers.keySet())
-					{
-						for (GKInstance referringInstance : referrers.get(attribute))
-						{
-							GKInstance tmp = (GKInstance) referringInstance.getAttributeValue(attribute);
-							if (tmp.getDBID() == goInst.getDBID())
-							{
-								deletionStringBuilder.append("\"").append(referringInstance.toString()).append("\" now refers to \"").append(replacementGoInstance).append("\" (GO:").append(replacementGoId).append(") via \"").append(attribute).append("\"");
-								referringInstance.setAttributeValue(attribute, replacementGoInstance);
-								adaptor.updateInstanceAttribute(referringInstance, attribute);
-							}
-						}
-					}
-				}
-				else
-				{
-					//TODO: when logging with log4j, log this as a WARNING!
-					deletionStringBuilder.append("Replacement GO Instance with GO ID: ").append(replacementGoId).append(" could not be found in allGoInstances map.")
-							.append("This was not expected. Instance \"").append(goInst.toString()).append("\" will still be deleted but referrs will have nothing to refer to.\n");
-				}
-			}
-			adaptor.deleteInstance(goInst);
-		}
-		catch (Exception e)
-		{
-			System.err.println("Error occurred while trying to delete instance: \""+goInst.toString()+"\": "+e.getMessage());
-			e.printStackTrace();
-		}
-	}
-
-	/**
 	 * Process a line from the GO file.
 	 * @param line - The line.
 	 * @param goTerms - The GO terms map. This map will be updated by this function.
@@ -533,7 +315,6 @@ class GoTermsUpdater
 							}
 							else
 							{
-								// TODO: Use Log4j2 properly.
 								logger.warn("GO ID {} has appeared more than once in the input!", goID);
 								// TODO: exit is probably not the best way to handle this. only for early-development debugging...
 								System.exit(1);
@@ -558,7 +339,7 @@ class GoTermsUpdater
 							}
 							else
 							{
-								System.out.println("GO ID " + currentGOID + " already has a value for NAME - and this is a single-value field!");
+								logger.fatal("GO ID {} *already* has a value for NAME ({}) - and this is a single-value field!", currentGOID, goTerms.get(currentGOID).get(name));
 								// TODO: exit is probably not the best way to handle this. only for early-development debugging...
 								System.exit(1);
 							}
@@ -708,59 +489,6 @@ class GoTermsUpdater
 		}
 	}
 
-	/**
-	 * Updates the relationships between GO terms in the database.
-	 * @param adaptor - The database adaptor to use.
-	 * @param allGoInstances - Map of all GO instances in the database.
-	 * @param goInst - The GO object to update.
-	 * @param goProps - The properties to update with.
-	 * @param relationshipKey - The key to use to look up the values  in goProps.
-	 * @param reactomeRelationshipName - The name of the relationship, can be one of "is_a", "has_part", "part_of", "component_of", "regulates", "positively_regulates", "negatively_regulates".
-	 */
-	private void updateRelationship(MySQLAdaptor adaptor, Map<String, List<GKInstance>> allGoInstances, GKInstance goInst, Map<String, Object> goProps, String relationshipKey, String reactomeRelationshipName)
-	{
-		if (goProps.containsKey(relationshipKey))
-		{
-			@SuppressWarnings("unchecked")
-			List<String> otherIDs = (List<String>) goProps.get(relationshipKey);
-			for (String otherID : otherIDs)
-			{				
-				List<GKInstance> otherInsts = allGoInstances.get(otherID);
-				try
-				{
-					goInst.getAttributeValuesList(reactomeRelationshipName);
-					if (otherInsts != null && !otherInsts.isEmpty())
-					{
-						for (GKInstance inst : otherInsts)
-						{
-							try
-							{
-								goInst.addAttributeValue(reactomeRelationshipName, inst);
-								updatedRelationshipStringBuilder.append("Relationship updated! \"").append(goInst.toString()).append("\" (GO:").append(goInst.getAttributeValue(ReactomeJavaConstants.accession))
-									.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
-									.append(inst.getAttributeValue(ReactomeJavaConstants.accession)).append(")\n");
-							}
-							catch (InvalidAttributeValueException e)
-							{
-								System.err.println("InvalidAttributeValueException was caught! Instance was \""+goInst.toString()+"\" with GO ID: "+goInst.getAttributeValue(ReactomeJavaConstants.accession)+", attribute was: "+reactomeRelationshipName+ ", Value was: \""+inst+"\", with GO ID: "+inst.getAttributeValue(ReactomeJavaConstants.accession));
-								e.printStackTrace();
-							}
-						}
-					}
-					else
-					{
-						System.out.println("Could not find instance with GO ID "+otherID);
-					}
-					adaptor.updateInstanceAttribute(goInst, reactomeRelationshipName);
-				}
-				
-				catch (Exception e)
-				{
-					e.printStackTrace();
-				}
-			}
-		}
-	}
 	
 	/**
 	 * Processes a line from the EC-to-GO file.
