@@ -1,4 +1,4 @@
-package org.reactome.goupdate;
+package org.reactome.release.goupdate;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -313,5 +313,9 @@ class GoTermInstanceModifier
 				}
 			}
 		}
+	}
+
+	public static void main(String[] args) {
+		pathToEC2GOFile
 	}
 }

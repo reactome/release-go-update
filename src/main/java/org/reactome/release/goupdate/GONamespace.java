@@ -1,4 +1,4 @@
-package org.reactome.goupdate;
+package org.reactome.release.goupdate;
 
 import org.gk.model.ReactomeJavaConstants;
 
