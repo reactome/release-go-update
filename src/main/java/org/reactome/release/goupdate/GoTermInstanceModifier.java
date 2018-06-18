@@ -314,8 +314,4 @@ class GoTermInstanceModifier
 			}
 		}
 	}
-
-	public static void main(String[] args) {
-		pathToEC2GOFile
-	}
 }
