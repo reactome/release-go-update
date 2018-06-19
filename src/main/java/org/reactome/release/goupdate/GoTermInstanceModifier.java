@@ -59,7 +59,7 @@ class GoTermInstanceModifier
 	 * @param currentGOID - GO ID of the thing to insert.
 	 * @param currentCategory - Current category/namespace. Will help choose which Reactome SchemaClass to use: GO_BiologicalProcess, GO_MolecularFunction, GO_CellularCompartment.
 	 */
-	public void createNewGOTerm(Map<String, Map<String, Object>> goTerms, Map<String,List<String>> goToEcNumbers, String currentGOID, String currentCategory, GKInstance goRefDB)
+	public void createNewGOTerm(Map<String, Map<String, Object>> goTerms, Map<String,List<String>> goToEcNumbers, String currentGOID, String currentCategory, GKInstance goRefDB) throws Exception
 	{
 		SchemaClass schemaClass = adaptor.getSchema().getClassByName(currentCategory);
 		GKInstance newGOTerm = new GKInstance(schemaClass);
@@ -89,10 +89,12 @@ class GoTermInstanceModifier
 		{
 			System.err.println("Attribute/value error! "+ e.getMessage());
 			e.printStackTrace();
+			throw e;
 		}
 		catch (Exception e)
 		{
 			e.printStackTrace();
+			throw e;
 		}
 	}
 	
@@ -197,7 +199,7 @@ class GoTermInstanceModifier
 		try
 		{
 			String goId = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.accession);
-			deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
+			
 			// before we do the actual delete, we should update referrers to refer to a GO Term whose *alternate* accession (GO ID) is the id of the 
 			// term being deleted.
 			String altGoId = null;
@@ -240,6 +242,7 @@ class GoTermInstanceModifier
 						for (GKInstance referringInstance : referrers.get(attribute))
 						{
 							GKInstance tmp = (GKInstance) referringInstance.getAttributeValue(attribute);
+							// verify by DB ID
 							if (tmp.getDBID() == this.goInstance.getDBID())
 							{
 								deletionStringBuilder.append("\"").append(referringInstance.toString()).append("\" now refers to \"").append(replacementGoInstance).append("\" (GO:").append(replacementGoId).append(") via \"").append(attribute).append("\"");
@@ -255,6 +258,7 @@ class GoTermInstanceModifier
 				}
 			}
 			adaptor.deleteInstance(this.goInstance);
+			deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
 		}
 		catch (Exception e)
 		{
@@ -302,7 +306,9 @@ class GoTermInstanceModifier
 					}
 					else
 					{
-						System.out.println("Could not find instance with GO ID "+otherID);
+						String message = "Trying to set \""+reactomeRelationshipName+"\" on \""+this.goInstance.toString()+"\" but could not find instance with GO ID "+otherID+". Relationship update could not be completed.";
+						updatedRelationshipStringBuilder.append(message + "\n");
+						logger.warn(message);
 					}
 					this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
 				}

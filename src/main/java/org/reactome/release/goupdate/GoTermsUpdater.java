@@ -59,18 +59,20 @@ class GoTermsUpdater
 		if (instanceEdit == null)
 		{
 			logger.fatal("Cannot proceed without a valid InstanceEdit. Aborting.");
-			System.exit(1);
+			throw new RuntimeException("Cannot proceed without a valid InstanceEdit. Aborting.");
+			//System.exit(1);
 		}
 		try
 		{
 			GoTermsUpdater.goRefDB = ((Set<GKInstance>) adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.ReferenceDatabase, ReactomeJavaConstants.name, "=","GO")).stream().findFirst().get();
-			System.out.println("RefDB for GO: "+GoTermsUpdater.goRefDB.toString());
+			logger.info("RefDB for GO: "+GoTermsUpdater.goRefDB.toString());
 		}
 		catch (Exception e1)
 		{
-			System.out.println("Couldn't even get a reference to the GO ReferenceDatabase object. There's no point in continuing, so this progam will exit. :(");
+			String message = "Couldn't even get a reference to the GO ReferenceDatabase object. There's no point in continuing, so this progam will exit. :(";
+			logger.fatal(message);
 			e1.printStackTrace();
-			System.exit(1);
+			throw new RuntimeException(message);
 		}
 
 	}
@@ -79,7 +81,7 @@ class GoTermsUpdater
 	 * Executes the GO Terms updates. Returns a StringBuilder, which contains a report about what happened.
 	 * @return
 	 */
-	public StringBuilder updateGoTerms()
+	public StringBuilder updateGoTerms() throws Exception
 	{
 		// This map is keyed by GO ID. Values are maps of strings that map to values from the file.
 		Map<String, Map<String,Object>> goTerms = new HashMap<String, Map<String,Object>>();
@@ -318,7 +320,7 @@ class GoTermsUpdater
 							{
 								logger.warn("GO ID {} has appeared more than once in the input!", goID);
 								// TODO: exit is probably not the best way to handle this. only for early-development debugging...
-								System.exit(1);
+								//System.exit(1);
 							}
 						}
 						break;
@@ -394,6 +396,7 @@ class GoTermsUpdater
 						{
 							goTerms.get(currentGOID).put(GoUpdateConstants.IS_OBSOLETE, true);
 						}
+						break;
 					}
 					case GoUpdateConstants.RELATIONSHIP:
 					{

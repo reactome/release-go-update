@@ -92,6 +92,11 @@ public class GoUpdateStep extends ReleaseStep
 		{
 			e.printStackTrace();
 		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+			throw new RuntimeException(e);
+		}
 		Long endTime = System.currentTimeMillis();
 		logger.info("Elapsed time: " + Duration.ofMillis(endTime-startTime).toString());
 	}
