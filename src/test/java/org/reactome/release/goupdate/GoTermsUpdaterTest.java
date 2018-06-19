@@ -86,20 +86,39 @@ public class GoTermsUpdaterTest
 			"consider: GO:0051082\n" +
 			"\n"
 			+"[Term]\n"+
-			"id: GO:0000003\n" + 
+			"id: GO:0000033\n" + 
+			"name: duplicate test!\n" + 
+			"namespace: biological_process\n" + 
+			"def: \"testing stuff.\n" + 
+			"is_a: GO:0048309\n" +
+			"relationship: part_of GO:0048308\n" +
+			"relationship: has_part GO:0448308\n" +
+			"\n"
+			+"[Term]\n"+
+			"id: GO:0000033\n" + 
 			"name: duplicate test!\n" + 
 			"namespace: biological_process\n" + 
 			"def: \"testing stuff.\n" + 
 			"is_a: GO:0048309 \n" +
-			"relationship: part_of: GO:0048308 \n" +
+			"relationship: negatively_regulates GO:0048308 \n" +
 			"\n"
 			+"[Term]\n"+
 			"id: GO:0000009\n" + 
 			"name: test term\n" + 
 			"relationship: part_of: GO:0048308\n" +
 			"namespace: biological_process\n" + 
+			"pending_obsoletion\n"+
 			"def: \"testing stuff.\n" + 
 			"is_a: GO:0048309\n" +
+			"\n"
+			+"[Term]\n"+
+			"id: GO:3070009\n" + 
+			"name: test term\n" + 
+			"relationship: part_of: GO:0048308\n" +
+			"namespace: biological_process\n" + 
+			"def: \"testing stuff.\n" +
+			"relationship: positively_regulates GO:0048309\n" +
+			"is_obsolete: true\n" + 
 			"\n"
 			+"[Term]\n"+
 			"id: GO:00000099\n" + 
@@ -107,21 +126,20 @@ public class GoTermsUpdaterTest
 			"namespace: biological_process\n" + 
 			"def: \"testing stuff.\n" + 
 			"is_a: GO:0048309 \n" +
-			"pending obsoletion\n"+
 			"replaced_by: GO:12312312\n"+
 			"relationship: part_of GO:0048308\n" +
-			"relationship: regulate GO:0048308\n" +
+			"relationship: regulates GO:0048308\n" +
 			"\n";
 	
 	private static final String sampleEc2GoText = "! Generated on 2018-06-04T11:27Z from the ontology 'go' with data version: 'releases/2017-03-31'\n" + 
 			"!\n" + 
 			"EC:1 > GO:N-ethylmaleimide reductase activity ; GO:00000099\n" + 
-			"EC:1 > GO:oxidoreductase activity ; GO:0016491\n" + 
+			"EC:1 > GO:oxidoreductase activity ; GO:0000003\n" + 
 			"EC:1 > GO:reduced coenzyme F420 dehydrogenase activity ; GO:0043738\n" + 
 			"EC:1 > GO:sulfur oxygenase reductase activity ; GO:00000099\n" + 
 			"EC:1 > GO:malolactic enzyme activity ; GO:0043883\n" + 
 			"EC:1 > GO:NADPH:sulfur oxidoreductase activity ; GO:0043914\n" + 
-			"EC:1 > GO:epoxyqueuosine reductase activity ; GO:0000003\n" ;
+			"EC:1.2 > GO:epoxyqueuosine reductase activity ; GO:0000003\n" ;
 	
 	@Mock
 	MySQLAdaptor dba;
@@ -159,9 +177,20 @@ public class GoTermsUpdaterTest
 
 		GKInstance biologicalProcess = mock(GKInstance.class);
 		Mockito.when(biologicalProcess.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("00000099");
-		Mockito.when(mockSchemaClass.getName()).thenReturn(ReactomeJavaConstants.GO_BiologicalProcess);
+		Mockito.when(mockSchemaClass.getName()).thenReturn(ReactomeJavaConstants.GO_BiologicalProcess).thenReturn(ReactomeJavaConstants.GO_MolecularFunction).thenReturn(ReactomeJavaConstants.GO_MolecularFunction);
 		Mockito.when(biologicalProcess.getSchemClass()).thenReturn(mockSchemaClass);
 		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess)).thenReturn(Arrays.asList(biologicalProcess));
+		
+		GKInstance biologicalProcess2 = mock(GKInstance.class);
+		Mockito.when(biologicalProcess2.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("0000003");
+		Mockito.when(biologicalProcess2.getSchemClass()).thenReturn(mockSchemaClass);
+		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction)).thenReturn(Arrays.asList(biologicalProcess2));
+		
+		GKInstance molecularFunction = mock(GKInstance.class);
+		Mockito.when(molecularFunction.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("3070009");
+		Mockito.when(molecularFunction.getSchemClass()).thenReturn(mockSchemaClass);
+		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction)).thenReturn(Arrays.asList(molecularFunction));
+		
 		
 		Mockito.when(dba.storeInstance(any(GKInstance.class))).thenReturn(123456L);
 		
