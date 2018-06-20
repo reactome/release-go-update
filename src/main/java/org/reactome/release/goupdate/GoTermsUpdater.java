@@ -435,20 +435,15 @@ class GoTermsUpdater
 						}
 						break;
 					}
-					default:
-					{
-						// handle other cases here...
-						// ...such as...??
-						//
-						// check for pending obsoletion
-						m = GoUpdateConstants.OBSOLETION.matcher(line);
-						if (m.matches())
-						{
-							goTerms.get(currentGOID).put(GoUpdateConstants.PENDING_OBSOLETION, true);
-						}
-						break;
-					}
-					
+				}
+			}
+			else
+			{
+				// Obsoletion doesn't matche the line decoder regexp, so we need to test it separately.
+				m = GoUpdateConstants.OBSOLETION.matcher(line);
+				if (m.matches())
+				{
+					goTerms.get(currentGOID).put(GoUpdateConstants.PENDING_OBSOLETION, true);
 				}
 			}
 		}

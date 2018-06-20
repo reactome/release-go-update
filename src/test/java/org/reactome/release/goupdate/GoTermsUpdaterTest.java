@@ -107,7 +107,7 @@ public class GoTermsUpdaterTest
 			"name: test term\n" + 
 			"relationship: part_of: GO:0048308\n" +
 			"namespace: biological_process\n" + 
-			"pending_obsoletion\n"+
+			"pending obsoletion\n"+
 			"def: \"testing stuff.\n" + 
 			"is_a: GO:0048309\n" +
 			"\n"
@@ -129,7 +129,15 @@ public class GoTermsUpdaterTest
 			"replaced_by: GO:12312312\n"+
 			"relationship: part_of GO:0048308\n" +
 			"relationship: regulates GO:0048308\n" +
-			"\n";
+			"\n"
+			+"[Term]\n"+
+			"id: GO:0000043\n" + 
+			"name: negative regulation of something...!\n" + 
+			"namespace: cellular_component\n" + 
+			"def: \"testing stuff.\n" + 
+			"relationship: negatively_regulates GO:0444444\n" +
+			"\n"
+;
 	
 	private static final String sampleEc2GoText = "! Generated on 2018-06-04T11:27Z from the ontology 'go' with data version: 'releases/2017-03-31'\n" + 
 			"!\n" + 
@@ -151,6 +159,16 @@ public class GoTermsUpdaterTest
 	GKSchemaClass mockSchemaClass;
 	
 	@Mock
+	GKSchemaClass mockBiologicalProcessSchemaClass;
+
+	@Mock
+	GKSchemaClass mockMolecularFunctionSchemaClass;
+
+	@Mock
+	GKSchemaClass mockCellularComponentSchemaClass;
+
+
+	@Mock
 	Schema mockSchema;
 
 	@Mock
@@ -162,9 +180,6 @@ public class GoTermsUpdaterTest
 		MockitoAnnotations.initMocks(this);
 		
 		PowerMockito.mockStatic(InstanceEditUtils.class);
-		Mockito.when(dba.getSchema()).thenReturn(mockSchema);
-		Mockito.when(mockSchema.getClassByName(anyString())).thenReturn(mockSchemaClass );
-		PowerMockito.whenNew(GKInstance.class).withArguments(mockSchemaClass).thenReturn(mockGoTerm );
 	}
 	
 	@Test
@@ -175,22 +190,40 @@ public class GoTermsUpdaterTest
 		Mockito.doNothing().when(mockGoTerm).setAttributeValue(anyString(), anyString());
 		Mockito.doNothing().when(mockGoTerm).setAttributeValue(anyString(), any(GKInstance.class));
 
-		GKInstance biologicalProcess = mock(GKInstance.class);
-		Mockito.when(biologicalProcess.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("00000099");
-		Mockito.when(mockSchemaClass.getName()).thenReturn(ReactomeJavaConstants.GO_BiologicalProcess).thenReturn(ReactomeJavaConstants.GO_MolecularFunction).thenReturn(ReactomeJavaConstants.GO_MolecularFunction);
-		Mockito.when(biologicalProcess.getSchemClass()).thenReturn(mockSchemaClass);
-		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess)).thenReturn(Arrays.asList(biologicalProcess));
+		Mockito.when(mockBiologicalProcessSchemaClass.getName()).thenReturn(ReactomeJavaConstants.GO_BiologicalProcess);
+		Mockito.when(mockMolecularFunctionSchemaClass.getName()).thenReturn(ReactomeJavaConstants.GO_MolecularFunction);
+		Mockito.when(mockCellularComponentSchemaClass.getName()).thenReturn(ReactomeJavaConstants.GO_CellularComponent);
+		
+		GKInstance biologicalProcessMismatchedCategory = mock(GKInstance.class);
+		Mockito.when(biologicalProcessMismatchedCategory.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("00000099");
+		Mockito.when(biologicalProcessMismatchedCategory.getSchemClass()).thenReturn(mockCellularComponentSchemaClass);
 		
 		GKInstance biologicalProcess2 = mock(GKInstance.class);
 		Mockito.when(biologicalProcess2.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("0000003");
-		Mockito.when(biologicalProcess2.getSchemClass()).thenReturn(mockSchemaClass);
-		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction)).thenReturn(Arrays.asList(biologicalProcess2));
+		Mockito.when(biologicalProcess2.getSchemClass()).thenReturn(mockBiologicalProcessSchemaClass);
+
+		GKInstance biologicalProcess3 = mock(GKInstance.class);
+		Mockito.when(biologicalProcess3.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("0000009");
+		Mockito.when(biologicalProcess3.getSchemClass()).thenReturn(mockBiologicalProcessSchemaClass);
 		
 		GKInstance molecularFunction = mock(GKInstance.class);
 		Mockito.when(molecularFunction.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("3070009");
-		Mockito.when(molecularFunction.getSchemClass()).thenReturn(mockSchemaClass);
-		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction)).thenReturn(Arrays.asList(molecularFunction));
+		Mockito.when(molecularFunction.getSchemClass()).thenReturn(mockMolecularFunctionSchemaClass);
 		
+		GKInstance molecularFunction2 = mock(GKInstance.class);
+		Mockito.when(molecularFunction2.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("0000005");
+		Mockito.when(molecularFunction2.getAttributeValue(ReactomeJavaConstants.name)).thenReturn("The old name");
+		Mockito.when(molecularFunction2.getAttributeValue(ReactomeJavaConstants.definition)).thenReturn("Old Definition");
+		Mockito.when(molecularFunction2.getSchemClass()).thenReturn(mockMolecularFunctionSchemaClass);
+		
+		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent)).thenReturn(Arrays.asList(biologicalProcessMismatchedCategory));
+		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess)).thenReturn(Arrays.asList(biologicalProcess3, biologicalProcess2));
+		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction)).thenReturn(Arrays.asList(molecularFunction,  molecularFunction2));
+		
+		Mockito.when(dba.getSchema()).thenReturn(mockSchema);
+		Mockito.when(mockSchema.getClassByName(anyString())).thenReturn(mockSchemaClass );
+		PowerMockito.whenNew(GKInstance.class).withArguments(mockSchemaClass).thenReturn(mockGoTerm );
+
 		
 		Mockito.when(dba.storeInstance(any(GKInstance.class))).thenReturn(123456L);
 		
@@ -214,7 +247,7 @@ public class GoTermsUpdaterTest
 		
 		try
 		{
-			updater.updateGoTerms();
+			System.out.println(updater.updateGoTerms());
 		}
 		catch(Exception e)
 		{
