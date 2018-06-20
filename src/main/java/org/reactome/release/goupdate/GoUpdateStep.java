@@ -78,7 +78,6 @@ public class GoUpdateStep extends ReleaseStep
 
 			StringBuilder report = goTermsUpdator.updateGoTerms();
 			logger.info(report);
-			testMode = true;
 			if (testMode)
 			{
 				adaptor.rollback();
