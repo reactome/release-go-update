@@ -62,30 +62,31 @@ public class GoUpdateStep extends ReleaseStep
 			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
 
 			// Start a transaction. If that fails, the program will exit.
-			try
-			{
-				adaptor.startTransaction();
-			}
-			catch (TransactionsNotSupportedException e1)
-			{
-				e1.printStackTrace();
-				logger.error("This program should run within a transaction. Exiting.");
-				System.exit(1);
-			}
+//			try
+//			{
+//				adaptor.startTransaction();
+//			}
+//			catch (TransactionsNotSupportedException e1)
+//			{
+//				e1.printStackTrace();
+//				logger.error("This program should run within a transaction. Exiting.");
+//				System.exit(1);
+//			}
 
 			// Do the updatess.
 			GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines, personID);
 
 			StringBuilder report = goTermsUpdator.updateGoTerms();
 			logger.info(report);
-			if (testMode)
-			{
-				adaptor.rollback();
-			}
-			else
-			{
-				adaptor.commit();
-			}
+			
+//			if (testMode)
+//			{
+//				adaptor.rollback();
+//			}
+//			else
+//			{
+//				adaptor.commit();
+//			}
 		}
 		catch (IOException e)
 		{

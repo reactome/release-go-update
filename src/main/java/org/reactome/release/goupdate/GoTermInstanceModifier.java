@@ -1,9 +1,13 @@
 package org.reactome.release.goupdate;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -11,6 +15,7 @@ import org.gk.model.GKInstance;
 import org.gk.model.InstanceDisplayNameGenerator;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
+import org.gk.schema.GKSchemaAttribute;
 import org.gk.schema.InvalidAttributeException;
 import org.gk.schema.InvalidAttributeValueException;
 import org.gk.schema.SchemaClass;
@@ -104,7 +109,7 @@ class GoTermInstanceModifier
 	 * @param goToEcNumbers - Mapping of GO IDs mapped to EC numbers.
 	 * @param currentDefinition - The category/namespace.
 	 */
-	public void updateGOInstance(Map<String, Map<String, Object>> goTerms, Map<String, List<String>> goToEcNumbers, String currentDefinition, StringBuffer nameOrDefinitionChangeStringBuilder)
+	public void updateGOInstance(Map<String, Map<String, Object>> goTerms, Map<String, List<String>> goToEcNumbers, StringBuffer nameOrDefinitionChangeStringBuilder)
 	{
 		String currentGOID = null;
 		try
@@ -122,28 +127,33 @@ class GoTermInstanceModifier
 		}
 		if (currentGOID!=null)
 		{
+			String newDefinition = (String) goTerms.get(currentGOID).get(GoUpdateConstants.DEF);
+			String newName = (String) goTerms.get(currentGOID).get(GoUpdateConstants.NAME);
+			String oldDefinition = null;
+			String oldName = null;
 			try
 			{
+				oldDefinition = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.definition);
+				oldName = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.name);
 				boolean modified = false;
 				// according to the logic in the Perl code, if the existing name does not
 				// match the name in the file or if the existing definition does not match
 				// the one in the file, we update with the new name and def'n, and then set
 				// InstanceOf and ComponentOf to NULL, and I guess those get updated later.
-				if ((goTerms.get(currentGOID).get(GoUpdateConstants.NAME)!=null && !goTerms.get(currentGOID).get(GoUpdateConstants.NAME).equals(this.goInstance.getAttributeValue(ReactomeJavaConstants.name)))
-					|| (currentDefinition != null && !currentDefinition.equals(this.goInstance.getAttributeValue(ReactomeJavaConstants.definition))))
+				if ((newName!=null && !newName.equals(oldName))
+					|| (newDefinition != null && !newDefinition.equals(oldDefinition)))
 				{
 					nameOrDefinitionChangeStringBuilder.append("Change in name/definition for GO ID ").append(currentGOID).append("! ")
 							.append("New name: \"").append(goTerms.get(currentGOID).get(GoUpdateConstants.NAME)).append("\" vs. old name: \"").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.name)).append("\"")
-							.append(" new def'n: \"").append(currentDefinition).append("\" vs old def'n: \"").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.definition)).append("\". ")
+							.append(" new def'n: \"").append(newDefinition).append("\" vs old def'n: \"").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.definition)).append("\". ")
 							.append("  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)\n");
 					this.goInstance.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.instanceOf);
 					this.goInstance.setAttributeValue(ReactomeJavaConstants.componentOf, null);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.componentOf);
-					
 					this.goInstance.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.name);
-					this.goInstance.setAttributeValue(ReactomeJavaConstants.definition, currentDefinition);
+					this.goInstance.setAttributeValue(ReactomeJavaConstants.definition, newDefinition);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.definition);
 					modified = true;
 				}
@@ -169,6 +179,9 @@ class GoTermInstanceModifier
 					this.goInstance.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
 					InstanceDisplayNameGenerator.setDisplayName(this.goInstance);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants._displayName);
+					
+					//Now... need to modify all referrers that refer to this, since their displayNames might need to be updated.
+					//this.updateReferrersDisplayNames();
 				}
 			}
 			catch (InvalidAttributeException | InvalidAttributeValueException e)
@@ -188,7 +201,34 @@ class GoTermInstanceModifier
 		}
 	}
 	
-	
+	/**
+	 * Update the Instances that refer to the instance being modified by *this* GoTermInstanceModifier.
+	 * @throws Exception 
+	 */
+	public void updateReferrersDisplayNames() throws Exception
+	{
+		@SuppressWarnings("unchecked")
+		Set<GKSchemaAttribute> referringAttributes = (Set<GKSchemaAttribute>) this.goInstance.getSchemClass().getReferers();
+		for(GKSchemaAttribute attribute : referringAttributes.stream().filter(a -> a.getName().equals(ReactomeJavaConstants.activity)
+																		|| a.getName().equals(ReactomeJavaConstants.goCellularComponent))
+																	.collect(Collectors.toList()))
+		{
+			@SuppressWarnings("unchecked")
+			Collection<GKInstance> referrers = (Collection<GKInstance>) this.goInstance.getReferers(attribute.getName());
+			if (referrers != null)
+			{
+				for (GKInstance referrer : referrers)
+				{
+					referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
+					referrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+					InstanceDisplayNameGenerator.setDisplayName(referrer);
+					this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants._displayName);
+					this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
+				}
+			}
+		}
+	}
+
 	/**
 	 * Deletes a GO term from the database.
 	 * @param goTerms - The list of GO terms from the file. Needed to get the alternate GO IDs for things that refer to the thing that's about to be deleted.
@@ -278,29 +318,38 @@ class GoTermInstanceModifier
 	{
 		if (goProps.containsKey(relationshipKey))
 		{
+			List<GKInstance> newInstancesToAdd = new ArrayList<GKInstance>();
 			@SuppressWarnings("unchecked")
 			List<String> otherIDs = (List<String>) goProps.get(relationshipKey);
-			for (String otherID : otherIDs)
-			{				
-				List<GKInstance> otherInsts = allGoInstances.get(otherID);
-				try
-				{
-					this.goInstance.getAttributeValuesList(reactomeRelationshipName);
+			try
+			{
+				for (String otherID : otherIDs)
+				{				
+					List<GKInstance> otherInsts = allGoInstances.get(otherID);
+					// Before adding a new Instance, let's check that the relationship doesn't already exist.
+					// First, we get the list of things currently under that attribute.
 					if (otherInsts != null && !otherInsts.isEmpty())
 					{
-						for (GKInstance inst : otherInsts)
+						boolean preexistingRelationsAreDifferent = arePreexistingRelationsDifferent(otherInsts, reactomeRelationshipName);
+						// only process things that are NOT already in the list of pre-existing Objects for this attribute-relationship
+						if (preexistingRelationsAreDifferent)
 						{
-							try
+							
+							for (GKInstance inst : otherInsts )
 							{
-								this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
-								updatedRelationshipStringBuilder.append("Relationship updated! \"").append(this.goInstance.toString()).append("\" (GO:").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.accession))
-									.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
-									.append(inst.getAttributeValue(ReactomeJavaConstants.accession)).append(")\n");
-							}
-							catch (InvalidAttributeValueException e)
-							{
-								System.err.println("InvalidAttributeValueException was caught! Instance was \""+this.goInstance.toString()+"\" with GO ID: "+this.goInstance.getAttributeValue(ReactomeJavaConstants.accession)+", attribute was: "+reactomeRelationshipName+ ", Value was: \""+inst+"\", with GO ID: "+inst.getAttributeValue(ReactomeJavaConstants.accession));
-								e.printStackTrace();
+								try
+								{
+									//this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
+									newInstancesToAdd.add(inst);
+									updatedRelationshipStringBuilder.append("Relationship updated! \"").append(this.goInstance.toString()).append("\" (GO:").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.accession))
+										.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
+										.append(inst.getAttributeValue(ReactomeJavaConstants.accession)).append(")\n");
+								}
+								catch (InvalidAttributeValueException e)
+								{
+									System.err.println("InvalidAttributeValueException was caught! Instance was \""+this.goInstance.toString()+"\" with GO ID: "+this.goInstance.getAttributeValue(ReactomeJavaConstants.accession)+", attribute was: "+reactomeRelationshipName+ ", Value was: \""+inst+"\", with GO ID: "+inst.getAttributeValue(ReactomeJavaConstants.accession));
+									e.printStackTrace();
+								}
 							}
 						}
 					}
@@ -310,14 +359,69 @@ class GoTermInstanceModifier
 						updatedRelationshipStringBuilder.append(message + "\n");
 						logger.warn(message);
 					}
+				}
+				if (newInstancesToAdd.size() > 0)
+				{
+					// PROBLEM: One of the old objects under a relationship might *not* be different, but this code will wipe them out. Need to find
+					// a way to merge the old related items with the new ones.
+					
+					// First clear the old values.
+					this.goInstance.setAttributeValue(reactomeRelationshipName, null);
+					this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
+					// Now, set the new values.
+					this.goInstance.setAttributeValue(reactomeRelationshipName, newInstancesToAdd);
 					this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
 				}
-				
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
+			}
+		}
+	}
+
+	/**
+	 * Checkes to see if the instance modified by *this* object has a set of pre-existing related instances (via reactomeRelationshipName)
+	 * that are the same as otherInsts.
+	 * @param otherInsts - A list new related instances to check against.
+	 * @param reactomeRelationshipName - The relationship to check.
+	 * @return True, if the new instances all have the same accessions as the existing instances, related via reactomeRelationshipName. False, if there is a difference
+	 * in accessions, or the lists are of different sizes.
+	 * @throws InvalidAttributeException
+	 * @throws Exception
+	 */
+	private boolean arePreexistingRelationsDifferent(List<GKInstance> otherInsts, String reactomeRelationshipName) throws InvalidAttributeException, Exception
+	{
+		@SuppressWarnings("unchecked")
+		Collection<GKInstance> currentRelationships = this.goInstance.getAttributeValuesList(reactomeRelationshipName);
+		// If the sizes don't match, the sets of related instances are considered different, even though one list could be a subset of the other.
+		if ( (otherInsts != null && currentRelationships == null) || currentRelationships.size() != otherInsts.size())
+		{
+			return true;
+		}
+		for (GKInstance i : currentRelationships)
+		{
+			boolean match = otherInsts.parallelStream().anyMatch(otherInst -> {
+				try
+				{
+					// Try to match the instances on GO Accession number.
+					return ((String)otherInst.getAttributeValue(ReactomeJavaConstants.accession)).equals((String)i.getAttributeValue(ReactomeJavaConstants.accession));
+				}
 				catch (Exception e)
 				{
 					e.printStackTrace();
 				}
+				// No match, if the expression threw and exception.
+				return false;
+			});
+			// The first time something in currentRelationships is not in the list of otherInsts (representing new relationship instances), 
+			// then that means the two sets are different.
+			if (!match)
+			{
+				return true;
 			}
 		}
+		// If we got this far, then the two sets are the same.
+		return false;
 	}
 }

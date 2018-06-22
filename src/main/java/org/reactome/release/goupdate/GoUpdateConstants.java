@@ -30,7 +30,7 @@ public final class GoUpdateConstants {
 	static final Pattern NAMESPACE_REGEX = Pattern.compile("^"+NAMESPACE+": ([a-zA-Z_]*)");
 	static final Pattern GO_ID_REGEX = Pattern.compile("^"+ID+": GO:([0-9]+)");
 	static final Pattern NAME_REGEX = Pattern.compile("^"+NAME+": (.*)");
-	static final Pattern DEF_REGEX = Pattern.compile("^"+DEF+": \"(.*)\"");
+	static final Pattern DEF_REGEX = Pattern.compile("^"+DEF+": \"(.*)\".*");
 	static final Pattern IS_A_REGEX = Pattern.compile("^"+IS_A+": GO:([0-9]+).*");
 	static final Pattern SYNONYM_REGEX = Pattern.compile("^"+SYNONYM+": \"(.*)\"");
 	static final Pattern CONSIDER_REGEX = Pattern.compile("^"+CONSIDER+": GO:([0-9]+).*");

@@ -221,8 +221,8 @@ public class GoTermInstanceModifierTest
 		try
 		{
 			
-			modifier.updateGOInstance(goTerms, goToEcNumbers, "original definition", sb);
-			modifier.updateGOInstance(goTerms, goToEcNumbers, "This is a test go term", sb);
+			modifier.updateGOInstance(goTerms, goToEcNumbers, sb);
+			modifier.updateGOInstance(goTerms, goToEcNumbers, sb);
 			System.out.println(sb.toString());
 			assert(sb.toString().length() > 0);
 		}

@@ -129,7 +129,7 @@ class GoTermsUpdater
 		{
 			GoTermInstanceModifier goTermModifier;
 			GONamespace currentCategory = (GONamespace) goTerms.get(goID).get(GoUpdateConstants.NAMESPACE);
-			String currentDefinition = (String) goTerms.get(goID).get(GoUpdateConstants.DEF);
+			//String currentDefinition = (String) goTerms.get(goID).get(GoUpdateConstants.DEF);
 			// Now we need to process the Term that was just finished.
 			List<GKInstance> goInstances = allGoInstances.get(goID);
 			// First let's make sure the GO Term is not obsolete.
@@ -156,7 +156,7 @@ class GoTermsUpdater
 						{
 							//Now do the update.
 							goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
-							goTermModifier.updateGOInstance(goTerms, goToECNumbers, currentDefinition, this.nameOrDefinitionChangeStringBuilder);
+							goTermModifier.updateGOInstance(goTerms, goToECNumbers, this.nameOrDefinitionChangeStringBuilder);
 						}
 						else
 						{
@@ -192,6 +192,7 @@ class GoTermsUpdater
 			}
 		}
 		
+		logger.info("Preparing to delete flagged instances.");
 		// Now that the full goTerms structure is complete, and the alternate GO IDs are set up, we can delete the obsolete/category-mismatched GO instances from the database.
 		for (GKInstance instance : instancesForDeletion)
 		{
@@ -200,12 +201,13 @@ class GoTermsUpdater
 		}
 		//Reload the list of GO Instances, since new ones have been created, and old ones have been deleted.
 		allGoInstances = getMapOfAllGOInstances(adaptor);
+		logger.info("Updating relationships of GO Instances.");
 		// Now that the main loop has run, update relationships between GO terms.
 		for (String goId : goTerms.keySet())
 		{
 			List<GKInstance> goInsts = (List<GKInstance>) allGoInstances.get(goId);
 			Map<String, Object> goProps = goTerms.get(goId);
-			if (goInsts != null && !goInsts.isEmpty())
+			if (goInsts != null && !goInsts.isEmpty() && goProps != null && !goProps.isEmpty())
 			{
 				for (GKInstance goInst : goInsts)
 				{
@@ -216,9 +218,27 @@ class GoTermsUpdater
 					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.REGULATES, "regulate", this.updatedRelationshipStringBuilder);
 					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate", this.updatedRelationshipStringBuilder);
 					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate", this.updatedRelationshipStringBuilder);
+					// Update the instanace's "modififed".
+					goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
+					goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.modified);
 				}
 			}
 		}
+		logger.info("Updating referring instances.");
+		// First, get all GO References that have been modified (newly created ones can be ignored because they won't have any non-GO Instance referrers yet).
+		List<GKInstance> updatedGOInstances = new ArrayList<GKInstance>();
+		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
+		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
+		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
+		
+		for (GKInstance inst : updatedGOInstances)
+		{
+			GoTermInstanceModifier modifier = new GoTermInstanceModifier(this.adaptor, inst, this.instanceEdit);
+			modifier.updateReferrersDisplayNames();
+		}
+		
+		
 		mainOutput.append("\n*** New GO Terms: ***\n"+this.newGOTermStringBuilder.toString());
 		mainOutput.append("\n*** Category Mismatches: ***\n"+this.categoryMismatchStringBuilder.toString());
 		mainOutput.append("\n***Update Issues: ***\n"+this.nameOrDefinitionChangeStringBuilder.toString());

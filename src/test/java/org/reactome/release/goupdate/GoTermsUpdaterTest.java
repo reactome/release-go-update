@@ -239,7 +239,7 @@ public class GoTermsUpdaterTest
 		GoTermInstanceModifier modifier = mock(GoTermInstanceModifier.class);
 		
 		Mockito.doNothing().when(modifier).createNewGOTerm(any(Map.class), any(Map.class), anyString(), anyString(), any(GKInstance.class));
-		Mockito.doNothing().when(modifier).updateGOInstance(any(Map.class), any(Map.class), anyString(), any(StringBuffer.class));
+		Mockito.doNothing().when(modifier).updateGOInstance(any(Map.class), any(Map.class),  any(StringBuffer.class));
 		Mockito.doNothing().when(modifier).updateRelationship(any(Map.class), any(Map.class), anyString(), anyString(), any(StringBuffer.class));
 		Mockito.doNothing().when(modifier).deleteGoInstance(any(Map.class), any(Map.class), any(StringBuffer.class));
 		

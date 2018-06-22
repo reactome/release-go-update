@@ -24,10 +24,15 @@
 			<artifactId>chebiWS-client</artifactId>
 			<version>2.3.2</version>
 		</dependency>
-		<dependency>
+<!-- 		<dependency>
 			<groupId>org.reactome.server</groupId>
 			<artifactId>reactome-core</artifactId>
 			<version>1.1.2</version>
+		</dependency> -->
+		<dependency>
+			<groupId>org.reactome.base</groupId>
+			<artifactId>reactome-base</artifactId>
+			<version>RELEASE</version>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
