@@ -23,7 +23,7 @@ public final class GoUpdateConstants {
 	static final String PENDING_OBSOLETION = "pending_obsoletion";
 	
 	static final Pattern LINE_DECODER = Pattern.compile("^(id|alt_id|name|namespace|def|relationship|is_a|consider|replaced_by|synonym|is_obsolete):.*");
-	static final Pattern RELATIONSHIP_DECODER = Pattern.compile("^relationship: (positively_regulates|negatively_regulates|has_part|part_of|regulates) GO:[0-9]+");
+	static final Pattern RELATIONSHIP_DECODER = Pattern.compile("^relationship: (positively_regulates|negatively_regulates|has_part|part_of|regulates) GO:[0-9]+.*");
 	static final Pattern OBSOLETION = Pattern.compile("(pending|scheduled for|slated for) obsoletion");
 	static final Pattern IS_OBSOLETE_REGEX = Pattern.compile("^"+IS_OBSOLETE+": true");
 	static final Pattern ALT_ID_REGEX = Pattern.compile("^"+ALT_ID+": GO:([0-9]+)");

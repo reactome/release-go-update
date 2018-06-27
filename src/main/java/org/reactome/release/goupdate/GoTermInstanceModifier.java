@@ -318,11 +318,15 @@ class GoTermInstanceModifier
 	{
 		if (goProps.containsKey(relationshipKey))
 		{
-			List<GKInstance> newInstancesToAdd = new ArrayList<GKInstance>();
+			//List<GKInstance> newInstancesToAdd = new ArrayList<GKInstance>();
 			@SuppressWarnings("unchecked")
 			List<String> otherIDs = (List<String>) goProps.get(relationshipKey);
 			try
 			{
+				// Clear the values that are currently set.
+				this.goInstance.setAttributeValue(reactomeRelationshipName, null);
+				this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
+
 				for (String otherID : otherIDs)
 				{				
 					List<GKInstance> otherInsts = allGoInstances.get(otherID);
@@ -330,17 +334,14 @@ class GoTermInstanceModifier
 					// First, we get the list of things currently under that attribute.
 					if (otherInsts != null && !otherInsts.isEmpty())
 					{
-						boolean preexistingRelationsAreDifferent = arePreexistingRelationsDifferent(otherInsts, reactomeRelationshipName);
-						// only process things that are NOT already in the list of pre-existing Objects for this attribute-relationship
-						if (preexistingRelationsAreDifferent)
-						{
-							
 							for (GKInstance inst : otherInsts )
 							{
 								try
 								{
+									// Add the new value from otherInsts
+									this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
 									//this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
-									newInstancesToAdd.add(inst);
+//									newInstancesToAdd.add(inst);
 									updatedRelationshipStringBuilder.append("Relationship updated! \"").append(this.goInstance.toString()).append("\" (GO:").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.accession))
 										.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
 										.append(inst.getAttributeValue(ReactomeJavaConstants.accession)).append(")\n");
@@ -351,7 +352,8 @@ class GoTermInstanceModifier
 									e.printStackTrace();
 								}
 							}
-						}
+							this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
+
 					}
 					else
 					{
@@ -360,18 +362,18 @@ class GoTermInstanceModifier
 						logger.warn(message);
 					}
 				}
-				if (newInstancesToAdd.size() > 0)
-				{
-					// PROBLEM: One of the old objects under a relationship might *not* be different, but this code will wipe them out. Need to find
-					// a way to merge the old related items with the new ones.
-					
-					// First clear the old values.
-					this.goInstance.setAttributeValue(reactomeRelationshipName, null);
-					this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
-					// Now, set the new values.
-					this.goInstance.setAttributeValue(reactomeRelationshipName, newInstancesToAdd);
-					this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
-				}
+//				if (newInstancesToAdd.size() > 0)
+//				{
+//					// PROBLEM: One of the old objects under a relationship might *not* be different, but this code will wipe them out. Need to find
+//					// a way to merge the old related items with the new ones.
+//					
+//					// First clear the old values.
+//					this.goInstance.setAttributeValue(reactomeRelationshipName, null);
+//					this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
+//					// Now, set the new values.
+//					this.goInstance.setAttributeValue(reactomeRelationshipName, newInstancesToAdd);
+//					this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
+//				}
 			}
 			catch (Exception e)
 			{
@@ -390,38 +392,38 @@ class GoTermInstanceModifier
 	 * @throws InvalidAttributeException
 	 * @throws Exception
 	 */
-	private boolean arePreexistingRelationsDifferent(List<GKInstance> otherInsts, String reactomeRelationshipName) throws InvalidAttributeException, Exception
-	{
-		@SuppressWarnings("unchecked")
-		Collection<GKInstance> currentRelationships = this.goInstance.getAttributeValuesList(reactomeRelationshipName);
-		// If the sizes don't match, the sets of related instances are considered different, even though one list could be a subset of the other.
-		if ( (otherInsts != null && currentRelationships == null) || currentRelationships.size() != otherInsts.size())
-		{
-			return true;
-		}
-		for (GKInstance i : currentRelationships)
-		{
-			boolean match = otherInsts.parallelStream().anyMatch(otherInst -> {
-				try
-				{
-					// Try to match the instances on GO Accession number.
-					return ((String)otherInst.getAttributeValue(ReactomeJavaConstants.accession)).equals((String)i.getAttributeValue(ReactomeJavaConstants.accession));
-				}
-				catch (Exception e)
-				{
-					e.printStackTrace();
-				}
-				// No match, if the expression threw and exception.
-				return false;
-			});
-			// The first time something in currentRelationships is not in the list of otherInsts (representing new relationship instances), 
-			// then that means the two sets are different.
-			if (!match)
-			{
-				return true;
-			}
-		}
-		// If we got this far, then the two sets are the same.
-		return false;
-	}
+//	private boolean arePreexistingRelationsDifferent(List<GKInstance> otherInsts, String reactomeRelationshipName) throws InvalidAttributeException, Exception
+//	{
+//		@SuppressWarnings("unchecked")
+//		Collection<GKInstance> currentRelationships = this.goInstance.getAttributeValuesList(reactomeRelationshipName);
+//		// If the sizes don't match, the sets of related instances are considered different, even though one list could be a subset of the other.
+//		if ( (otherInsts != null && currentRelationships == null) || currentRelationships.size() != otherInsts.size())
+//		{
+//			return true;
+//		}
+//		for (GKInstance i : currentRelationships)
+//		{
+//			boolean match = otherInsts.parallelStream().anyMatch(otherInst -> {
+//				try
+//				{
+//					// Try to match the instances on GO Accession number.
+//					return ((String)otherInst.getAttributeValue(ReactomeJavaConstants.accession)).equals((String)i.getAttributeValue(ReactomeJavaConstants.accession));
+//				}
+//				catch (Exception e)
+//				{
+//					e.printStackTrace();
+//				}
+//				// No match, if the expression threw and exception.
+//				return false;
+//			});
+//			// The first time something in currentRelationships is not in the list of otherInsts (representing new relationship instances), 
+//			// then that means the two sets are different.
+//			if (!match)
+//			{
+//				return true;
+//			}
+//		}
+//		// If we got this far, then the two sets are the same.
+//		return false;
+//	}
 }
