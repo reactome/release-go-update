@@ -79,10 +79,11 @@ class GoTermInstanceModifier
 				List<String> ecNumbers = goToEcNumbers.get(currentGOID);
 				if (ecNumbers!=null)
 				{
-					for (String ecNumber : ecNumbers)
-					{
-						newGOTerm.setAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
-					}
+					newGOTerm.setAttributeValue(ReactomeJavaConstants.ecNumber, ecNumbers);
+//					for (String ecNumber : ecNumbers)
+//					{
+//						newGOTerm.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
+//					}
 				}
 			}
 			InstanceDisplayNameGenerator.setDisplayName(newGOTerm);
@@ -163,13 +164,17 @@ class GoTermInstanceModifier
 					List<String> ecNumbers = goToEcNumbers.get(currentGOID);
 					if (ecNumbers!=null)
 					{
+						// Clear out any old EC Numbers - only want to keep the freshest ones from the file.
 						this.goInstance.setAttributeValue(ReactomeJavaConstants.ecNumber, null);
-						for (String ecNumber : ecNumbers)
-						{
-							this.goInstance.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
-							modified = true;
-							//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number: ").append(ecNumber).append("\n");
-						}
+						this.goInstance.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumbers);
+						//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number: ").append(ecNumbers.toString()).append("\n");
+						modified = true;
+//						for (String ecNumber : ecNumbers)
+//						{
+//							this.goInstance.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
+//							modified = true;
+//							//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number: ").append(ecNumber).append("\n");
+//						}
 						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.ecNumber);
 					}
 				}
@@ -266,7 +271,7 @@ class GoTermInstanceModifier
 				{
 					GKInstance replacementGoInstance = allGoInstances.get(replacementGoId).get(0);
 					Map<String, List<GKInstance>> referrers = new HashMap<String, List<GKInstance>>();
-					for (String attribute : Arrays.asList(ReactomeJavaConstants.activity, "componentOf", "hasPart", "negativelyRegulate", "positivelyRegulat", "regulate"))
+					for (String attribute : Arrays.asList(ReactomeJavaConstants.activity, "componentOf", "hasPart", "negativelyRegulate", "positivelyRegulate", "regulate"))
 					{
 						@SuppressWarnings("unchecked")
 						List<GKInstance> tmp = (List<GKInstance>) this.goInstance.getReferers(attribute);
@@ -334,25 +339,53 @@ class GoTermInstanceModifier
 					// First, we get the list of things currently under that attribute.
 					if (otherInsts != null && !otherInsts.isEmpty())
 					{
-							for (GKInstance inst : otherInsts )
-							{
+						// Add the new value from otherInsts
+						this.goInstance.addAttributeValue(reactomeRelationshipName, otherInsts);
+						this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
+						updatedRelationshipStringBuilder.append("Relationship updated! \"").append(this.goInstance.toString()).append("\" (GO:").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.accession))
+							.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(otherInsts.stream().map(i -> {
 								try
 								{
-									// Add the new value from otherInsts
-									this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
-									//this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
-//									newInstancesToAdd.add(inst);
-									updatedRelationshipStringBuilder.append("Relationship updated! \"").append(this.goInstance.toString()).append("\" (GO:").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.accession))
-										.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
-										.append(inst.getAttributeValue(ReactomeJavaConstants.accession)).append(")\n");
+									return i.toString();
 								}
-								catch (InvalidAttributeValueException e)
+								catch (Exception e1)
 								{
-									System.err.println("InvalidAttributeValueException was caught! Instance was \""+this.goInstance.toString()+"\" with GO ID: "+this.goInstance.getAttributeValue(ReactomeJavaConstants.accession)+", attribute was: "+reactomeRelationshipName+ ", Value was: \""+inst+"\", with GO ID: "+inst.getAttributeValue(ReactomeJavaConstants.accession));
-									e.printStackTrace();
+									e1.printStackTrace();
+									return "";
 								}
-							}
-							this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
+							} ).reduce("", (a,b) -> { return a + " " + b; })).append("\" ")
+							.append(otherInsts.stream().map(i -> {
+								try
+								{
+									return i.getAttributeValue(ReactomeJavaConstants.accession).toString();
+								}
+								catch (Exception e1)
+								{
+									e1.printStackTrace();
+									return "";
+								}
+							} ).reduce("", (a,b) -> { return a+", GO:"+b; })).append(")\n");
+
+						
+//						for (GKInstance inst : otherInsts )
+//						{
+//							try
+//							{
+//								// Add the new value from otherInsts
+//								this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
+//								//this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
+////									newInstancesToAdd.add(inst);
+//								updatedRelationshipStringBuilder.append("Relationship updated! \"").append(this.goInstance.toString()).append("\" (GO:").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.accession))
+//									.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
+//									.append(inst.getAttributeValue(ReactomeJavaConstants.accession)).append(")\n");
+//							}
+//							catch (InvalidAttributeValueException e)
+//							{
+//								System.err.println("InvalidAttributeValueException was caught! Instance was \""+this.goInstance.toString()+"\" with GO ID: "+this.goInstance.getAttributeValue(ReactomeJavaConstants.accession)+", attribute was: "+reactomeRelationshipName+ ", Value was: \""+inst+"\", with GO ID: "+inst.getAttributeValue(ReactomeJavaConstants.accession));
+//								e.printStackTrace();
+//							}
+//						}
+//						this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
 
 					}
 					else

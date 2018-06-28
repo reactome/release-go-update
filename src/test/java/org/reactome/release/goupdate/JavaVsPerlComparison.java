@@ -49,6 +49,7 @@ public class JavaVsPerlComparison {
 		for (GKInstance goInst : listOfAllGOThings)
 		{
 			String accession = (String) goInst.getAttributeValue(ReactomeJavaConstants.accession);
+			@SuppressWarnings("unchecked")
 			Collection<GKInstance> perlGoInsts = (Collection<GKInstance>) perlUpdatedDB.fetchInstanceByAttribute(goInst.getSchemClass().getName(), ReactomeJavaConstants.accession, "=", accession);
 			for (GKInstance perlInst : perlGoInsts)
 			{
