@@ -80,10 +80,6 @@ class GoTermInstanceModifier
 				if (ecNumbers!=null)
 				{
 					newGOTerm.setAttributeValue(ReactomeJavaConstants.ecNumber, ecNumbers);
-//					for (String ecNumber : ecNumbers)
-//					{
-//						newGOTerm.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
-//					}
 				}
 			}
 			InstanceDisplayNameGenerator.setDisplayName(newGOTerm);
@@ -169,12 +165,6 @@ class GoTermInstanceModifier
 						this.goInstance.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumbers);
 						//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number: ").append(ecNumbers.toString()).append("\n");
 						modified = true;
-//						for (String ecNumber : ecNumbers)
-//						{
-//							this.goInstance.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumber);
-//							modified = true;
-//							//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number: ").append(ecNumber).append("\n");
-//						}
 						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.ecNumber);
 					}
 				}
@@ -365,28 +355,6 @@ class GoTermInstanceModifier
 									return "";
 								}
 							} ).reduce("", (a,b) -> { return a+", GO:"+b; })).append(")\n");
-
-						
-//						for (GKInstance inst : otherInsts )
-//						{
-//							try
-//							{
-//								// Add the new value from otherInsts
-//								this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
-//								//this.goInstance.addAttributeValue(reactomeRelationshipName, inst);
-////									newInstancesToAdd.add(inst);
-//								updatedRelationshipStringBuilder.append("Relationship updated! \"").append(this.goInstance.toString()).append("\" (GO:").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.accession))
-//									.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(inst.toString()).append("\" (GO:")
-//									.append(inst.getAttributeValue(ReactomeJavaConstants.accession)).append(")\n");
-//							}
-//							catch (InvalidAttributeValueException e)
-//							{
-//								System.err.println("InvalidAttributeValueException was caught! Instance was \""+this.goInstance.toString()+"\" with GO ID: "+this.goInstance.getAttributeValue(ReactomeJavaConstants.accession)+", attribute was: "+reactomeRelationshipName+ ", Value was: \""+inst+"\", with GO ID: "+inst.getAttributeValue(ReactomeJavaConstants.accession));
-//								e.printStackTrace();
-//							}
-//						}
-//						this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
-
 					}
 					else
 					{
@@ -395,18 +363,6 @@ class GoTermInstanceModifier
 						logger.warn(message);
 					}
 				}
-//				if (newInstancesToAdd.size() > 0)
-//				{
-//					// PROBLEM: One of the old objects under a relationship might *not* be different, but this code will wipe them out. Need to find
-//					// a way to merge the old related items with the new ones.
-//					
-//					// First clear the old values.
-//					this.goInstance.setAttributeValue(reactomeRelationshipName, null);
-//					this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
-//					// Now, set the new values.
-//					this.goInstance.setAttributeValue(reactomeRelationshipName, newInstancesToAdd);
-//					this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
-//				}
 			}
 			catch (Exception e)
 			{
@@ -415,48 +371,4 @@ class GoTermInstanceModifier
 		}
 	}
 
-	/**
-	 * Checkes to see if the instance modified by *this* object has a set of pre-existing related instances (via reactomeRelationshipName)
-	 * that are the same as otherInsts.
-	 * @param otherInsts - A list new related instances to check against.
-	 * @param reactomeRelationshipName - The relationship to check.
-	 * @return True, if the new instances all have the same accessions as the existing instances, related via reactomeRelationshipName. False, if there is a difference
-	 * in accessions, or the lists are of different sizes.
-	 * @throws InvalidAttributeException
-	 * @throws Exception
-	 */
-//	private boolean arePreexistingRelationsDifferent(List<GKInstance> otherInsts, String reactomeRelationshipName) throws InvalidAttributeException, Exception
-//	{
-//		@SuppressWarnings("unchecked")
-//		Collection<GKInstance> currentRelationships = this.goInstance.getAttributeValuesList(reactomeRelationshipName);
-//		// If the sizes don't match, the sets of related instances are considered different, even though one list could be a subset of the other.
-//		if ( (otherInsts != null && currentRelationships == null) || currentRelationships.size() != otherInsts.size())
-//		{
-//			return true;
-//		}
-//		for (GKInstance i : currentRelationships)
-//		{
-//			boolean match = otherInsts.parallelStream().anyMatch(otherInst -> {
-//				try
-//				{
-//					// Try to match the instances on GO Accession number.
-//					return ((String)otherInst.getAttributeValue(ReactomeJavaConstants.accession)).equals((String)i.getAttributeValue(ReactomeJavaConstants.accession));
-//				}
-//				catch (Exception e)
-//				{
-//					e.printStackTrace();
-//				}
-//				// No match, if the expression threw and exception.
-//				return false;
-//			});
-//			// The first time something in currentRelationships is not in the list of otherInsts (representing new relationship instances), 
-//			// then that means the two sets are different.
-//			if (!match)
-//			{
-//				return true;
-//			}
-//		}
-//		// If we got this far, then the two sets are the same.
-//		return false;
-//	}
 }
