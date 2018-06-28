@@ -1,6 +1,5 @@
 package org.reactome.release.goupdate;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -163,7 +162,7 @@ class GoTermInstanceModifier
 						// Clear out any old EC Numbers - only want to keep the freshest ones from the file.
 						this.goInstance.setAttributeValue(ReactomeJavaConstants.ecNumber, null);
 						this.goInstance.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumbers);
-						//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number: ").append(ecNumbers.toString()).append("\n");
+						//nameOrDefinitionChangeStringBuilder.append("GO Term (").append(currentGOID).append(") has new EC Number(s): ").append(ecNumbers.toString()).append("\n");
 						modified = true;
 						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.ecNumber);
 					}
@@ -174,9 +173,6 @@ class GoTermInstanceModifier
 					this.goInstance.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
 					InstanceDisplayNameGenerator.setDisplayName(this.goInstance);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants._displayName);
-					
-					//Now... need to modify all referrers that refer to this, since their displayNames might need to be updated.
-					//this.updateReferrersDisplayNames();
 				}
 			}
 			catch (InvalidAttributeException | InvalidAttributeValueException e)
@@ -333,28 +329,17 @@ class GoTermInstanceModifier
 						this.goInstance.addAttributeValue(reactomeRelationshipName, otherInsts);
 						this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
 						updatedRelationshipStringBuilder.append("Relationship updated! \"").append(this.goInstance.toString()).append("\" (GO:").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.accession))
-							.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to \"").append(otherInsts.stream().map(i -> {
+							.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to ").append(otherInsts.stream().map(i -> {
 								try
 								{
-									return i.toString();
+									return "\"" + i.toString() + " (GO:"+i.getAttributeValue(ReactomeJavaConstants.accession).toString()+")\"";
 								}
 								catch (Exception e1)
 								{
 									e1.printStackTrace();
 									return "";
 								}
-							} ).reduce("", (a,b) -> { return a + " " + b; })).append("\" ")
-							.append(otherInsts.stream().map(i -> {
-								try
-								{
-									return i.getAttributeValue(ReactomeJavaConstants.accession).toString();
-								}
-								catch (Exception e1)
-								{
-									e1.printStackTrace();
-									return "";
-								}
-							} ).reduce("", (a,b) -> { return a+", GO:"+b; })).append(")\n");
+							} ).reduce("", (a,b) -> { return a + ", " + b; })).append(")\n");
 					}
 					else
 					{
