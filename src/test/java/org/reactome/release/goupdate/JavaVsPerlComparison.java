@@ -9,6 +9,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.gk.model.GKInstance;
+import org.gk.model.InstanceUtilities;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.schema.SchemaAttribute;
@@ -18,8 +19,8 @@ public class JavaVsPerlComparison {
 
 	public static void main(String[] args) throws Exception
 	{
-		MySQLAdaptor javaUpdatedDB = new MySQLAdaptor("localhost", "test_slice_64_Java_GO_Update", "root", "root");
-		MySQLAdaptor perlUpdatedDB = new MySQLAdaptor("localhost", "test_slice_64_Perl_GO_Update", "root", "root");
+		MySQLAdaptor javaUpdatedDB = new MySQLAdaptor("localhost", "gk_central_Java_GO_Update", "root", "root");
+		MySQLAdaptor perlUpdatedDB = new MySQLAdaptor("localhost", "gk_central_Perl_GO_Update", "root", "root");
 		int diffCount = 0;
 		int sameCount = 0;
 		
@@ -45,6 +46,18 @@ public class JavaVsPerlComparison {
 		listOfAllGOThings.addAll(javaUpdatedGOMolecularFunctions);
 		listOfAllGOThings.addAll(javaUpdatedGOBiologicalProcesses);
 		
+		Comparator<? super GKInstance> dbIdComparator = new Comparator<GKInstance>()
+		{
+			@Override
+			public int compare(GKInstance o1, GKInstance o2)
+			{
+				//return InstanceUtilities.compareInstances(o1, o2);
+				return o1.getDBID().compareTo(o2.getDBID());
+			}
+			
+		};
+		
+		listOfAllGOThings.sort(dbIdComparator);
 		StringBuilder mainSB = new StringBuilder();
 		for (GKInstance goInst : listOfAllGOThings)
 		{
@@ -68,18 +81,9 @@ public class JavaVsPerlComparison {
 					}
 					Predicate<? super SchemaAttribute> predicate = p-> {
 						return p.getName().equals("name")
-								&& p.getName().equals("_displayName");
+								|| p.getName().equals("_displayName");
 						};
-					Comparator<? super GKInstance> comparator = new Comparator<GKInstance>()
-					{
-						@Override
-						public int compare(GKInstance o1, GKInstance o2)
-						{
-							//return InstanceUtilities.compareInstances(o1, o2);
-							return o1.getDBID().compareTo(o2.getDBID());
-						}
-						
-					};
+					
 					// Now, we need to compare referrers, since they might have display name changes. Want to make sure we capture those correctly.
 					if (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_BiologicalProcess))
 					{
@@ -91,8 +95,8 @@ public class JavaVsPerlComparison {
 						List<GKInstance> perlList = ((List<GKInstance>) perlInst.getReferers(ReactomeJavaConstants.goBiologicalProcess));
 						if (javaList != null && perlList != null)
 						{
-							javaList = javaList.stream().sorted(comparator).collect(Collectors.toList());
-							perlList = perlList.stream().sorted(comparator).collect(Collectors.toList());
+							javaList = javaList.stream().sorted(dbIdComparator).collect(Collectors.toList());
+							perlList = perlList.stream().sorted(dbIdComparator).collect(Collectors.toList());
 
 							GKInstance javaReferringRegulation =  javaList.get(0);
 							GKInstance perlReferringRegulation = perlList.get(0);
@@ -119,8 +123,8 @@ public class JavaVsPerlComparison {
 
 						if (javaList!=null && perlList!=null)
 						{
-							javaList = javaList.stream().sorted(comparator).collect(Collectors.toList());
-							perlList = perlList.stream().sorted(comparator).collect(Collectors.toList());
+							javaList = javaList.stream().sorted(dbIdComparator).collect(Collectors.toList());
+							perlList = perlList.stream().sorted(dbIdComparator).collect(Collectors.toList());
 							GKInstance javaReferringPE = javaList.get(0);
 							GKInstance perlReferringPE = perlList.get(0);
 
@@ -146,8 +150,8 @@ public class JavaVsPerlComparison {
 
 						if (javaList!=null && perlList!=null)
 						{
-							javaList = javaList.stream().sorted(comparator).collect(Collectors.toList());
-							perlList = perlList.stream().sorted(comparator).collect(Collectors.toList());
+							javaList = javaList.stream().sorted(dbIdComparator).collect(Collectors.toList());
+							perlList = perlList.stream().sorted(dbIdComparator).collect(Collectors.toList());
 
 							GKInstance javaReferringCatalystActivity =  javaList.get(0);
 							GKInstance perlReferringCatalystActivity =  perlList.get(0);
@@ -172,7 +176,7 @@ public class JavaVsPerlComparison {
 		System.out.println(sameCount+" instances were the same");
 		System.out.println(diffCount+" instances were different");
 	
-		System.out.println("For instances that refer to GO instances...\n");
+		System.out.println("\nFor instances that *refer* to GO instances...\n");
 		System.out.println(peDiffCount + " PhysicalEntities had differences.");
 		System.out.println(peSameCount + " PhysicalEntities were the same.\n");
 		System.out.println(regulationDiffCount + " Regulations had differences.");
