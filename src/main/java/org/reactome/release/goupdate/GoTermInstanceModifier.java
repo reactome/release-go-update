@@ -139,10 +139,10 @@ class GoTermInstanceModifier
 				if ((newName!=null && !newName.equals(oldName))
 					|| (newDefinition != null && !newDefinition.equals(oldDefinition)))
 				{
-					nameOrDefinitionChangeStringBuilder.append("Change in name/definition for GO ID ").append(currentGOID).append("! ")
-							.append("New name: \"").append(goTerms.get(currentGOID).get(GoUpdateConstants.NAME)).append("\" vs. old name: \"").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.name)).append("\"")
-							.append(" new def'n: \"").append(newDefinition).append("\" vs old def'n: \"").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.definition)).append("\". ")
-							.append("  instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)\n");
+					String nameUpdate = newName.equals(oldName) ? "" : "\n\tNew name:\t\""+newName+"\"\n\told name:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.name)+"\"";
+					String defnUpdate = newDefinition.equals(oldDefinition) ? "" : "\n\tNew def'n:\t\""+newDefinition+"\"\n\told def'n:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.definition)+"\"";
+					nameOrDefinitionChangeStringBuilder.append("Change in name/definition for GO ID ").append(currentGOID).append("!").append(nameUpdate).append(defnUpdate)
+							.append("\n\t...instanceOf and componentOf fields will be cleared (and hopefully reset later in the process)\n");
 					this.goInstance.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.instanceOf);
 					this.goInstance.setAttributeValue(ReactomeJavaConstants.componentOf, null);
@@ -200,6 +200,8 @@ class GoTermInstanceModifier
 	{
 		@SuppressWarnings("unchecked")
 		Set<GKSchemaAttribute> referringAttributes = (Set<GKSchemaAttribute>) this.goInstance.getSchemClass().getReferers();
+		// The old Perl code only updated PhysicalEntities and CatalystActivities that referred to GO Terms. Events that referred
+		// to GO terms via goBiologicalProcess were *not* updated in the old code.
 		for(GKSchemaAttribute attribute : referringAttributes.stream().filter(a -> a.getName().equals(ReactomeJavaConstants.activity)
 																		|| a.getName().equals(ReactomeJavaConstants.goCellularComponent))
 																	.collect(Collectors.toList()))
@@ -221,6 +223,67 @@ class GoTermInstanceModifier
 	}
 
 	/**
+	 * Gets a collection of GKInstances the refer to a Go Term.
+	 * @param instance - the instance to get referrers for.
+	 * @return A collection:<br/>
+	 * If the instance is a BiologicalProcess, 
+	 * all instances that refer to it via goBiologicalProcess will be returned.<br/>
+	 * If the instances is a CellularComponent then all instances that refer via compartment will be returned.<br/>
+	 * If the instance is a MolecularFunction, all instances that refer via activity will be returned.<br/>
+	 * NULL will be returned if there are no referrers.
+	 * @throws Exception
+	 */
+	public static Collection<GKInstance> getReferrersForGoTerm(GKInstance instance) throws Exception
+	{
+		Collection<GKInstance> referrers = null;
+		
+		if (instance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_BiologicalProcess))
+		{
+			referrers = (Collection<GKInstance>)instance.getReferers(ReactomeJavaConstants.goBiologicalProcess);
+			
+		}
+		else if (instance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_CellularComponent))
+		{
+			referrers = (Collection<GKInstance>)instance.getReferers(ReactomeJavaConstants.compartment);
+			
+		}
+		else if (instance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
+		{
+			referrers = (Collection<GKInstance>)instance.getReferers(ReactomeJavaConstants.activity);
+		}
+		
+		return referrers;
+	}
+	
+	/**
+	 * If a GO Term has certain referrers, it is not deletable. The rules (from Peter D.) are:<br/><br/><br/>
+	 * IF an GO biological process term has NOT been used as a goBiologicalProcess slot value for any event instance in gk_central, the obsolete GO term instance can be deleted from gk_central.<br/><br/>
+	 * IF a GO cellular component term has NOT been used as a compartment slot value for any physical entity or event instance in gk_central, the obsolete GO term instance can be deleted from gk_central.<br/><br/>
+	 * IF a GO molecular function term has NOT been used as the activity slot value for any catalystActivity instance in gk_central, the obsolete GO term instance can be deleted from gk_central.
+	 * @param instance - an instance to check.
+	 * @return true or false, if <code>instance</code> is deleteable, as per the above rules.
+	 * @throws Exception
+	 */
+	public static boolean isGoTermDeleteable(GKInstance instance) throws Exception
+	{
+		boolean isDeletable = false;
+		
+		Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(instance);
+		
+		if (referrers != null && referrers.size() > 0)
+		{
+			isDeletable = false;
+		}
+		else
+		{
+			isDeletable = true;
+		}
+		
+		return isDeletable;
+	}
+	
+	
+	/**
 	 * Deletes a GO term from the database.
 	 * @param goTerms - The list of GO terms from the file. Needed to get the alternate GO IDs for things that refer to the thing that's about to be deleted.
 	 * @param allGoInstances - ALL GO instances from the database.
@@ -230,7 +293,7 @@ class GoTermInstanceModifier
 		try
 		{
 			String goId = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.accession);
-			
+			/*
 			// before we do the actual delete, we should update referrers to refer to a GO Term whose *alternate* accession (GO ID) is the id of the 
 			// term being deleted.
 			String altGoId = null;
@@ -238,6 +301,8 @@ class GoTermInstanceModifier
 			{
 				altGoId = ((List<String>)goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)).get(0);
 			}
+			// Peter says CONSIDER and ALTERNATE should NOT be handled automatically, they should trigger a warning to the curator and let the curator take action based on the report.
+			// It should NOT delete the obsolete GO term, a curator needs to make a manual decision.
 			else if (goTerms.get(goId).get(GoUpdateConstants.CONSIDER)!=null)
 			{
 				altGoId = ((List<String>)goTerms.get(goId).get(GoUpdateConstants.CONSIDER)).get(0);
@@ -287,7 +352,7 @@ class GoTermInstanceModifier
 				{
 					logger.warn("Replacement GO Instance with GO ID: {} could not be found in allGoInstances map. This was not expected. Instance \"{}\" will still be deleted but referrs will have nothing to refer to.",replacementGoId, this.goInstance.toString() );
 				}
-			}
+			}*/
 			adaptor.deleteInstance(this.goInstance);
 			deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
 		}

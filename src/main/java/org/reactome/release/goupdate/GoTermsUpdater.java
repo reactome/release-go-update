@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import org.gk.model.GKInstance;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
+import org.gk.schema.GKSchemaAttribute;
 import org.reactome.release.common.database.InstanceEditUtils;
 
 /**
@@ -42,6 +43,7 @@ class GoTermsUpdater
 	private StringBuilder mainOutput = new StringBuilder();
 	// this can be static, since there's only one "GO" ReferenceDatabase object in the database.
 	private static GKInstance goRefDB;
+	
 	/**
 	 * Creates a new GoTermsUpdater
 	 * @param dba - The adaptor to use.
@@ -84,11 +86,13 @@ class GoTermsUpdater
 	public StringBuilder updateGoTerms() throws Exception
 	{
 		// This map is keyed by GO ID. Values are maps of strings that map to values from the file.
-		Map<String, Map<String,Object>> goTerms = new HashMap<String, Map<String,Object>>();
+		Map<String, Map<String,Object>> goTermsFromFile = new HashMap<String, Map<String,Object>>();
 		// This map is keyed by GO Accession number (GO ID).
 		Map<String, List<GKInstance>> allGoInstances = getMapOfAllGOInstances(adaptor);
 		// This list will track everything that needs to be deleted.
 		List<GKInstance> instancesForDeletion = new ArrayList<GKInstance>();
+		// A map of things that can't be deleted, and the referrers that prevent it.
+		Map<GKInstance,Collection<GKInstance>> undeleteble = new HashMap<GKInstance,Collection<GKInstance>>();
 		// Maps GO IDs to EC Numbers.
 		Map<String,List<String>> goToECNumbers = new HashMap<String,List<String>>();
 		ec2GoLines.stream().filter(line -> !line.startsWith("!")).forEach(line -> processEc2GoLine(line, goToECNumbers));
@@ -100,6 +104,7 @@ class GoTermsUpdater
 		int pendingObsoleteCount = 0;
 		int mismatchCount = 0;
 		int goTermCount = 0;
+		int deletedCount = 0;
 		boolean termStarted = false; 
 		
 		String currentGOID = "";
@@ -120,27 +125,27 @@ class GoTermsUpdater
 			}
 			else if (termStarted)
 			{
-				currentGOID = processLine(line, currentGOID, goTerms);
+				currentGOID = processLine(line, currentGOID, goTermsFromFile);
 			}
 		}
 		
 		// Now process all the goTerms.
-		for (String goID : goTerms.keySet())
+		for (String goID : goTermsFromFile.keySet())
 		{
 			GoTermInstanceModifier goTermModifier;
-			GONamespace currentCategory = (GONamespace) goTerms.get(goID).get(GoUpdateConstants.NAMESPACE);
+			GONamespace currentCategory = (GONamespace) goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE);
 			//String currentDefinition = (String) goTerms.get(goID).get(GoUpdateConstants.DEF);
 			// Now we need to process the Term that was just finished.
 			List<GKInstance> goInstances = allGoInstances.get(goID);
 			// First let's make sure the GO Term is not obsolete.
-			if ( !goTerms.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && !goTerms.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION))
+			if ( !goTermsFromFile.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && !goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION))
 			{
 				if (goInstances==null)
 				{
 					// Create a new Instance if there is nothing in the current list of instances.
-					newGOTermStringBuilder.append("New GO Term to create: GO:").append(goID).append(" ").append(goTerms.get(goID)).append("\n");
+					newGOTermStringBuilder.append("New GO Term to create: GO:").append(goID).append(" ").append(goTermsFromFile.get(goID)).append("\n");
 					goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
-					goTermModifier.createNewGOTerm(goTerms, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
+					goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
 					
 					newGoTermCount++;
 				}
@@ -158,7 +163,7 @@ class GoTermsUpdater
 						{
 							//Now do the update.
 							goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
-							goTermModifier.updateGOInstance(goTerms, goToECNumbers, this.nameOrDefinitionChangeStringBuilder);
+							goTermModifier.updateGOInstance(goTermsFromFile, goToECNumbers, this.nameOrDefinitionChangeStringBuilder);
 						}
 						else
 						{
@@ -169,7 +174,7 @@ class GoTermsUpdater
 					}
 				}
 			}
-			else if (goTerms.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTerms.get(goID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
+			else if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTermsFromFile.get(goID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
 			{
 				// If we have this in our database, it must be reported!
 				if (goInstances!=null)
@@ -178,7 +183,7 @@ class GoTermsUpdater
 					obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as PENDING obsolete!\n");
 				}
 			}
-			else if (goTerms.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && goTerms.get(goID).get(GoUpdateConstants.IS_OBSOLETE).equals(true))
+			else if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && goTermsFromFile.get(goID).get(GoUpdateConstants.IS_OBSOLETE).equals(true))
 			{
 				// If we have this in our database, it must be reported!
 				if (goInstances!=null)
@@ -199,16 +204,42 @@ class GoTermsUpdater
 		for (GKInstance instance : instancesForDeletion)
 		{
 			GoTermInstanceModifier goTermModifier = new GoTermInstanceModifier(this.adaptor, instance, this.instanceEdit);
-			goTermModifier.deleteGoInstance(goTerms, allGoInstances, this.deletionStringBuilder);
+			if (GoTermInstanceModifier.isGoTermDeleteable(instance))
+			{
+				// Let's get a count of irrelevant referrers 
+				Map<GKSchemaAttribute, Integer> referrersCount = new HashMap<GKSchemaAttribute, Integer>();
+				for (GKSchemaAttribute attrib : (Set<GKSchemaAttribute>)instance.getSchemClass().getReferers())
+				{
+					@SuppressWarnings("unchecked")
+					Collection<GKInstance> referrers = instance.getReferers(attrib);
+					if ( referrers!=null &&  referrers.size() > 0)
+					{
+						referrersCount.put(attrib, referrers.size());
+					}
+				}
+				logger.info("Instance \""+instance.toString()+"\" (GO:"+instance.getAttributeValue(ReactomeJavaConstants.accession)+") has referrers but they will not prevent deletion:");
+				for (GKSchemaAttribute referrer : referrersCount.keySet())
+				{
+					logger.info("\t{} {} referrers.",referrersCount.get(referrer), referrer.getName());
+				}
+				goTermModifier.deleteGoInstance(goTermsFromFile, allGoInstances, this.deletionStringBuilder);
+				deletedCount ++;
+			}
+			else
+			{
+				Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(instance);
+				undeleteble.put(instance,referrers);
+				logger.warn("GO Term {} ({}) cannot be deleted, it has {} referrers: {}", instance.getAttributeValue(ReactomeJavaConstants.accession), instance.toString(), referrers.size(), referrers.toString());
+			}
 		}
 		//Reload the list of GO Instances, since new ones have been created, and old ones have been deleted.
 		allGoInstances = getMapOfAllGOInstances(adaptor);
 		logger.info("Updating relationships of GO Instances.");
 		// Now that the main loop has run, update relationships between GO terms.
-		for (String goId : goTerms.keySet())
+		for (String goId : goTermsFromFile.keySet())
 		{
 			List<GKInstance> goInsts = (List<GKInstance>) allGoInstances.get(goId);
-			Map<String, Object> goProps = goTerms.get(goId);
+			Map<String, Object> goProps = goTermsFromFile.get(goId);
 			if (goInsts != null && !goInsts.isEmpty() && goProps != null && !goProps.isEmpty())
 			{
 				for (GKInstance goInst : goInsts)
@@ -243,16 +274,33 @@ class GoTermsUpdater
 		
 		mainOutput.append("\n*** New GO Terms: ***\n"+this.newGOTermStringBuilder.toString());
 		mainOutput.append("\n*** Category Mismatches: ***\n"+this.categoryMismatchStringBuilder.toString());
-		mainOutput.append("\n***Update Issues: ***\n"+this.nameOrDefinitionChangeStringBuilder.toString());
+		mainOutput.append("\n*** Update Issues: ***\n"+this.nameOrDefinitionChangeStringBuilder.toString());
 		mainOutput.append("\n*** Obsoletion Warnings: ***\n" + this.obsoletionStringBuilder.toString());
 		mainOutput.append("\n*** Deletions: ***\n" + this.deletionStringBuilder.toString());
+		
+		StringBuffer undeletableSB = new StringBuffer();
+		for (GKInstance instance : undeleteble.keySet())
+		{
+			undeletableSB.append("GO Term ").append(instance.getAttributeValue(ReactomeJavaConstants.accession)).append("(").append(instance.toString()).append(")")
+							.append(" could not be deleted because it had ").append(undeleteble.get(instance).size()).append(" referrers.\n");
+			for (GKInstance referrer : undeleteble.get(instance))
+			{
+				GKInstance created = (GKInstance) referrer.getAttributeValue(ReactomeJavaConstants.created);
+				GKInstance author = (GKInstance) created.getAttributeValue(ReactomeJavaConstants.author);
+				undeletableSB.append("\t\"").append(referrer.toString()).append("\", created by: ").append(author.getAttributeValue(ReactomeJavaConstants.firstname)+" "+ author.getAttributeValue(ReactomeJavaConstants.surname))
+							.append(" @ ").append(created.getAttributeValue(ReactomeJavaConstants.dateTime)).append("\n");
+			}
+		}
+		mainOutput.append("\n*** GO Terms that could *not* be deleted: ***\n").append(undeletableSB.toString()).append("\n");
 		
 		mainOutput.append(lineCount + " lines from the file were processed.\n");
 		mainOutput.append(goTermCount + " GO terms were read from the file.\n");
 		mainOutput.append(newGoTermCount + " new GO terms were found (and added to the database).\n");
 		mainOutput.append(mismatchCount + " existing GO term instances in the database had mismatched categories when compared to the file (and were deleted from the database).\n");
-		mainOutput.append(obsoleteCount + " were obsolete (and were deleted).\n");
+		mainOutput.append(obsoleteCount + " were obsolete. "+deletedCount+ " were actually deleted and "+undeleteble.size()+" could not be deleted due to existing referrers.\n");
 		mainOutput.append(pendingObsoleteCount + " are pending obsolescence (and will probably be deleted at a future date).\n");
+		
+		
 		return mainOutput;
 	}
 	
@@ -300,9 +348,7 @@ class GoTermsUpdater
 		};
 		
 		bioProcesses.forEach( populateInstMap);
-		
 		cellComponents.forEach( populateInstMap);
-		
 		molecularFunctions.forEach( populateInstMap);
 		
 		return allGoInstances;
@@ -313,6 +359,7 @@ class GoTermsUpdater
 	 * @param line - The line.
 	 * @param goTerms - The GO terms map. This map will be updated by this function.
 	 * @param currentGOID - The ID of the GO term currently being processed, line by line.
+	 * @return The GO Accession of the GO term currently being processed. Will be different from <code>currentGOID</code> if the ID for a new GO term is seen on this <code>line</code>
 	 */
 	private String processLine(String line, String currentGOID, Map<String, Map<String,Object>> goTerms)
 	{
@@ -340,9 +387,13 @@ class GoTermsUpdater
 							}
 							else
 							{
-								logger.warn("GO ID {} has appeared more than once in the input!", goID);
-								// TODO: exit is probably not the best way to handle this. only for early-development debugging...
-								//System.exit(1);
+								// If a GO ID appears a second time, it will not be added to the hash, and the user will 
+								// get a message asking them to verify if the file is really OK.
+								// Maybe throw a RuntimeException for this? It really should never happen.
+								logger.error("GO ID {} has appeared more than once in the input! This is highly unexpected. "
+										+ "Please verify the contents of this file. "
+										+ "You should check that you are using a fresh GO file. "
+										+ "If using a new file from GO *still* causes this error, consider reporting this issue to GO.", goID);
 							}
 						}
 						break;

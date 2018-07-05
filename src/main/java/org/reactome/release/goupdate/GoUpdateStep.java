@@ -100,4 +100,5 @@ public class GoUpdateStep extends ReleaseStep
 		Long endTime = System.currentTimeMillis();
 		logger.info("Elapsed time: " + Duration.ofMillis(endTime-startTime).toString());
 	}
+
 }
