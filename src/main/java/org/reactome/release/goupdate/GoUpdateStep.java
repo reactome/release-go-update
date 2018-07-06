@@ -75,12 +75,11 @@ public class GoUpdateStep extends ReleaseStep
 				System.exit(1);
 			}
 
-			// Do the updatess.
+			// Do the updates.
 			GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines, personID);
-
 			StringBuilder report = goTermsUpdator.updateGoTerms();
 			logger.info(report);
-			
+
 			logger.info("Post-GO Update check for duplicated accessions...");
 			reportOnDuplicateAccessions(adaptor);
 			

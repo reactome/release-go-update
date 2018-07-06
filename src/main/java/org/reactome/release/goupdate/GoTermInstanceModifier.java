@@ -346,26 +346,10 @@ class GoTermInstanceModifier
 										return "";
 									}
 								} ).reduce("", (a,b) -> { return a + ", " + b; }));
-//						updatedRelationshipStringBuilder.append("Relationship updated! \"").append(this.goInstance.toString()).append("\" (GO:").append(this.goInstance.getAttributeValue(ReactomeJavaConstants.accession))
-//							.append(") now has relationship \"").append(reactomeRelationshipName).append("\" referring to ").append(otherInsts.stream().map(i -> {
-//								try
-//								{
-//									return "\"" + i.toString() + " (GO:"+i.getAttributeValue(ReactomeJavaConstants.accession).toString()+")\"";
-//								}
-//								catch (Exception e1)
-//								{
-//									e1.printStackTrace();
-//									return "";
-//								}
-//							} ).reduce("", (a,b) -> { return a + ", " + b; })).append(")\n");
 					}
 					else
 					{
 						updatedGOTermLogger.warn("Trying to set {} on GO:{} ({}) but could not find instance with GO ID = {}. Relationship update could not be completed.", reactomeRelationshipName, this.goInstance.getAttributeValue(ReactomeJavaConstants.accession), this.goInstance.toString(), otherID);
-//						String message = "Trying to set \""+reactomeRelationshipName+"\" on \""+this.goInstance.toString()+"\" but could not find instance with GO ID "+otherID+". Relationship update could not be completed.";
-//						updatedRelationshipStringBuilder.append(message + "\n");
-						
-						//logger.warn(message);
 					}
 				}
 			}

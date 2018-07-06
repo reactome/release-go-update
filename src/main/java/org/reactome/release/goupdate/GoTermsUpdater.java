@@ -41,8 +41,6 @@ class GoTermsUpdater
 	
 	private StringBuffer nameOrDefinitionChangeStringBuilder = new StringBuffer();
 	private StringBuffer categoryMismatchStringBuilder = new StringBuffer();
-//	private StringBuffer obsoletionStringBuilder = new StringBuffer();
-//	private StringBuffer newGOTermStringBuilder = new StringBuffer();
 	private StringBuffer deletionStringBuilder = new StringBuffer();
 	private StringBuffer updatedRelationshipStringBuilder = new StringBuffer();
 	
@@ -149,8 +147,6 @@ class GoTermsUpdater
 				if (goInstances==null)
 				{
 					// Create a new Instance if there is nothing in the current list of instances.
-					//newGOTermStringBuilder.append("New GO Term to create: GO:").append(goID).append(" ").append(goTermsFromFile.get(goID)).append("\n");
-					
 					goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
 					Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
 					newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
@@ -191,7 +187,6 @@ class GoTermsUpdater
 				if (goInstances!=null)
 				{
 					pendingObsoleteCount++;
-					//obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as PENDING obsolete!\n");
 					obsoleteAccessionLogger.info("GO:{} ({}) is marked as PENDING obsolete. Consider searching for a replacement.",goID, goInstances.toString());
 				}
 			}
@@ -201,7 +196,6 @@ class GoTermsUpdater
 				if (goInstances!=null)
 				{
 					obsoleteCount++;
-					//obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as OBSOLETE!\n");
 					obsoleteAccessionLogger.warn("GO:{} ({}) marked as OBSOLETE!",goID, goInstances.toString());
 					for (GKInstance inst : goInstances)
 					{
@@ -285,29 +279,19 @@ class GoTermsUpdater
 		}
 		
 		
-		//mainOutput.append("\n*** New GO Terms: ***\n"+this.newGOTermStringBuilder.toString());
 		mainOutput.append("\n*** Category Mismatches: ***\n"+this.categoryMismatchStringBuilder.toString());
-		//mainOutput.append("\n*** Update Issues: ***\n"+this.nameOrDefinitionChangeStringBuilder.toString());
 		updatedGOTermLogger.info(this.nameOrDefinitionChangeStringBuilder.toString());
-		//mainOutput.append("\n*** Obsoletion Warnings: ***\n" + this.obsoletionStringBuilder.toString());
-		//mainOutput.append("\n*** Deletions: ***\n" + this.deletionStringBuilder.toString());
-		
-//		StringBuffer undeletableSB = new StringBuffer();
+
 		for (GKInstance instance : undeleteble.keySet())
 		{
 			obsoleteAccessionLogger.info("GO:{} could not be deleted because it had {} referrers: ",instance.getAttributeValue(ReactomeJavaConstants.accession), instance.toString(), undeleteble.get(instance).size());
-//			undeletableSB.append("GO:").append(instance.getAttributeValue(ReactomeJavaConstants.accession)).append(" (").append(instance.toString()).append(")")
-//							.append(" could not be deleted because it had ").append(undeleteble.get(instance).size()).append(" referrers.\n");
 			for (GKInstance referrer : undeleteble.get(instance))
 			{
 				GKInstance created = (GKInstance) referrer.getAttributeValue(ReactomeJavaConstants.created);
 				GKInstance author = (GKInstance) created.getAttributeValue(ReactomeJavaConstants.author);
-//				undeletableSB.append("\t\"").append(referrer.toString()).append("\", created by: ").append(author.getAttributeValue(ReactomeJavaConstants.firstname)+" "+ author.getAttributeValue(ReactomeJavaConstants.surname))
-//							.append(" @ ").append(created.getAttributeValue(ReactomeJavaConstants.dateTime)).append("\n");
 				obsoleteAccessionLogger.info("\t\"{}\", created by {} {} @ {}", referrer.toString(), author.getAttributeValue(ReactomeJavaConstants.firstname), author.getAttributeValue(ReactomeJavaConstants.surname), created.getAttributeValue(ReactomeJavaConstants.dateTime));
 			}
 		}
-		//mainOutput.append("\n*** GO Terms that could *not* be deleted: ***\n").append(undeletableSB.toString()).append("\n");
 		
 		mainOutput.append(lineCount + " lines from the file were processed.\n");
 		mainOutput.append(goTermCount + " GO terms were read from the file.\n");
@@ -494,7 +478,6 @@ class GoTermsUpdater
 		Consumer<? super GKInstance> populateInstMap = inst -> {
 			try
 			{
-				//adaptor.fastLoadInstanceAttributeValues(inst);
 				if (!allGoInstances.containsKey((String)(inst.getAttributeValue(ReactomeJavaConstants.accession))))
 				{
 					allGoInstances.put((String)(inst.getAttributeValue(ReactomeJavaConstants.accession)), new ArrayList<GKInstance>( Arrays.asList(inst) ) );
