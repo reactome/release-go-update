@@ -2,9 +2,49 @@
 <Configuration status="info">
 	<Appenders>
 		<Console name="Console" target="SYSTEM_OUT">
-			<PatternLayout pattern="%d{YYYY-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
+			<PatternLayout pattern="%d{YYYY-MM-dd HH:mm:ss.SSS} [%t] %-5level %C - %msg%n" />
 		</Console>
 		<RollingFile name="LogFile" fileName="logs/GO_Update-${date:MM-dd-yyyy_HH.mm.ss}.log" filePattern="logs/GO_Update-%d{MM-dd-yyyy_HH.mm.ss}.log">
+			<PatternLayout>
+				<Pattern>%d{HH:mm:ss.SSS} [%t] %-5level %C - %msg%n</Pattern>
+			</PatternLayout>
+				<Policies>
+					<OnStartupTriggeringPolicy />
+				</Policies>
+		</RollingFile>
+		<RollingFile name="reconciliationLogFile" fileName="logs/GO_Update_reconciliation-${date:MM-dd-yyyy_HH.mm.ss}.log" filePattern="logs/GO_Update_reconciliatione-%d{MM-dd-yyyy_HH.mm.ss}.log">
+			<PatternLayout>
+				<Pattern>%d{HH:mm:ss.SSS} [%t] %-5level %C - %msg%n</Pattern>
+			</PatternLayout>
+				<Policies>
+					<OnStartupTriggeringPolicy />
+				</Policies>
+		</RollingFile>
+		<RollingFile name="obsoleteLogFile" fileName="logs/GO_Update_obsolete-${date:MM-dd-yyyy_HH.mm.ss}.log" filePattern="logs/GO_Update_obsolete-%d{MM-dd-yyyy_HH.mm.ss}.log">
+			<PatternLayout>
+				<Pattern>%d{HH:mm:ss.SSS} [%t] %-5level %C - %msg%n</Pattern>
+			</PatternLayout>
+				<Policies>
+					<OnStartupTriggeringPolicy />
+				</Policies>
+		</RollingFile>
+		<RollingFile name="newMolecularFunctionsLogFile" fileName="logs/GO_Update_newMolecularFunctions-${date:MM-dd-yyyy_HH.mm.ss}.log" filePattern="logs/GO_Update_obsolete-%d{MM-dd-yyyy_HH.mm.ss}.log">
+			<PatternLayout>
+				<Pattern>%msg%n</Pattern>
+			</PatternLayout>
+				<Policies>
+					<OnStartupTriggeringPolicy />
+				</Policies>
+		</RollingFile>
+		<RollingFile name="newGOTermsLogFile" fileName="logs/GO_Update_newGOTerms-${date:MM-dd-yyyy_HH.mm.ss}.log" filePattern="logs/GO_Update_newGOTerms-%d{MM-dd-yyyy_HH.mm.ss}.log">
+			<PatternLayout>
+				<Pattern>%msg%n</Pattern>
+			</PatternLayout>
+				<Policies>
+					<OnStartupTriggeringPolicy />
+				</Policies>
+		</RollingFile>
+		<RollingFile name="updatedGOTermsLogFile" fileName="logs/GO_Update_updatedGOTerms-${date:MM-dd-yyyy_HH.mm.ss}.log" filePattern="logs/GO_Update_updatedGOTerms-%d{MM-dd-yyyy_HH.mm.ss}.log">
 			<PatternLayout>
 				<Pattern>%msg%n</Pattern>
 			</PatternLayout>
@@ -14,6 +54,21 @@
 		</RollingFile>
 	</Appenders>
 	<Loggers>
+		<Logger name="reconciliationLog" level="debug" additivity="false">
+			<AppenderRef ref="reconciliationLogFile"/>
+		</Logger>
+		<Logger name="newMolecularFunctionsLog" level="debug" additivity="false">
+			<AppenderRef ref="newMolecularFunctionsLogFile"/>
+		</Logger>
+		<Logger name="obsoleteAccessionLog" level="debug" additivity="false">
+			<AppenderRef ref="obsoleteLogFile"/>
+		</Logger>
+		<Logger name="newGOTermsLog" level="debug" additivity="false">
+			<AppenderRef ref="newGOTermsLogFile"/>
+		</Logger>
+		<Logger name="updatedGOTermsLog" level="debug" additivity="false">
+			<AppenderRef ref="updatedGOTermsLogFile"/>
+		</Logger>
 		<Root level="debug">
 			<AppenderRef ref="Console" level="debug"/>
 			<AppenderRef ref="LogFile" level="info"/>

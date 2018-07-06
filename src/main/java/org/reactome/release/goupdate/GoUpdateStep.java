@@ -17,7 +17,7 @@ import org.reactome.release.common.ReleaseStep;
 
 public class GoUpdateStep extends ReleaseStep
 {
-	private static final Logger logger = LogManager.getLogger("GoUpdateLogger");
+	private static final Logger logger = LogManager.getLogger();
 	
 	@Override
 	public void executeStep(Properties props) throws SQLException

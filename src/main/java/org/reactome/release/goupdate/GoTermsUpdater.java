@@ -26,7 +26,13 @@ import org.reactome.release.common.database.InstanceEditUtils;
  */
 class GoTermsUpdater
 {
-	private static final Logger logger = LogManager.getLogger("GoUpdateLogger");
+	private static final Logger logger = LogManager.getLogger();
+	private static final Logger reconciliationLogger = LogManager.getLogger("reconciliationLog");
+	private static final Logger newMFLogger = LogManager.getLogger("newMolecularFunctionsLog");
+	private static final Logger obsoleteAccessionLogger = LogManager.getLogger("obsoleteAccessionLog");
+	private static final Logger newGOTermsLogger = LogManager.getLogger("newGOTermsLog");
+	private static final Logger updatedGOTermLogger = LogManager.getLogger("updatedGOTermsLog");
+	
 	private MySQLAdaptor adaptor;
 	private List<String> goLines;
 	private List<String> ec2GoLines;
@@ -35,8 +41,8 @@ class GoTermsUpdater
 	
 	private StringBuffer nameOrDefinitionChangeStringBuilder = new StringBuffer();
 	private StringBuffer categoryMismatchStringBuilder = new StringBuffer();
-	private StringBuffer obsoletionStringBuilder = new StringBuffer();
-	private StringBuffer newGOTermStringBuilder = new StringBuffer();
+//	private StringBuffer obsoletionStringBuilder = new StringBuffer();
+//	private StringBuffer newGOTermStringBuilder = new StringBuffer();
 	private StringBuffer deletionStringBuilder = new StringBuffer();
 	private StringBuffer updatedRelationshipStringBuilder = new StringBuffer();
 	
@@ -143,10 +149,15 @@ class GoTermsUpdater
 				if (goInstances==null)
 				{
 					// Create a new Instance if there is nothing in the current list of instances.
-					newGOTermStringBuilder.append("New GO Term to create: GO:").append(goID).append(" ").append(goTermsFromFile.get(goID)).append("\n");
-					goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
-					goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
+					//newGOTermStringBuilder.append("New GO Term to create: GO:").append(goID).append(" ").append(goTermsFromFile.get(goID)).append("\n");
 					
+					goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
+					Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
+					newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
+					if ( ((GONamespace)goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE)).getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction) )
+					{
+						newMFLogger.info("{}\t{}\t{}", dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
+					}
 					newGoTermCount++;
 				}
 				else
@@ -180,7 +191,8 @@ class GoTermsUpdater
 				if (goInstances!=null)
 				{
 					pendingObsoleteCount++;
-					obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as PENDING obsolete!\n");
+					//obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as PENDING obsolete!\n");
+					obsoleteAccessionLogger.info("GO:{} ({}) is marked as PENDING obsolete. Consider searching for a replacement.",goID, goInstances.toString());
 				}
 			}
 			else if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && goTermsFromFile.get(goID).get(GoUpdateConstants.IS_OBSOLETE).equals(true))
@@ -189,7 +201,8 @@ class GoTermsUpdater
 				if (goInstances!=null)
 				{
 					obsoleteCount++;
-					obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as OBSOLETE!\n");
+					//obsoletionStringBuilder.append("GO Instance ").append(goInstances.toString()).append(" are marked as OBSOLETE!\n");
+					obsoleteAccessionLogger.warn("GO:{} ({}) marked as OBSOLETE!",goID, goInstances.toString());
 					for (GKInstance inst : goInstances)
 					{
 						instancesForDeletion.add(inst);
@@ -217,10 +230,10 @@ class GoTermsUpdater
 						referrersCount.put(attrib, referrers.size());
 					}
 				}
-				logger.info("Instance \""+instance.toString()+"\" (GO:"+instance.getAttributeValue(ReactomeJavaConstants.accession)+") has referrers but they will not prevent deletion:");
+				obsoleteAccessionLogger.info("Instance \""+instance.toString()+"\" (GO:"+instance.getAttributeValue(ReactomeJavaConstants.accession)+") has referrers but they will not prevent deletion:");
 				for (GKSchemaAttribute referrer : referrersCount.keySet())
 				{
-					logger.info("\t{} {} referrers.",referrersCount.get(referrer), referrer.getName());
+					obsoleteAccessionLogger.info("\t{} {} referrers.",referrersCount.get(referrer), referrer.getName());
 				}
 				goTermModifier.deleteGoInstance(goTermsFromFile, allGoInstances, this.deletionStringBuilder);
 				deletedCount ++;
@@ -229,7 +242,7 @@ class GoTermsUpdater
 			{
 				Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(instance);
 				undeleteble.put(instance,referrers);
-				logger.warn("GO Term {} ({}) cannot be deleted, it has {} referrers: {}", instance.getAttributeValue(ReactomeJavaConstants.accession), instance.toString(), referrers.size(), referrers.toString());
+				obsoleteAccessionLogger.warn("GO Term {} ({}) cannot be deleted, it has {} referrers: {}", instance.getAttributeValue(ReactomeJavaConstants.accession), instance.toString(), referrers.size(), referrers.toString());
 			}
 		}
 		//Reload the list of GO Instances, since new ones have been created, and old ones have been deleted.
@@ -272,26 +285,29 @@ class GoTermsUpdater
 		}
 		
 		
-		mainOutput.append("\n*** New GO Terms: ***\n"+this.newGOTermStringBuilder.toString());
+		//mainOutput.append("\n*** New GO Terms: ***\n"+this.newGOTermStringBuilder.toString());
 		mainOutput.append("\n*** Category Mismatches: ***\n"+this.categoryMismatchStringBuilder.toString());
-		mainOutput.append("\n*** Update Issues: ***\n"+this.nameOrDefinitionChangeStringBuilder.toString());
-		mainOutput.append("\n*** Obsoletion Warnings: ***\n" + this.obsoletionStringBuilder.toString());
-		mainOutput.append("\n*** Deletions: ***\n" + this.deletionStringBuilder.toString());
+		//mainOutput.append("\n*** Update Issues: ***\n"+this.nameOrDefinitionChangeStringBuilder.toString());
+		updatedGOTermLogger.info(this.nameOrDefinitionChangeStringBuilder.toString());
+		//mainOutput.append("\n*** Obsoletion Warnings: ***\n" + this.obsoletionStringBuilder.toString());
+		//mainOutput.append("\n*** Deletions: ***\n" + this.deletionStringBuilder.toString());
 		
-		StringBuffer undeletableSB = new StringBuffer();
+//		StringBuffer undeletableSB = new StringBuffer();
 		for (GKInstance instance : undeleteble.keySet())
 		{
-			undeletableSB.append("GO:").append(instance.getAttributeValue(ReactomeJavaConstants.accession)).append(" (").append(instance.toString()).append(")")
-							.append(" could not be deleted because it had ").append(undeleteble.get(instance).size()).append(" referrers.\n");
+			obsoleteAccessionLogger.info("GO:{} could not be deleted because it had {} referrers: ",instance.getAttributeValue(ReactomeJavaConstants.accession), instance.toString(), undeleteble.get(instance).size());
+//			undeletableSB.append("GO:").append(instance.getAttributeValue(ReactomeJavaConstants.accession)).append(" (").append(instance.toString()).append(")")
+//							.append(" could not be deleted because it had ").append(undeleteble.get(instance).size()).append(" referrers.\n");
 			for (GKInstance referrer : undeleteble.get(instance))
 			{
 				GKInstance created = (GKInstance) referrer.getAttributeValue(ReactomeJavaConstants.created);
 				GKInstance author = (GKInstance) created.getAttributeValue(ReactomeJavaConstants.author);
-				undeletableSB.append("\t\"").append(referrer.toString()).append("\", created by: ").append(author.getAttributeValue(ReactomeJavaConstants.firstname)+" "+ author.getAttributeValue(ReactomeJavaConstants.surname))
-							.append(" @ ").append(created.getAttributeValue(ReactomeJavaConstants.dateTime)).append("\n");
+//				undeletableSB.append("\t\"").append(referrer.toString()).append("\", created by: ").append(author.getAttributeValue(ReactomeJavaConstants.firstname)+" "+ author.getAttributeValue(ReactomeJavaConstants.surname))
+//							.append(" @ ").append(created.getAttributeValue(ReactomeJavaConstants.dateTime)).append("\n");
+				obsoleteAccessionLogger.info("\t\"{}\", created by {} {} @ {}", referrer.toString(), author.getAttributeValue(ReactomeJavaConstants.firstname), author.getAttributeValue(ReactomeJavaConstants.surname), created.getAttributeValue(ReactomeJavaConstants.dateTime));
 			}
 		}
-		mainOutput.append("\n*** GO Terms that could *not* be deleted: ***\n").append(undeletableSB.toString()).append("\n");
+		//mainOutput.append("\n*** GO Terms that could *not* be deleted: ***\n").append(undeletableSB.toString()).append("\n");
 		
 		mainOutput.append(lineCount + " lines from the file were processed.\n");
 		mainOutput.append(goTermCount + " GO terms were read from the file.\n");
@@ -316,7 +332,7 @@ class GoTermsUpdater
 			{
 				if (instances.size()>1)
 				{
-					logger.warn("GO Accession {} appears {} times in the database. It should probably only appear once.",goAccession, instances.size());
+					reconciliationLogger.warn("GO Accession {} appears {} times in the database. It should probably only appear once.",goAccession, instances.size());
 				}
 				for (GKInstance instance : instances)
 				{
@@ -346,7 +362,7 @@ class GoTermsUpdater
 								String definition = (String)instance.getAttributeValue(ReactomeJavaConstants.definition);
 								if (!goTerm.get(k).equals(definition))
 								{
-									logger.error("Reconciliation error: GO:{}; Attribute: \"definition\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), definition);
+									reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"definition\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), definition);
 								}
 								break;
 							}
@@ -355,7 +371,7 @@ class GoTermsUpdater
 								String name = (String)instance.getAttributeValue(ReactomeJavaConstants.name);
 								if (!goTerm.get(k).equals(name))
 								{
-									logger.error("Reconciliation error: GO:{}; Attribute: \"name\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), name);
+									reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"name\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), name);
 								}
 								break;
 							}
@@ -368,7 +384,7 @@ class GoTermsUpdater
 											&& fileNameSpace.equals(GONamespace.cellular_component.getReactomeName())) )
 									)
 								{
-									logger.error("Reconciliation error: GO:{}; Attribute: \"namespace/SchemaClass\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, fileNameSpace, dbNameSpace);
+									reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"namespace/SchemaClass\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, fileNameSpace, dbNameSpace);
 								}
 								break;
 							}
@@ -380,127 +396,26 @@ class GoTermsUpdater
 							case GoUpdateConstants.PART_OF:
 							{
 								reconcileRelationship(goAccession, goTerm, partOfs, k);
-//								boolean found = false;
-//								@SuppressWarnings("unchecked")
-//								List<String> relationAccessionsFromFile = (List<String>) goTerm.get(k);
-//								for (String relationAccessionFromFile: relationAccessionsFromFile)
-//								{
-//									for (GKInstance i : partOfs)
-//									{
-//										GKInstance ref = (GKInstance) i.getAttributeValue(ReactomeJavaConstants.componentOf);
-//										String accessionFromDB = (String)ref.getAttributeValue(ReactomeJavaConstants.accession);
-//										if (accessionFromDB.equals(relationAccessionFromFile))
-//										{
-//											found = true;
-//											// exit the loop early, since a match for accession was found.
-//											break;
-//										}
-//									}
-//									if (!found)
-//									{
-//										logger.error("Reconciliation error: Go Accession: {}; Attribute: \"componentOf/partOf\"; File says that GO:{} should be present but it is not in the database.",goAccession,relationAccessionFromFile);
-//									}
-//								}
 								break;
 							}
 							case GoUpdateConstants.REGULATES:
 							{
 								reconcileRelationship(goAccession, goTerm, regulates, k);
-//								boolean found = false;
-//								@SuppressWarnings("unchecked")
-//								List<String> relationAccessionsFromFile = (List<String>) goTerm.get(k);
-//								for (String relationAccessionFromFile: relationAccessionsFromFile)
-//								{
-//									for (GKInstance i : regulates)
-//									{
-//										String accessionFromDB = (String)i.getAttributeValue("regulate");
-//										if (accessionFromDB.equals(relationAccessionFromFile))
-//										{
-//											found = true;
-//											// exit the loop early, since a match for accession was found.
-//											break;
-//										}
-//									}
-//									if (!found)
-//									{
-//										logger.error("Reconciliation error: Go Accession: {}; Attribute: \"regulate\"; File says that GO:{} should be present but it is not in the database.",goAccession,relationAccessionFromFile);
-//									}
-//								}
 								break;
 							}
 							case GoUpdateConstants.POSITIVELY_REGULATES:
 							{
 								reconcileRelationship(goAccession, goTerm, positivelyRegulates, k);
-//								boolean found = false;
-//								@SuppressWarnings("unchecked")
-//								List<String> relationAccessionsFromFile = (List<String>) goTerm.get(k);
-//								for (String relationAccessionFromFile: relationAccessionsFromFile)
-//								{
-//									for (GKInstance i : positivelyRegulates)
-//									{
-//										String accessionFromDB = (String)i.getAttributeValue("positivelyRegulate");
-//										if (accessionFromDB.equals(relationAccessionFromFile))
-//										{
-//											found = true;
-//											// exit the loop early, since a match for accession was found.
-//											break;
-//										}
-//									}
-//									if (!found)
-//									{
-//										logger.error("Reconciliation error: Go Accession: {}; Attribute: \"positivelyRegulates\"; File says that GO:{} should be present but it is not in the database.",goAccession,relationAccessionFromFile);
-//									}
-//								}
 								break;
 							}
 							case GoUpdateConstants.NEGATIVELY_REGULATES:
 							{
 								reconcileRelationship(goAccession, goTerm, negativelyRegulates, k);
-//								boolean found = false;
-//								@SuppressWarnings("unchecked")
-//								List<String> relationAccessionsFromFile = (List<String>) goTerm.get(k);
-//								for (String relationAccessionFromFile: relationAccessionsFromFile)
-//								{
-//									for (GKInstance i : negativelyRegulates)
-//									{
-//										String accessionFromDB = (String)i.getAttributeValue("negativelyRegulate");
-//										if (accessionFromDB.equals(relationAccessionFromFile))
-//										{
-//											found = true;
-//											// exit the loop early, since a match for accession was found.
-//											break;
-//										}
-//									}
-//									if (!found)
-//									{
-//										logger.error("Reconciliation error: Go Accession: {}; Attribute: \"negativelyRegulates\"; File says that GO:{} should be present but it is not in the database.",goAccession,relationAccessionFromFile);
-//									}
-//								}
 								break;
 							}
 							case GoUpdateConstants.HAS_PART:
 							{
 								reconcileRelationship(goAccession, goTerm, hasParts, k);
-//								boolean found = false;
-//								@SuppressWarnings("unchecked")
-//								List<String> relationAccessionsFromFile = (List<String>) goTerm.get(k);
-//								for (String relationAccessionFromFile: relationAccessionsFromFile)
-//								{
-//									for (GKInstance i : hasParts)
-//									{
-//										String accessionFromDB = (String)i.getAttributeValue("hasPart");
-//										if (accessionFromDB.equals(relationAccessionFromFile))
-//										{
-//											found = true;
-//											// exit the loop early, since a match for accession was found.
-//											break;
-//										}
-//									}
-//									if (!found)
-//									{
-//										logger.error("Reconciliation error: Go Accession: {}; Attribute: \"hasPart\"; File says that GO:{} should be present but it is not in the database.",goAccession,relationAccessionFromFile);
-//									}
-//								}
 								break;
 							}
 						}
@@ -512,12 +427,21 @@ class GoTermsUpdater
 				// If there was not instance returned but the file doesn't mark the file as obsolete, that should be reported.
 				if (!((boolean) goTerm.get(GoUpdateConstants.IS_OBSOLETE)))
 				{
-					logger.warn("GO Accession {} is not present in the database, but is NOT marked as obsolete. GO Term might have been deleted in error, or not properly created.",goAccession);
+					reconciliationLogger.warn("GO Accession {} is not present in the database, but is NOT marked as obsolete. GO Term might have been deleted in error, or not properly created.",goAccession);
 				}
 			}
 		}
 	}
 
+	/**
+	 * Reconciles a relationship for a GO term. Will not return, but will log a message if reconciliation fails on something.
+	 * @param goAccession - The accession of the term to reconcile.
+	 * @param goTerm - The GO term, as it was when extracted from the file.
+	 * @param relationInstances - A list of GKInstances associated with the corresponding database instance, associated by some relationship.
+	 * @param relationship - The relationship to reconcile.
+	 * @throws InvalidAttributeException
+	 * @throws Exception
+	 */
 	private void reconcileRelationship(String goAccession, Map<String, Object> goTerm, Collection<GKInstance> relationInstances, String relationship) throws InvalidAttributeException, Exception {
 		boolean found = false;
 		@SuppressWarnings("unchecked")
@@ -536,7 +460,7 @@ class GoTermsUpdater
 			}
 			if (!found)
 			{
-				logger.error("Reconciliation error: GO:{}; Attribute: \"{}\"; File says that GO:{} should be present but it is not in the database.",goAccession, relationship, relationAccessionFromFile);
+				reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"{}\"; File says that GO:{} should be present but it is not in the database.",goAccession, relationship, relationAccessionFromFile);
 			}
 			found = false;
 		}
@@ -555,11 +479,11 @@ class GoTermsUpdater
 		try
 		{
 			bioProcesses = (Collection<GKInstance>) adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
-			System.out.println(bioProcesses.size() + " GO_BiologicalProcesses in the database.");
+			logger.info(bioProcesses.size() + " GO_BiologicalProcesses in the database.");
 			molecularFunctions = (Collection<GKInstance>) adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
-			System.out.println(molecularFunctions.size() + " GO_MolecularFunction in the database.");
+			logger.info(molecularFunctions.size() + " GO_MolecularFunction in the database.");
 			cellComponents = (Collection<GKInstance>) adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
-			System.out.println(cellComponents.size() + " GO_CellularComponent in the database.");
+			logger.info(cellComponents.size() + " GO_CellularComponent in the database.");
 		}
 		catch (Exception e)
 		{

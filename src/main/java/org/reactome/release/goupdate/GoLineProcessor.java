@@ -19,7 +19,7 @@ import org.apache.logging.log4j.Logger;
  */
 class GoLineProcessor
 {
-	private static final Logger logger = LogManager.getLogger("GoUpdateLogger");
+	private static final Logger logger = LogManager.getLogger();
 	
 	private GoLineProcessor() {}
 	
