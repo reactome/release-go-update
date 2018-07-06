@@ -125,7 +125,7 @@ class GoTermsUpdater
 			}
 			else if (termStarted)
 			{
-				currentGOID = processLine(line, currentGOID, goTermsFromFile);
+				currentGOID = GoLineProcessor.processLine(line, currentGOID, goTermsFromFile);
 			}
 		}
 		
@@ -300,10 +300,63 @@ class GoTermsUpdater
 		mainOutput.append(obsoleteCount + " were obsolete. "+deletedCount+ " were actually deleted and "+undeleteble.size()+" could not be deleted due to existing referrers.\n");
 		mainOutput.append(pendingObsoleteCount + " are pending obsolescence (and will probably be deleted at a future date).\n");
 		
+		reconcile(goTermsFromFile, goToECNumbers);
 		
 		return mainOutput;
 	}
 	
+	private void reconcile(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers) throws Exception
+	{
+		for (String goAccession : goTermsFromFile.keySet())
+		{
+			Map<String, Object> goTerm = goTermsFromFile.get(goAccession);
+			@SuppressWarnings("unchecked")
+			Collection<GKInstance> instances = this.adaptor.fetchInstanceByAttribute( ((GONamespace)goTerm.get(GoUpdateConstants.NAMESPACE)).getReactomeName(), ReactomeJavaConstants.accession, "=", goAccession );
+			if (instances != null)
+			{
+				if (instances.size()>1)
+				{
+					logger.warn("GO Accession {} appears {} times in the database. It should probably only appear once.",goAccession, instances.size());
+				}
+				for (GKInstance instance : instances)
+				{
+					for (String k : goTerm.keySet())
+					{
+						switch (k)
+						{
+							case GoUpdateConstants.DEF:
+							{
+								String definition = (String)instance.getAttributeValue(ReactomeJavaConstants.definition);
+								if (!goTerm.get(k).equals(definition))
+								{
+									logger.error("Reconciliation error: Go Accession: {}; Attribute: \"definition\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), definition);
+								}
+								break;
+							}
+							case GoUpdateConstants.NAME:
+							{
+								String name = (String)instance.getAttributeValue(ReactomeJavaConstants.name);
+								if (!goTerm.get(k).equals(name))
+								{
+									logger.error("Reconciliation error: Go Accession: {}; Attribute: \"name\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), name);
+								}
+								break;
+							}
+						}
+					}
+				}
+			}
+			else
+			{
+				// If there was not instance returned but the file doesn't markt he file as obsolete, that should be reported.
+				if (!((boolean) goTerm.get(GoUpdateConstants.IS_OBSOLETE)))
+				{
+					logger.warn("GO Accession {} is not present in the database, but is NOT marked as obsolete. GO Term might have been deleted in error, or not properly created.",goAccession);
+				}
+			}
+		}
+	}
+
 	/**
 	 * Returns a map of all GO-related instances in the databases.
 	 * @param adaptor
@@ -332,6 +385,7 @@ class GoTermsUpdater
 		Consumer<? super GKInstance> populateInstMap = inst -> {
 			try
 			{
+				//adaptor.fastLoadInstanceAttributeValues(inst);
 				if (!allGoInstances.containsKey((String)(inst.getAttributeValue(ReactomeJavaConstants.accession))))
 				{
 					allGoInstances.put((String)(inst.getAttributeValue(ReactomeJavaConstants.accession)), new ArrayList<GKInstance>( Arrays.asList(inst) ) );
@@ -354,212 +408,212 @@ class GoTermsUpdater
 		return allGoInstances;
 	}
 	
-	/**
-	 * Process a line from the GO file.
-	 * @param line - The line.
-	 * @param goTerms - The GO terms map. This map will be updated by this function.
-	 * @param currentGOID - The ID of the GO term currently being processed, line by line.
-	 * @return The GO Accession of the GO term currently being processed. Will be different from <code>currentGOID</code> if the ID for a new GO term is seen on this <code>line</code>
-	 */
-	private String processLine(String line, String currentGOID, Map<String, Map<String,Object>> goTerms)
-	{
-		String goID = currentGOID;
-		Matcher m;
-		try
-		{
-			m = GoUpdateConstants.LINE_DECODER.matcher(line);
-			if (m.matches())
-			{
-				String lineCode = m.group(1);
-				switch (lineCode)
-				{
-					case GoUpdateConstants.ID:
-					{
-						m = GoUpdateConstants.GO_ID_REGEX.matcher(line);
-						goID = m.matches() ? m.group(1) : "";
-						// Were we able to extract a GO ID?
-						if (!goID.trim().isEmpty())
-						{
-							if (!goTerms.containsKey(goID))
-							{
-								goTerms.put(goID, new HashMap<String,Object>());
-								currentGOID = goID;
-							}
-							else
-							{
-								// If a GO ID appears a second time, it will not be added to the hash, and the user will 
-								// get a message asking them to verify if the file is really OK.
-								// Maybe throw a RuntimeException for this? It really should never happen.
-								logger.error("GO ID {} has appeared more than once in the input! This is highly unexpected. "
-										+ "Please verify the contents of this file. "
-										+ "You should check that you are using a fresh GO file. "
-										+ "If using a new file from GO *still* causes this error, consider reporting this issue to GO.", goID);
-							}
-						}
-						break;
-					}
-					case GoUpdateConstants.ALT_ID:
-					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.ALT_ID_REGEX, GoUpdateConstants.ALT_ID);
-						break;
-					}
-					case GoUpdateConstants.NAME:
-					{
-						m = GoUpdateConstants.NAME_REGEX.matcher(line);
-						String name = m.matches() ? m.group(1) : "";
-						if (!name.trim().isEmpty())
-						{
-							if (!goTerms.get(currentGOID).containsKey(name))
-							{
-								goTerms.get(currentGOID).put(GoUpdateConstants.NAME, name);
-							}
-							else
-							{
-								logger.fatal("GO ID {} *already* has a value for NAME ({}) - and this is a single-value field!", currentGOID, goTerms.get(currentGOID).get(name));
-								// TODO: exit is probably not the best way to handle this. only for early-development debugging...
-								System.exit(1);
-							}
-						}
-						break;
-					}
-					case GoUpdateConstants.NAMESPACE:
-					{
-						m = GoUpdateConstants.NAMESPACE_REGEX.matcher(line);
-						String namespace = m.matches() ? m.group(1) : "";
-						if (!namespace.trim().isEmpty())
-						{
-							goTerms.get(currentGOID).put(GoUpdateConstants.NAMESPACE, GONamespace.valueOf(namespace));
-						}
-						break;
-					}
-					case GoUpdateConstants.DEF:
-					{
-						m = GoUpdateConstants.DEF_REGEX.matcher(line);
-						String def = m.matches() ? m.group(1) : "";
-						if (!def.trim().isEmpty())
-						{
-							goTerms.get(currentGOID).put(GoUpdateConstants.DEF, def);
-						}
-						break;
-					}
-					case GoUpdateConstants.IS_A:
-					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.IS_A_REGEX, GoUpdateConstants.IS_A);
-						break;
-					}
-					case GoUpdateConstants.SYNONYM:
-					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.SYNONYM_REGEX, GoUpdateConstants.SYNONYM);
-						break;
-					}
-					case GoUpdateConstants.CONSIDER:
-					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.CONSIDER_REGEX, GoUpdateConstants.CONSIDER);
-						break;
-					}
-					case GoUpdateConstants.REPLACED_BY:
-					{
-						addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.REPLACED_BY_REGEX, GoUpdateConstants.REPLACED_BY);
-						break;
-					}
-					case GoUpdateConstants.IS_OBSOLETE:
-					{
-						m = GoUpdateConstants.IS_OBSOLETE_REGEX.matcher(line);
-						if (m.matches())
-						{
-							goTerms.get(currentGOID).put(GoUpdateConstants.IS_OBSOLETE, true);
-						}
-						break;
-					}
-					case GoUpdateConstants.RELATIONSHIP:
-					{
-						m = GoUpdateConstants.RELATIONSHIP_DECODER.matcher(line);
-						if (m.matches())
-						{
-							String relationShipType = m.group(1);
-							switch (relationShipType)
-							{
-								case GoUpdateConstants.HAS_PART:
-								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_HAS_PART_REGEX, GoUpdateConstants.HAS_PART);
-									break;
-								}
-								case GoUpdateConstants.PART_OF:
-								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_PART_OF_REGEX, GoUpdateConstants.PART_OF);
-									break;
-								}
-								case GoUpdateConstants.REGULATES:
-								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_REGULATES_REGEX, GoUpdateConstants.REGULATES);
-									break;
-								}
-								case GoUpdateConstants.POSITIVELY_REGULATES:
-								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_POSITIVELY_REGULATES_REGEX, GoUpdateConstants.POSITIVELY_REGULATES);
-									break;
-								}
-								case GoUpdateConstants.NEGATIVELY_REGULATES:
-								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_NEGATIVELY_REGULATES_REGEX, GoUpdateConstants.NEGATIVELY_REGULATES);
-									break;
-								}
-							}
-						}
-						break;
-					}
-				}
-			}
-			else
-			{
-				// Obsoletion doesn't matche the line decoder regexp, so we need to test it separately.
-				m = GoUpdateConstants.OBSOLETION.matcher(line);
-				if (m.matches())
-				{
-					goTerms.get(currentGOID).put(GoUpdateConstants.PENDING_OBSOLETION, true);
-				}
-			}
-		}
-		catch (Exception e)
-		{
-			if (!e.getMessage().equals("No match found"))
-			{
-				// no match found is OK, but anything else should be raised.
-				throw e;
-			}
-		}
-		return goID;
-	}
-
-	/**
-	 * Adds a field to a multi-valued attribute on a GO term.
-	 * @param goTerms - The map of all GO terms from the file.
-	 * @param currentGOID - The current GO ID of the GO term being processed.
-	 * @param line - The line.
-	 * @param pattern - The regex pattern to use to extract the value from the line.
-	 * @param key - The attribute (as the key) to use to insert the value under this GO term in the main map of GO terms.
-	 */
-	@SuppressWarnings("unchecked")
-	private void addToMultivaluedAttribute(Map<String, Map<String, Object>> goTerms, String currentGOID, String line, Pattern pattern, String key)
-	{
-		Matcher m;
-		m = pattern.matcher(line);
-		String extractedValue = m.matches() ? m.group(1) : "";
-		if (!extractedValue.trim().isEmpty())
-		{
-			List<String> listOfValues = (List<String>) goTerms.get(currentGOID).get(key);
-			if (listOfValues == null)
-			{
-				listOfValues = new ArrayList<String>();
-				listOfValues.add(extractedValue);
-				goTerms.get(currentGOID).put(key, listOfValues);
-			}
-			else
-			{
-				((List<String>) goTerms.get(currentGOID).get(key)).add(extractedValue);
-			}
-		}
-	}
+//	/**
+//	 * Process a line from the GO file.
+//	 * @param line - The line.
+//	 * @param goTerms - The GO terms map. This map will be updated by this function.
+//	 * @param currentGOID - The ID of the GO term currently being processed, line by line.
+//	 * @return The GO Accession of the GO term currently being processed. Will be different from <code>currentGOID</code> if the ID for a new GO term is seen on this <code>line</code>
+//	 */
+//	private String processLine(String line, String currentGOID, Map<String, Map<String,Object>> goTerms)
+//	{
+//		String goID = currentGOID;
+//		Matcher m;
+//		try
+//		{
+//			m = GoUpdateConstants.LINE_DECODER.matcher(line);
+//			if (m.matches())
+//			{
+//				String lineCode = m.group(1);
+//				switch (lineCode)
+//				{
+//					case GoUpdateConstants.ID:
+//					{
+//						m = GoUpdateConstants.GO_ID_REGEX.matcher(line);
+//						goID = m.matches() ? m.group(1) : "";
+//						// Were we able to extract a GO ID?
+//						if (!goID.trim().isEmpty())
+//						{
+//							if (!goTerms.containsKey(goID))
+//							{
+//								goTerms.put(goID, new HashMap<String,Object>());
+//								currentGOID = goID;
+//							}
+//							else
+//							{
+//								// If a GO ID appears a second time, it will not be added to the hash, and the user will 
+//								// get a message asking them to verify if the file is really OK.
+//								// Maybe throw a RuntimeException for this? It really should never happen.
+//								logger.error("GO ID {} has appeared more than once in the input! This is highly unexpected. "
+//										+ "Please verify the contents of this file. "
+//										+ "You should check that you are using a fresh GO file. "
+//										+ "If using a new file from GO *still* causes this error, consider reporting this issue to GO.", goID);
+//							}
+//						}
+//						break;
+//					}
+//					case GoUpdateConstants.ALT_ID:
+//					{
+//						this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.ALT_ID_REGEX, GoUpdateConstants.ALT_ID);
+//						break;
+//					}
+//					case GoUpdateConstants.NAME:
+//					{
+//						m = GoUpdateConstants.NAME_REGEX.matcher(line);
+//						String name = m.matches() ? m.group(1) : "";
+//						if (!name.trim().isEmpty())
+//						{
+//							if (!goTerms.get(currentGOID).containsKey(name))
+//							{
+//								goTerms.get(currentGOID).put(GoUpdateConstants.NAME, name);
+//							}
+//							else
+//							{
+//								logger.fatal("GO ID {} *already* has a value for NAME ({}) - and this is a single-value field!", currentGOID, goTerms.get(currentGOID).get(name));
+//								// TODO: exit is probably not the best way to handle this. only for early-development debugging...
+//								System.exit(1);
+//							}
+//						}
+//						break;
+//					}
+//					case GoUpdateConstants.NAMESPACE:
+//					{
+//						m = GoUpdateConstants.NAMESPACE_REGEX.matcher(line);
+//						String namespace = m.matches() ? m.group(1) : "";
+//						if (!namespace.trim().isEmpty())
+//						{
+//							goTerms.get(currentGOID).put(GoUpdateConstants.NAMESPACE, GONamespace.valueOf(namespace));
+//						}
+//						break;
+//					}
+//					case GoUpdateConstants.DEF:
+//					{
+//						m = GoUpdateConstants.DEF_REGEX.matcher(line);
+//						String def = m.matches() ? m.group(1) : "";
+//						if (!def.trim().isEmpty())
+//						{
+//							goTerms.get(currentGOID).put(GoUpdateConstants.DEF, def);
+//						}
+//						break;
+//					}
+//					case GoUpdateConstants.IS_A:
+//					{
+//						this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.IS_A_REGEX, GoUpdateConstants.IS_A);
+//						break;
+//					}
+//					case GoUpdateConstants.SYNONYM:
+//					{
+//						this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.SYNONYM_REGEX, GoUpdateConstants.SYNONYM);
+//						break;
+//					}
+//					case GoUpdateConstants.CONSIDER:
+//					{
+//						this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.CONSIDER_REGEX, GoUpdateConstants.CONSIDER);
+//						break;
+//					}
+//					case GoUpdateConstants.REPLACED_BY:
+//					{
+//						this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.REPLACED_BY_REGEX, GoUpdateConstants.REPLACED_BY);
+//						break;
+//					}
+//					case GoUpdateConstants.IS_OBSOLETE:
+//					{
+//						m = GoUpdateConstants.IS_OBSOLETE_REGEX.matcher(line);
+//						if (m.matches())
+//						{
+//							goTerms.get(currentGOID).put(GoUpdateConstants.IS_OBSOLETE, true);
+//						}
+//						break;
+//					}
+//					case GoUpdateConstants.RELATIONSHIP:
+//					{
+//						m = GoUpdateConstants.RELATIONSHIP_DECODER.matcher(line);
+//						if (m.matches())
+//						{
+//							String relationShipType = m.group(1);
+//							switch (relationShipType)
+//							{
+//								case GoUpdateConstants.HAS_PART:
+//								{
+//									this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_HAS_PART_REGEX, GoUpdateConstants.HAS_PART);
+//									break;
+//								}
+//								case GoUpdateConstants.PART_OF:
+//								{
+//									this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_PART_OF_REGEX, GoUpdateConstants.PART_OF);
+//									break;
+//								}
+//								case GoUpdateConstants.REGULATES:
+//								{
+//									this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_REGULATES_REGEX, GoUpdateConstants.REGULATES);
+//									break;
+//								}
+//								case GoUpdateConstants.POSITIVELY_REGULATES:
+//								{
+//									this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_POSITIVELY_REGULATES_REGEX, GoUpdateConstants.POSITIVELY_REGULATES);
+//									break;
+//								}
+//								case GoUpdateConstants.NEGATIVELY_REGULATES:
+//								{
+//									this.addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_NEGATIVELY_REGULATES_REGEX, GoUpdateConstants.NEGATIVELY_REGULATES);
+//									break;
+//								}
+//							}
+//						}
+//						break;
+//					}
+//				}
+//			}
+//			else
+//			{
+//				// Obsoletion doesn't matche the line decoder regexp, so we need to test it separately.
+//				m = GoUpdateConstants.OBSOLETION.matcher(line);
+//				if (m.matches())
+//				{
+//					goTerms.get(currentGOID).put(GoUpdateConstants.PENDING_OBSOLETION, true);
+//				}
+//			}
+//		}
+//		catch (Exception e)
+//		{
+//			if (!e.getMessage().equals("No match found"))
+//			{
+//				// no match found is OK, but anything else should be raised.
+//				throw e;
+//			}
+//		}
+//		return goID;
+//	}
+//
+//	/**
+//	 * Adds a field to a multi-valued attribute on a GO term.
+//	 * @param goTerms - The map of all GO terms from the file.
+//	 * @param currentGOID - The current GO ID of the GO term being processed.
+//	 * @param line - The line.
+//	 * @param pattern - The regex pattern to use to extract the value from the line.
+//	 * @param key - The attribute (as the key) to use to insert the value under this GO term in the main map of GO terms.
+//	 */
+//	@SuppressWarnings("unchecked")
+//	private void addToMultivaluedAttribute(Map<String, Map<String, Object>> goTerms, String currentGOID, String line, Pattern pattern, String key)
+//	{
+//		Matcher m;
+//		m = pattern.matcher(line);
+//		String extractedValue = m.matches() ? m.group(1) : "";
+//		if (!extractedValue.trim().isEmpty())
+//		{
+//			List<String> listOfValues = (List<String>) goTerms.get(currentGOID).get(key);
+//			if (listOfValues == null)
+//			{
+//				listOfValues = new ArrayList<String>();
+//				listOfValues.add(extractedValue);
+//				goTerms.get(currentGOID).put(key, listOfValues);
+//			}
+//			else
+//			{
+//				((List<String>) goTerms.get(currentGOID).get(key)).add(extractedValue);
+//			}
+//		}
+//	}
 
 	
 	/**
