@@ -6,6 +6,7 @@ import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import org.apache.logging.log4j.LogManager;
@@ -61,6 +62,7 @@ public class GoUpdateStep extends ReleaseStep
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
 			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
 
+			reportOnDuplicateAccessions(adaptor);
 			// Start a transaction. If that fails, the program will exit.
 			try
 			{
@@ -78,6 +80,9 @@ public class GoUpdateStep extends ReleaseStep
 
 			StringBuilder report = goTermsUpdator.updateGoTerms();
 			logger.info(report);
+			
+			logger.info("Post-GO Update check for duplicated accessions...");
+			reportOnDuplicateAccessions(adaptor);
 			
 			if (testMode)
 			{
@@ -99,6 +104,28 @@ public class GoUpdateStep extends ReleaseStep
 		}
 		Long endTime = System.currentTimeMillis();
 		logger.info("Elapsed time: " + Duration.ofMillis(endTime-startTime).toString());
+	}
+
+	private void reportOnDuplicateAccessions(MySQLAdaptor adaptor) throws Exception
+	{
+		DuplicateReporter duplicateReporter = new DuplicateReporter(adaptor);
+		Map<String, Integer> duplicatedAccessions = duplicateReporter.getDuplicateAccessions();
+		if (duplicatedAccessions!=null && !duplicatedAccessions.keySet().isEmpty())
+		{
+			logger.warn("Duplicated GO accessions exist! Report follows:");
+			for (String accession : duplicatedAccessions.keySet())
+			{
+				Map<Long,Integer> referrerCounts = duplicateReporter.getReferrerCountForAccession(accession);
+				for (Long dbId : referrerCounts.keySet())
+				{
+					logger.warn("Duplicated accession GO:{} with DB_ID {} has {} referrers", accession, dbId, referrerCounts.get(dbId));
+				}
+			}
+		}
+		else
+		{
+			logger.info("No duplicated GO accessions were detected.");
+		}
 	}
 
 }
