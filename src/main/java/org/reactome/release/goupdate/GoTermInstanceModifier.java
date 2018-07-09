@@ -142,7 +142,7 @@ class GoTermInstanceModifier
 				{
 					String nameUpdate = newName.equals(oldName) ? "" : "\n\tNew name:\t\""+newName+"\"\n\told name:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.name)+"\"";
 					String defnUpdate = newDefinition.equals(oldDefinition) ? "" : "\n\tNew def'n:\t\""+newDefinition+"\"\n\told def'n:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.definition)+"\"";
-					nameOrDefinitionChangeStringBuilder.append("Change in name/definition for GO:").append(currentGOID).append(nameUpdate).append(defnUpdate);
+					nameOrDefinitionChangeStringBuilder.append("\nChange in name/definition for GO:").append(currentGOID).append(nameUpdate).append(defnUpdate);
 					this.goInstance.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.instanceOf);
 					this.goInstance.setAttributeValue(ReactomeJavaConstants.componentOf, null);
