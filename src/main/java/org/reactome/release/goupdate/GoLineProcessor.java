@@ -84,9 +84,9 @@ class GoLineProcessor
 							}
 							else
 							{
-								logger.fatal("GO ID {} *already* has a value for NAME ({}) - and this is a single-value field!", currentGOID, goTerms.get(currentGOID).get(name));
+								logger.error("GO ID {} *already* has a value for NAME ({}) - and this is a single-value field!", currentGOID, goTerms.get(currentGOID).get(name));
 								// TODO: exit is probably not the best way to handle this. only for early-development debugging...
-								System.exit(1);
+								// System.exit(1);
 							}
 						}
 						break;

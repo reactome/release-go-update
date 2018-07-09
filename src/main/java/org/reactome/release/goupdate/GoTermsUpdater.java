@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,7 +21,7 @@ import org.gk.schema.InvalidAttributeException;
 import org.reactome.release.common.database.InstanceEditUtils;
 
 /**
- * This class can be used to update GO Terms in the "gk_central" database.
+ * This class can be used to update GOTerms in the "gk_central" database.
  * @author sshorser
  *
  */
@@ -267,19 +268,6 @@ class GoTermsUpdater
 				}
 			}
 		}
-//		logger.info("Updating referring instances.");
-//		// First, get all GO References that have been modified (newly created ones can be ignored because they won't have any non-GO Instance referrers yet).
-//		List<GKInstance> updatedGOInstances = new ArrayList<GKInstance>();
-//		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
-//		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
-//		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
-//		
-//		for (GKInstance inst : updatedGOInstances)
-//		{
-//			GoTermInstanceModifier modifier = new GoTermInstanceModifier(this.adaptor, inst, this.instanceEdit);
-//			modifier.updateReferrersDisplayNames();
-//		}
-		
 		
 		mainOutput.append("\n*** Category Mismatches: ***\n"+this.categoryMismatchStringBuilder.toString());
 		updatedGOTermLogger.info(this.nameOrDefinitionChangeStringBuilder.toString());
@@ -406,6 +394,7 @@ class GoTermsUpdater
 							}
 						}
 					}
+					reconcileECNumbers(goToECNumbers, instance);
 				}
 			}
 			else
@@ -420,7 +409,34 @@ class GoTermsUpdater
 	}
 
 	/**
-	 * Reconciles a relationship for a GO term. Will not return, but will log a message if reconciliation fails on something.
+	 * Reconciles EC Numbers for a GO term, between the data from ec2go file and the database. Logs an ERROR if EC numbers fail to reconcile.
+	 * @param goToECNumbers - the GO-to-EC Number map generated from the ec2go file.
+	 * @param instance - the instance to reconcile.
+	 * @throws InvalidAttributeException
+	 * @throws Exception
+	 */
+	private void reconcileECNumbers(Map<String, List<String>> goToECNumbers, GKInstance instance) throws InvalidAttributeException, Exception
+	{
+		if (instance.getSchemClass().isValidAttribute(ReactomeJavaConstants.ecNumber))
+		{
+			@SuppressWarnings("unchecked")
+			Set<String> ecNumbersFromDB = new HashSet<String> ( (Collection<String>) instance.getAttributeValuesList(ReactomeJavaConstants.ecNumber) );
+			List<String> ecNumbersFromFile = goToECNumbers.get(instance.getAttributeValue(ReactomeJavaConstants.accession));
+			if (ecNumbersFromFile!=null)
+			{
+				for (String ecNumberFromFile : ecNumbersFromFile)
+				{
+					if (!ecNumbersFromDB.contains(ecNumberFromFile))
+					{
+						logger.error("EC Nubmer {} is in the file for GO Accession {} but is not in the database for that accession.", ecNumberFromFile, instance.getAttributeValue(ReactomeJavaConstants.accession));
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Reconciles a relationship for a GO term. Will not return, but will log an ERROR message if reconciliation fails.
 	 * @param goAccession - The accession of the term to reconcile.
 	 * @param goTerm - The GO term, as it was when extracted from the file.
 	 * @param relationInstances - A list of GKInstances associated with the corresponding database instance, associated by some relationship.
