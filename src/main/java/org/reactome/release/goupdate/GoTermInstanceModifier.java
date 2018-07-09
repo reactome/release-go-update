@@ -201,7 +201,8 @@ class GoTermInstanceModifier
 		@SuppressWarnings("unchecked")
 		Set<GKSchemaAttribute> referringAttributes = (Set<GKSchemaAttribute>) this.goInstance.getSchemClass().getReferers();
 		// The old Perl code only updated PhysicalEntities and CatalystActivities that referred to GO Terms. Events that referred
-		// to GO terms via goBiologicalProcess were *not* updated in the old code.
+		// to GO terms via goBiologicalProcess were *not* updated in the old code. So I'm trying to keep this code consistent with
+		// that implementation.
 		for(GKSchemaAttribute attribute : referringAttributes.stream().filter(a -> a.getName().equals(ReactomeJavaConstants.activity)
 																		|| a.getName().equals(ReactomeJavaConstants.goCellularComponent))
 																	.collect(Collectors.toList()))
@@ -212,9 +213,9 @@ class GoTermInstanceModifier
 			{
 				for (GKInstance referrer : referrers)
 				{
+					InstanceDisplayNameGenerator.setDisplayName(referrer);
 					referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
 					referrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
-					InstanceDisplayNameGenerator.setDisplayName(referrer);
 					this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants._displayName);
 					this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
 				}
@@ -315,7 +316,6 @@ class GoTermInstanceModifier
 	{
 		if (goProps.containsKey(relationshipKey))
 		{
-			//List<GKInstance> newInstancesToAdd = new ArrayList<GKInstance>();
 			@SuppressWarnings("unchecked")
 			List<String> otherIDs = (List<String>) goProps.get(relationshipKey);
 			try
@@ -325,12 +325,17 @@ class GoTermInstanceModifier
 				this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);
 
 				for (String otherID : otherIDs)
-				{				
+				{
+					// This is tricky - allGoInstances could contain duplicated GO accessions, because the database could contains multiple GO terms with the same GO accession.
 					List<GKInstance> otherInsts = allGoInstances.get(otherID);
-					// Before adding a new Instance, let's check that the relationship doesn't already exist.
-					// First, we get the list of things currently under that attribute.
 					if (otherInsts != null && !otherInsts.isEmpty())
 					{
+						// Only use the first item, so we don't end up attaching multiple GO Terms with the same accession to this object via "reactomeRelationshipName".
+						// I think this is what the Perl code does when it encounters duplicates. Not ideal, but seems to work OK.
+						if (otherInsts.size() > 1)
+						{
+							otherInsts = otherInsts.subList(0, 1);
+						}
 						// Add the new value from otherInsts
 						this.goInstance.addAttributeValue(reactomeRelationshipName, otherInsts);
 						this.adaptor.updateInstanceAttribute(this.goInstance, reactomeRelationshipName);

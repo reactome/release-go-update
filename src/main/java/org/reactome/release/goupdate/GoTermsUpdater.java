@@ -262,21 +262,23 @@ class GoTermsUpdater
 					goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
 					goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
 					adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.modified);
+					// Now, update the displayName of other instances that refers to this GO Term instance.
+					goModifier.updateReferrersDisplayNames();
 				}
 			}
 		}
-		logger.info("Updating referring instances.");
-		// First, get all GO References that have been modified (newly created ones can be ignored because they won't have any non-GO Instance referrers yet).
-		List<GKInstance> updatedGOInstances = new ArrayList<GKInstance>();
-		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
-		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
-		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
-		
-		for (GKInstance inst : updatedGOInstances)
-		{
-			GoTermInstanceModifier modifier = new GoTermInstanceModifier(this.adaptor, inst, this.instanceEdit);
-			modifier.updateReferrersDisplayNames();
-		}
+//		logger.info("Updating referring instances.");
+//		// First, get all GO References that have been modified (newly created ones can be ignored because they won't have any non-GO Instance referrers yet).
+//		List<GKInstance> updatedGOInstances = new ArrayList<GKInstance>();
+//		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
+//		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
+//		updatedGOInstances.addAll(adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.modified, "=", this.instanceEdit.getDBID()));
+//		
+//		for (GKInstance inst : updatedGOInstances)
+//		{
+//			GoTermInstanceModifier modifier = new GoTermInstanceModifier(this.adaptor, inst, this.instanceEdit);
+//			modifier.updateReferrersDisplayNames();
+//		}
 		
 		
 		mainOutput.append("\n*** Category Mismatches: ***\n"+this.categoryMismatchStringBuilder.toString());
