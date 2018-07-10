@@ -41,10 +41,10 @@ public class JavaVsPerlComparison {
 		@SuppressWarnings("unchecked")
 		Set<GKInstance> javaUpdatedGOCellularComponents = (Set<GKInstance>) javaUpdatedDB.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
 		
-		List<GKInstance> listOfAllGOThings = new ArrayList<GKInstance>();
-		listOfAllGOThings.addAll(javaUpdatedGOCellularComponents);
-		listOfAllGOThings.addAll(javaUpdatedGOMolecularFunctions);
-		listOfAllGOThings.addAll(javaUpdatedGOBiologicalProcesses);
+		List<GKInstance> listOfAllJavaGOThings = new ArrayList<GKInstance>();
+		listOfAllJavaGOThings.addAll(javaUpdatedGOCellularComponents);
+		listOfAllJavaGOThings.addAll(javaUpdatedGOMolecularFunctions);
+		listOfAllJavaGOThings.addAll(javaUpdatedGOBiologicalProcesses);
 		
 		Comparator<? super GKInstance> dbIdComparator = new Comparator<GKInstance>()
 		{
@@ -57,23 +57,23 @@ public class JavaVsPerlComparison {
 			
 		};
 		
-		listOfAllGOThings.sort(dbIdComparator);
+		listOfAllJavaGOThings.sort(dbIdComparator);
 		StringBuilder mainSB = new StringBuilder();
-		for (GKInstance goInst : listOfAllGOThings)
+		for (GKInstance javaGoInst : listOfAllJavaGOThings)
 		{
-			String accession = (String) goInst.getAttributeValue(ReactomeJavaConstants.accession);
+			String accession = (String) javaGoInst.getAttributeValue(ReactomeJavaConstants.accession);
 			@SuppressWarnings("unchecked")
-			Collection<GKInstance> perlGoInsts = (Collection<GKInstance>) perlUpdatedDB.fetchInstanceByAttribute(goInst.getSchemClass().getName(), ReactomeJavaConstants.accession, "=", accession);
+			Collection<GKInstance> perlGoInsts = (Collection<GKInstance>) perlUpdatedDB.fetchInstanceByAttribute(javaGoInst.getSchemClass().getName(), ReactomeJavaConstants.accession, "=", accession);
 			for (GKInstance perlInst : perlGoInsts)
 			{
 				//if (perlInst != null)
 				{
 					StringBuilder sb = new StringBuilder();
-					int i = DBObjectComparer.compareInstances(goInst, perlInst, sb, 0);
+					int i = DBObjectComparer.compareInstances(javaGoInst, perlInst, sb, 0);
 					if (i> 0)
 					{
 						diffCount ++;
-						mainSB.append("\n***\nFor Java-updated instance \""+goInst.toString()+"\" with accession \""+accession+"\" there are " + i + " differences:\n"+sb.toString());
+						mainSB.append("\n***\nFor Java-updated instance \""+javaGoInst.toString()+"\" with accession \""+accession+"\" there are " + i + " differences:\n"+sb.toString());
 					}
 					else
 					{
@@ -85,12 +85,12 @@ public class JavaVsPerlComparison {
 						};
 					
 					// Now, we need to compare referrers, since they might have display name changes. Want to make sure we capture those correctly.
-					if (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_BiologicalProcess))
+					if (javaGoInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_BiologicalProcess))
 					{
 						StringBuilder sb1 = new StringBuilder();
 
 						@SuppressWarnings("unchecked")
-						List<GKInstance> javaList = ((List<GKInstance>) goInst.getReferers(ReactomeJavaConstants.goBiologicalProcess));
+						List<GKInstance> javaList = ((List<GKInstance>) javaGoInst.getReferers(ReactomeJavaConstants.goBiologicalProcess));
 						@SuppressWarnings("unchecked")
 						List<GKInstance> perlList = ((List<GKInstance>) perlInst.getReferers(ReactomeJavaConstants.goBiologicalProcess));
 						if (javaList != null && perlList != null)
@@ -113,11 +113,11 @@ public class JavaVsPerlComparison {
 							}
 						}
 					}
-					else if (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_CellularComponent))
+					else if (javaGoInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_CellularComponent))
 					{
 						StringBuilder sb1 = new StringBuilder();
 						@SuppressWarnings("unchecked")
-						List<GKInstance> javaList = ((List<GKInstance>) goInst.getReferers(ReactomeJavaConstants.goCellularComponent));
+						List<GKInstance> javaList = ((List<GKInstance>) javaGoInst.getReferers(ReactomeJavaConstants.goCellularComponent));
 						@SuppressWarnings("unchecked")
 						List<GKInstance> perlList = ((List<GKInstance>) perlInst.getReferers(ReactomeJavaConstants.goCellularComponent));
 
@@ -140,11 +140,11 @@ public class JavaVsPerlComparison {
 							}
 						}
 					}
-					else if (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
+					else if (javaGoInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
 					{
 						StringBuilder sb1 = new StringBuilder();
 						@SuppressWarnings("unchecked")
-						List<GKInstance> javaList = ((List<GKInstance>) goInst.getReferers(ReactomeJavaConstants.activity));
+						List<GKInstance> javaList = ((List<GKInstance>) javaGoInst.getReferers(ReactomeJavaConstants.activity));
 						@SuppressWarnings("unchecked")
 						List<GKInstance> perlList = ((List<GKInstance>) perlInst.getReferers(ReactomeJavaConstants.activity));
 

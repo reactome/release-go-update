@@ -132,19 +132,28 @@ public class GoTermsUpdaterTest
 			"name: negative regulation of something...!\n" + 
 			"namespace: cellular_component\n" + 
 			"def: \"testing stuff.\n" + 
-			"relationship: negatively_regulates GO:0444444\n" +
-			"\n"
-;
+			"relationship: negatively_regulates GO:0444444\n"
+			+ "[Term]\n" + 
+			"id: GO:0000006\n" + 
+			"name: ribosomal chaperone activity\n" + 
+			"namespace: molecular_function\n" + 
+			"def: \"Assists in the correct assembly of ribosomes or ribosomal subunits in vivo, but is not a component of the assembled ribosome when performing its normal biological function.\" [GOC:jl, PMID:12150913]\n" + 
+			"comment: This term was made obsolete because it refers to a class of gene products and a biological process rather than a molecular function.\n" + 
+			"synonym: \"ribosomal chaperone activity\" EXACT []\n"+
+			"relationship: part_of GO:0000009\n" ;
 	
 	private static final String sampleEc2GoText = "! Generated on 2018-06-04T11:27Z from the ontology 'go' with data version: 'releases/2017-03-31'\n" + 
 			"!\n" + 
 			"EC:1 > GO:N-ethylmaleimide reductase activity ; GO:00000099\n" + 
 			"EC:1 > GO:oxidoreductase activity ; GO:0000003\n" + 
 			"EC:1 > GO:reduced coenzyme F420 dehydrogenase activity ; GO:0043738\n" + 
+			"EC:3.4 > GO:blah blah blah ; GO:0000005\n" +
+			"EC:3.4.0 > GO:blah blah blah ; GO:0000006\n" +
 			"EC:1 > GO:sulfur oxygenase reductase activity ; GO:00000099\n" + 
 			"EC:1 > GO:malolactic enzyme activity ; GO:0043883\n" + 
 			"EC:1 > GO:NADPH:sulfur oxidoreductase activity ; GO:0043914\n" + 
-			"EC:1.2 > GO:epoxyqueuosine reductase activity ; GO:0000003\n" ;
+			"EC:1.2 > GO:epoxyqueuosine reductase activity ; GO:0000003\n" +
+			"EC:3.4.5 > GO:blah blah blah ; GO:3070009\n" ;
 	
 	@Mock
 	MySQLAdaptor dba;
@@ -191,6 +200,8 @@ public class GoTermsUpdaterTest
 		Mockito.when(mockMolecularFunctionSchemaClass.getName()).thenReturn(ReactomeJavaConstants.GO_MolecularFunction);
 		Mockito.when(mockCellularComponentSchemaClass.getName()).thenReturn(ReactomeJavaConstants.GO_CellularComponent);
 		
+		Mockito.when(mockMolecularFunctionSchemaClass.isValidAttribute(ReactomeJavaConstants.ecNumber)).thenReturn(true);
+		
 		GKInstance biologicalProcessMismatchedCategory = mock(GKInstance.class);
 		Mockito.when(biologicalProcessMismatchedCategory.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("00000099");
 		Mockito.when(biologicalProcessMismatchedCategory.getSchemClass()).thenReturn(mockCellularComponentSchemaClass);
@@ -206,18 +217,25 @@ public class GoTermsUpdaterTest
 		GKInstance molecularFunction = mock(GKInstance.class);
 		Mockito.when(molecularFunction.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("3070009");
 		Mockito.when(molecularFunction.getSchemClass()).thenReturn(mockMolecularFunctionSchemaClass);
-		
+
 		GKInstance molecularFunction2 = mock(GKInstance.class);
 		Mockito.when(molecularFunction2.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("0000005");
 		Mockito.when(molecularFunction2.getAttributeValue(ReactomeJavaConstants.name)).thenReturn("The old name");
 		Mockito.when(molecularFunction2.getAttributeValue(ReactomeJavaConstants.definition)).thenReturn("Old Definition");
 		Mockito.when(molecularFunction2.getSchemClass()).thenReturn(mockMolecularFunctionSchemaClass);
+
+		GKInstance molecularFunction3 = mock(GKInstance.class);
+		Mockito.when(molecularFunction3.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("0000006");
+		Mockito.when(molecularFunction3.getSchemClass()).thenReturn(mockMolecularFunctionSchemaClass);
+		Mockito.when(molecularFunction3.getAttributeValuesList(ReactomeJavaConstants.componentOf)).thenReturn(Arrays.asList(biologicalProcess3));
 		
 		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent)).thenReturn(Arrays.asList(biologicalProcessMismatchedCategory));
 		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess)).thenReturn(Arrays.asList(biologicalProcess3, biologicalProcess2));
 		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction)).thenReturn(Arrays.asList(molecularFunction,  molecularFunction2));
 		
+		Mockito.when(dba.fetchInstanceByAttribute(ReactomeJavaConstants.GO_MolecularFunction,ReactomeJavaConstants.accession,"=","3070009")).thenReturn(Arrays.asList(molecularFunction));
 		Mockito.when(dba.fetchInstanceByAttribute(ReactomeJavaConstants.GO_MolecularFunction,ReactomeJavaConstants.accession,"=","0000005")).thenReturn(Arrays.asList(molecularFunction2));
+		Mockito.when(dba.fetchInstanceByAttribute(ReactomeJavaConstants.GO_MolecularFunction,ReactomeJavaConstants.accession,"=","0000006")).thenReturn(Arrays.asList(molecularFunction3));
 		
 		Mockito.when(dba.getSchema()).thenReturn(mockSchema);
 		Mockito.when(mockSchema.getClassByName(anyString())).thenReturn(mockSchemaClass );
