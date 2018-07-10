@@ -1,10 +1,10 @@
 package org.reactome.release.goupdate;
 
-import static org.mockito.Mockito.mock;
 import static org.junit.Assert.fail;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -14,9 +14,7 @@ import org.gk.model.GKInstance;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.schema.GKSchemaClass;
-import org.gk.schema.InvalidAttributeException;
 import org.gk.schema.Schema;
-import org.gk.schema.SchemaClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -30,7 +28,6 @@ import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 import org.reactome.release.common.database.InstanceEditUtils;
-import org.reactome.release.goupdate.GoTermsUpdater;
 
 @RunWith(PowerMockRunner.class)
 @MockitoSettings(strictness = Strictness.WARN)
@@ -220,6 +217,8 @@ public class GoTermsUpdaterTest
 		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess)).thenReturn(Arrays.asList(biologicalProcess3, biologicalProcess2));
 		Mockito.when(dba.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction)).thenReturn(Arrays.asList(molecularFunction,  molecularFunction2));
 		
+		Mockito.when(dba.fetchInstanceByAttribute(ReactomeJavaConstants.GO_MolecularFunction,ReactomeJavaConstants.accession,"=","0000005")).thenReturn(Arrays.asList(molecularFunction2));
+		
 		Mockito.when(dba.getSchema()).thenReturn(mockSchema);
 		Mockito.when(mockSchema.getClassByName(anyString())).thenReturn(mockSchemaClass );
 		PowerMockito.whenNew(GKInstance.class).withArguments(mockSchemaClass).thenReturn(mockGoTerm );
@@ -238,9 +237,9 @@ public class GoTermsUpdaterTest
 		
 		GoTermInstanceModifier modifier = mock(GoTermInstanceModifier.class);
 		
-		Mockito.doNothing().when(modifier).createNewGOTerm(any(Map.class), any(Map.class), anyString(), anyString(), any(GKInstance.class));
+		Mockito.when(modifier.createNewGOTerm(any(Map.class), any(Map.class), anyString(), anyString(), any(GKInstance.class))).thenReturn(123456L);
 		Mockito.doNothing().when(modifier).updateGOInstance(any(Map.class), any(Map.class),  any(StringBuffer.class));
-		Mockito.doNothing().when(modifier).updateRelationship(any(Map.class), any(Map.class), anyString(), anyString(), any(StringBuffer.class));
+		Mockito.doNothing().when(modifier).updateRelationship(any(Map.class), any(Map.class), anyString(), anyString());
 		Mockito.doNothing().when(modifier).deleteGoInstance(any(Map.class), any(Map.class), any(StringBuffer.class));
 		
 		PowerMockito.whenNew(GoTermInstanceModifier.class).withAnyArguments().thenReturn(modifier);

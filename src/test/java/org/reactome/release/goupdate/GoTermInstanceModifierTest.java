@@ -123,20 +123,14 @@ public class GoTermInstanceModifierTest
 		allGoInstances.put("54321", Arrays.asList(otherGoTerm));
 		
 		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm, mockInstanceEdit);
-		StringBuffer sb = new StringBuffer();
 		Map<String, Object> goProps = new HashMap<String, Object>();
 		goProps.put(GoUpdateConstants.IS_A, Arrays.asList("54321"));
-		modifier.updateRelationship(allGoInstances, goProps , GoUpdateConstants.IS_A, "isA", sb );
-		assert(sb.toString().length() > 0);
-		System.out.println(sb.toString());
+		modifier.updateRelationship(allGoInstances, goProps , GoUpdateConstants.IS_A, "isA");
 		
 		// now, do it again, but with the other object missing.
-		sb = new StringBuffer();
-		allGoInstances.remove("54321");
-		modifier.updateRelationship(allGoInstances, goProps , GoUpdateConstants.IS_A, "isA", sb );
-		assert(sb.toString().length() > 0);
-		System.out.println(sb.toString());
 
+		allGoInstances.remove("54321");
+		modifier.updateRelationship(allGoInstances, goProps , GoUpdateConstants.IS_A, "isA");
 	}
 	
 	@Test
@@ -210,7 +204,7 @@ public class GoTermInstanceModifierTest
 		Map<String,List<String>> goToEcNumbers = new HashMap<String, List<String>>();
 		
 		Map<String, Object> goTermDetail = new HashMap<String, Object>();
-		goTermDetail.put(GoUpdateConstants.NAME, "Test");
+		goTermDetail.put(GoUpdateConstants.NAME, "Test-1");
 		goTermDetail.put(GoUpdateConstants.DEF, "This is a test go term");
 		
 		goTerms.put(TEST_GO_ID, goTermDetail);

@@ -310,7 +310,7 @@ class GoTermInstanceModifier
 	 * @param relationshipKey - The key to use to look up the values  in goProps.
 	 * @param reactomeRelationshipName - The name of the relationship, can be one of "is_a", "has_part", "part_of", "component_of", "regulates", "positively_regulates", "negatively_regulates".
 	 */
-	public void updateRelationship(Map<String, List<GKInstance>> allGoInstances, Map<String, Object> goProps, String relationshipKey, String reactomeRelationshipName, StringBuffer updatedRelationshipStringBuilder)
+	public void updateRelationship(Map<String, List<GKInstance>> allGoInstances, Map<String, Object> goProps, String relationshipKey, String reactomeRelationshipName)
 	{
 		if (goProps.containsKey(relationshipKey))
 		{

@@ -43,7 +43,6 @@ class GoTermsUpdater
 	private StringBuffer nameOrDefinitionChangeStringBuilder = new StringBuffer();
 	private StringBuffer categoryMismatchStringBuilder = new StringBuffer();
 	private StringBuffer deletionStringBuilder = new StringBuffer();
-	private StringBuffer updatedRelationshipStringBuilder = new StringBuffer();
 	
 	private StringBuilder mainOutput = new StringBuilder();
 	// this can be static, since there's only one "GO" ReferenceDatabase object in the database.
@@ -216,7 +215,7 @@ class GoTermsUpdater
 			{
 				// Let's get a count of irrelevant referrers 
 				Map<GKSchemaAttribute, Integer> referrersCount = new HashMap<GKSchemaAttribute, Integer>();
-				for (GKSchemaAttribute attrib : (Set<GKSchemaAttribute>)instance.getSchemClass().getReferers())
+				for (GKSchemaAttribute attrib : (Collection<GKSchemaAttribute>)instance.getSchemClass().getReferers())
 				{
 					@SuppressWarnings("unchecked")
 					Collection<GKInstance> referrers = instance.getReferers(attrib);
@@ -253,12 +252,12 @@ class GoTermsUpdater
 				for (GKInstance goInst : goInsts)
 				{
 					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf, this.updatedRelationshipStringBuilder);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart", this.updatedRelationshipStringBuilder);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf, this.updatedRelationshipStringBuilder);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.REGULATES, "regulate", this.updatedRelationshipStringBuilder);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate", this.updatedRelationshipStringBuilder);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate", this.updatedRelationshipStringBuilder);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.REGULATES, "regulate");
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate");
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate");
 					// Update the instanace's "modififed".
 					goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
 					goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);

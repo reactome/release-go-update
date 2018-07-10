@@ -27,7 +27,7 @@ public class DuplicateReporterIT
 	@Before
 	public void setup() throws SQLException
 	{
-		adaptor = new MySQLAdaptor("localhost", "gk_central_Java_GO_Update", "root", "root", 3306);
+		adaptor = new MySQLAdaptor("localhost", "test_slice_64_Java_GO_Update", "root", "root", 3306);
 	}
 	
 	
