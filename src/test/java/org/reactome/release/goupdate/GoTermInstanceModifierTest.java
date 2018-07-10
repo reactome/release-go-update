@@ -1,12 +1,14 @@
 package org.reactome.release.goupdate;
 
 
+import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 
-import java.lang.reflect.Constructor;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -20,29 +22,18 @@ import org.gk.schema.InvalidAttributeException;
 import org.gk.schema.InvalidAttributeValueException;
 import org.gk.schema.Schema;
 import org.gk.schema.SchemaAttribute;
-import org.gk.schema.SchemaClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.mockito.junit.MockitoJUnit;
-import org.mockito.junit.MockitoRule;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.powermock.api.mockito.PowerMockito;
-import org.powermock.api.mockito.expectation.PowerMockitoStubber;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
-
-import static org.hamcrest.CoreMatchers.anything;
-import static org.junit.Assert.fail;
-import static org.mockito.ArgumentMatchers.*;
-import org.reactome.release.goupdate.GoUpdateConstants;
 
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({GoTermInstanceModifier.class, InstanceDisplayNameGenerator.class})
@@ -54,8 +45,6 @@ public class GoTermInstanceModifierTest
 
 	@Mock(name = "adaptor")
 	private MySQLAdaptor adaptor;
-	
-
 
 	@Mock
 	private Schema mockSchema;
@@ -81,6 +70,15 @@ public class GoTermInstanceModifierTest
 	@Mock
 	private GKInstance newGoTerm;
 	
+	@Mock
+	private GKInstance otherInstance;
+	
+	@Mock
+	private GKSchemaAttribute activityAttribute;
+	
+	@Mock
+	private GKSchemaAttribute ecNumberAttribute;
+		
 	@Mock
 	private SchemaAttribute mockAttribute;
 	
@@ -109,6 +107,9 @@ public class GoTermInstanceModifierTest
 		Mockito.when(newGoTerm.getDBID()).thenReturn(1122334455L);
 		PowerMockito.whenNew(GKInstance.class).withArguments(biologicalProcessGKSchemaClass).thenReturn(newGoTerm);
 		PowerMockito.whenNew(GKInstance.class).withArguments(molecularFunctionGKSchemaClass).thenReturn(newGoTerm);
+		
+		Mockito.when(activityAttribute.getName()).thenReturn(ReactomeJavaConstants.activity);
+		Mockito.when(ecNumberAttribute.getName()).thenReturn(ReactomeJavaConstants.ecNumber);
 	}
 	
 	@Test
@@ -263,7 +264,21 @@ public class GoTermInstanceModifierTest
 			e.printStackTrace();
 			fail(e.getMessage());
 		}
-		
 	}
 	
+	@Test
+	public void testUpdateReferrerDisplayNames() throws Exception
+	{
+		Mockito.when(molecularFunctionGKSchemaClass.getReferers()).thenReturn(new HashSet<GKSchemaAttribute>(Arrays.asList(activityAttribute,ecNumberAttribute)));
+		Mockito.when(newGoTerm.getSchemClass()).thenReturn(molecularFunctionGKSchemaClass);
+		
+		Mockito.when(newGoTerm.getReferers(any(String.class))).thenReturn(Arrays.asList(otherInstance));
+		
+		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm, mockInstanceEdit);
+		
+		PowerMockito.mockStatic(InstanceDisplayNameGenerator.class);
+		//PowerMockito.doNothing().when(InstanceDisplayNameGenerator.class);
+		
+		modifier.updateReferrersDisplayNames();
+	}
 }
