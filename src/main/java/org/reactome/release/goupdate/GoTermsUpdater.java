@@ -224,7 +224,7 @@ class GoTermsUpdater
 						referrersCount.put(attrib, referrers.size());
 					}
 				}
-				obsoleteAccessionLogger.info("Instance \""+instance.toString()+"\" (GO:"+instance.getAttributeValue(ReactomeJavaConstants.accession)+") has referrers but they will not prevent deletion:");
+				obsoleteAccessionLogger.info("Instance \""+instance.toString()+"\" (GO:"+instance.getAttributeValue(ReactomeJavaConstants.accession)+") has {} referrers but they will not prevent deletion:",referrersCount);
 				for (GKSchemaAttribute referrer : referrersCount.keySet())
 				{
 					obsoleteAccessionLogger.info("\t{} {} referrers.",referrersCount.get(referrer), referrer.getName());
@@ -273,7 +273,7 @@ class GoTermsUpdater
 
 		for (GKInstance instance : undeleteble.keySet())
 		{
-			obsoleteAccessionLogger.info("GO:{} could not be deleted because it had {} referrers: ",instance.getAttributeValue(ReactomeJavaConstants.accession), instance.toString(), undeleteble.get(instance).size());
+			obsoleteAccessionLogger.info("GO:{} ({}) could not be deleted because it had {} referrers: ",instance.getAttributeValue(ReactomeJavaConstants.accession), instance.toString(), undeleteble.get(instance).size());
 			for (GKInstance referrer : undeleteble.get(instance))
 			{
 				GKInstance created = (GKInstance) referrer.getAttributeValue(ReactomeJavaConstants.created);
