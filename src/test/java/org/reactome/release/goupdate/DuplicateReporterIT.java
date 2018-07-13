@@ -3,15 +3,16 @@
  */
 package org.reactome.release.goupdate;
 
-
-
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.sql.SQLException;
+import java.util.Collection;
 import java.util.Map;
 
+import org.gk.model.GKInstance;
 import org.gk.persistence.MySQLAdaptor;
+import org.gk.schema.GKSchemaAttribute;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -75,8 +76,27 @@ public class DuplicateReporterIT
 			{
 				for (Long dbId : refCounts.keySet())
 				{
-					System.out.println("Accession instance with DB_ID "+dbId + " has "+refCounts.get(dbId) + " referrers");
+					System.out.println("\tAccession instance with DB_ID "+dbId + " has "+refCounts.get(dbId) + " referrers");
+					if (refCounts.get(dbId) > 0)
+					{
+						GKInstance inst = adaptor.fetchInstance(dbId);
+						@SuppressWarnings("unchecked")
+						Collection<GKSchemaAttribute> refAttribs = (Collection<GKSchemaAttribute>) inst.getSchemClass().getReferers();
+						for (GKSchemaAttribute refAtt : refAttribs)
+						{
+							@SuppressWarnings("unchecked")
+							Collection<GKInstance> refs = (Collection<GKInstance>)inst.getReferers(refAtt);
+							if (refs != null && refs.size() > 0)
+							{
+								for (GKInstance ref : refs)
+								{
+									System.out.println("\t\t"+ref.toString());
+								}
+							}
+						}
+					}
 				}
+				System.out.print("\n");
 			}
 			else
 			{
