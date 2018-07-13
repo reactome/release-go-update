@@ -24,11 +24,6 @@
 			<artifactId>chebiWS-client</artifactId>
 			<version>2.3.2</version>
 		</dependency>
-<!-- 		<dependency>
-			<groupId>org.reactome.server</groupId>
-			<artifactId>reactome-core</artifactId>
-			<version>1.1.2</version>
-		</dependency> -->
 		<dependency>
 			<groupId>org.reactome.base</groupId>
 			<artifactId>reactome-base</artifactId>
@@ -40,15 +35,6 @@
 			<version>4.12</version>
 			<scope>test</scope>
 		</dependency>
-		<!-- <dependency> <groupId>org.junit.jupiter</groupId> <artifactId>junit-jupiter-api</artifactId> 
-			<version>5.1.0</version> <scope>test</scope> </dependency> <dependency> <groupId>org.junit.jupiter</groupId> 
-			<artifactId>junit-jupiter-engine</artifactId> <version>5.1.0</version> <scope>test</scope> 
-			</dependency> <dependency> <groupId>org.junit.vintage</groupId> <artifactId>junit-vintage-engine</artifactId> 
-			<version>5.1.0</version> <scope>test</scope> </dependency> <dependency> <groupId>org.junit.platform</groupId> 
-			<artifactId>junit-platform-launcher</artifactId> <version>1.1.0</version> 
-			<scope>test</scope> </dependency> <dependency> <groupId>org.junit.platform</groupId> 
-			<artifactId>junit-platform-runner</artifactId> <version>1.1.0</version> <scope>test</scope> 
-			</dependency> -->
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-core</artifactId>
@@ -81,7 +67,7 @@
 				<configuration>
 					<archive>
 						<manifest>
-							<mainClass>org.reactome.release.chebiupdate.Main</mainClass>
+							<mainClass>org.reactome.release.goupdate.Main</mainClass>
 						</manifest>
 					</archive>
 					<descriptorRefs>
