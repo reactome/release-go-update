@@ -56,13 +56,17 @@ class GoLineProcessor
 							}
 							else
 							{
-								// If a GO ID appears a second time, it will not be added to the hash, and the user will 
-								// get a message asking them to verify if the file is really OK.
-								// Maybe throw a RuntimeException for this? It really should never happen.
+								// If a GO ID appears a second time, an error message will be logged and a RuntimeException will
+								// be thrown. This should not happen, and there is currently no defined way to decide which duplicate
+								// to use and which to discard. Or should they be merged? And what if one duplicate is marked as obsolete
+								// and the other is not? A RuntimeException should break the program's execution and force the user
+								// to verify that the file is OK. I guess If GO one day decides that duplicates are OK, then this code will
+								// need to be rewritten, but for now, that is not the case.
 								logger.error("GO ID {} has appeared more than once in the input! This is highly unexpected. "
 										+ "Please verify the contents of this file. "
 										+ "You should check that you are using a fresh GO file. "
 										+ "If using a new file from GO *still* causes this error, consider reporting this issue to GO.", goID);
+								throw new RuntimeException("Duplicate GO ID (GO:"+goID+") in input file. This should not happen. Please verify file and try again. Aborting.");
 							}
 						}
 						break;
