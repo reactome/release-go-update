@@ -15,6 +15,8 @@ import org.gk.schema.GKSchemaAttribute;
 
 /**
  * This class reports on duplicate GO Accessions.
+ * A GO Accession is considered duplicated if more than one GO_MolecularFunction/GO_BiologicalProcess/GO_CellularComponent
+ * has the same accession value. A direct SQL query is used to do this (should be faster than the API).
  * @author sshorser
  *
  */
