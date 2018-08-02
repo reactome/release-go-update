@@ -9,7 +9,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.gk.model.GKInstance;
-import org.gk.model.InstanceUtilities;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.schema.SchemaAttribute;
