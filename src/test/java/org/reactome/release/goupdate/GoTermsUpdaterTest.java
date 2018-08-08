@@ -91,14 +91,14 @@ public class GoTermsUpdaterTest
 			"relationship: part_of GO:0048308\n" +
 			"relationship: has_part GO:0448308\n" +
 			"\n"
-			+"[Term]\n"+
-			"id: GO:0000033\n" + 
-			"name: duplicate test!\n" + 
-			"namespace: biological_process\n" + 
-			"def: \"testing stuff.\n" + 
-			"is_a: GO:0048309 \n" +
-			"relationship: negatively_regulates GO:0048308 \n" +
-			"\n"
+//			+"[Term]\n"+
+//			"id: GO:0000033\n" + 
+//			"name: duplicate test!\n" + 
+//			"namespace: biological_process\n" + 
+//			"def: \"testing stuff.\n" + 
+//			"is_a: GO:0048309 \n" +
+//			"relationship: negatively_regulates GO:0048308 \n" +
+//			"\n"
 			+"[Term]\n"+
 			"id: GO:0000009\n" + 
 			"name: test term\n" + 
