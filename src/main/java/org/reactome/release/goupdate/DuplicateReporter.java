@@ -84,32 +84,29 @@ public class DuplicateReporter
 			{
 				for (GKInstance i : instances)
 				{
-					for (GKSchemaAttribute referrerAttrib : (Set<GKSchemaAttribute>)i.getSchemClass().getReferers())
-					{
-						@SuppressWarnings("unchecked")
-						Collection<GKInstance> referrers = (Collection<GKInstance>) i.getReferers(referrerAttrib);
-						// May want to ignore some classes from being counted as referrers. For example, when checking GO terms, sometimes
-						// you do NOT want to consider other GO objects as referrers.
-						if (classesToIgnore != null && classesToIgnore.length > 0)
-						{
-							referrers = referrers.stream().filter(r -> !(new HashSet<String>( Arrays.asList(classesToIgnore))).contains(r.getSchemClass().getName())).collect(Collectors.toList());
-						}
-						if (referrers.size() > 0)
-						{
-							if (referrerCounts.containsKey(i.getDBID()))
-							{
-								referrerCounts.put(i.getDBID(), referrerCounts.get(i.getDBID()) + referrers.size());
-							}
-							else
-							{
-								referrerCounts.put(i.getDBID(), referrers.size());
-							}
-						}
-					}
+					Long dbid = i.getDBID();
+					int refCount = getReferrerCountforInstance(i, classesToIgnore);
+					referrerCounts.put(dbid,refCount);
 				}
 			}
 		}
 		return referrerCounts;
 	}
 	
+	public int getReferrerCountforInstance(GKInstance instance, String ... classesToIgnore) throws Exception
+	{
+		int refCount = 0;
+		
+		for (GKSchemaAttribute referrerAttrib : (Set<GKSchemaAttribute>) instance.getSchemClass().getReferers())
+		{
+			@SuppressWarnings("unchecked")
+			Collection<GKInstance> referrers = (Collection<GKInstance>) instance.getReferers(referrerAttrib);
+			if (classesToIgnore != null && classesToIgnore.length > 0)
+			{
+				referrers = referrers.stream().filter(r -> !(new HashSet<String>( Arrays.asList(classesToIgnore))).contains(r.getSchemClass().getName())).collect(Collectors.toList());
+			}
+			refCount += referrers.size();
+		}
+		return refCount;
+	}
 }
