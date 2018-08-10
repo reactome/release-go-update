@@ -168,13 +168,16 @@ public class DuplicateCleaner extends ReleaseStep
 		logger.info("\n\nSummary:\nTotal number of duplicated accessions: "+totalDuplicatesCount+ " \n"
 				+ "Number of instances with significant (non-GO Term) referrers: "+instancesWithSignificantReferrers + "\n");
 		logger.info("{} IDs will be deleted.", dbIDsToDelete.size());
-		//adaptor.startTransaction();
+		adaptor.startTransaction();
 		for (Long dbID : dbIDsToDelete)
 		{
 			GKInstance instance = adaptor.fetchInstance(dbID);
-			logger.debug("DB ID {} (for accession {}) will be deleted", dbID, instance.getAttributeValue(ReactomeJavaConstants.accession));
-			//adaptor.deleteByDBID(dbID);
+			logger.info("DB ID {} (for accession {}) will be deleted", dbID, instance.getAttributeValue(ReactomeJavaConstants.accession));
+			if (!this.testMode)
+			{
+				adaptor.deleteByDBID(dbID);
+			}
 		}
-		//adaptor.commit();
+		adaptor.commit();
 	}
 }
