@@ -292,7 +292,16 @@ class GoTermInstanceModifier
 		try
 		{
 			String goId = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.accession);
-			
+			if (goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)!= null)
+			{
+				String replacementGOTermAccession = (String) goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY);
+				// this term has a replacement so we will update all referrers of *this* to point to the replacement.
+				if (allGoInstances.get(replacementGOTermAccession) != null && allGoInstances.get(replacementGOTermAccession).size() > 0)
+				{
+					GKInstance replacementGOTerm = allGoInstances.get(replacementGOTermAccession).get(0);
+					moveReferrersToOtherInstance(replacementGOTerm);
+				}
+			}
 			adaptor.deleteInstance(this.goInstance);
 			deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
 		}
@@ -303,6 +312,18 @@ class GoTermInstanceModifier
 		}
 	}
 	
+	private void moveReferrersToOtherInstance(GKInstance replacementGOTerm) throws Exception
+	{
+		Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(this.goInstance);
+		for (GKInstance referrer : referrers)
+		{
+			// need to figure out which attribute is used to refer from ${referrer} to ${this.goInstance}.
+			String attributeName = "GET CORRECT REFERRER ATTRIBUTE NAME";
+			referrer.setAttributeValue(attributeName, replacementGOTerm);
+		}
+		
+	}
+
 	/**
 	 * Updates the relationships between GO terms in the database.
 	 * @param allGoInstances - Map of all GO instances in the database.
