@@ -282,6 +282,22 @@ class GoTermInstanceModifier
 	}
 	
 	
+	public void deleteSecondaryGOInstance(GKInstance primaryGOTerm, StringBuffer deletionStringBuffer)
+	{
+		try
+		{
+			String goId = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.accession);
+			moveReferrersToOtherInstance(primaryGOTerm);
+			deletionStringBuffer.append("Deleting secondary GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
+			adaptor.deleteInstance(this.goInstance);
+		}
+		catch (Exception e)
+		{
+			logger.error("Error occurred while trying to delete instance: \""+this.goInstance.toString()+"\": "+e.getMessage());
+			e.printStackTrace();
+		}
+	}
+	
 	/**
 	 * Deletes a GO term from the database.
 	 * @param goTerms - The list of GO terms from the file. Needed to get the alternate GO IDs for things that refer to the thing that's about to be deleted.
@@ -301,9 +317,13 @@ class GoTermInstanceModifier
 					GKInstance replacementGOTerm = allGoInstances.get(replacementGOTermAccession).get(0);
 					moveReferrersToOtherInstance(replacementGOTerm);
 				}
+				deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
+				adaptor.deleteInstance(this.goInstance);
 			}
-			adaptor.deleteInstance(this.goInstance);
-			deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
+			else
+			{
+				logger.info("GO:{} ({}) is marked as obsolete but there is no replacement value specified! Instance will *NOT* be deleted, as manual clean-up may be necessary.", goId, this.goInstance.toString());
+			}
 		}
 		catch (Exception e)
 		{

@@ -155,6 +155,28 @@ class GoTermsUpdater
 						newMFLogger.info("{}\t{}\t{}", dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
 					}
 					newGoTermCount++;
+					if (goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID) != null)
+					{
+						@SuppressWarnings("unchecked")
+						List<String> alternates = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID);
+						for (GKInstance primaryGOTerm : allGoInstances.get(goID))
+						{
+							// Now that we have a list of alternates for *this* accession, we need to mark them for deletion and have their referrers refer to *this* accession.
+							for (String secondaryAccession : alternates)
+							{
+								// Check that we're even using this secondary accession.
+								if (allGoInstances.get(secondaryAccession) != null)
+								{
+									logger.info("{} is an alternate/secondary ID for {} - {} will be deleted and its referrers will refer to {}.", secondaryAccession, goID, secondaryAccession, goID);
+									for (GKInstance altGoInst : allGoInstances.get(secondaryAccession))
+									{
+										GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, altGoInst, instanceEdit);
+										modifier.deleteSecondaryGOInstance(primaryGOTerm, deletionStringBuilder);
+									}
+								}
+							}
+						}
+					}
 				}
 				else
 				{
@@ -187,7 +209,8 @@ class GoTermsUpdater
 				if (goInstances!=null)
 				{
 					pendingObsoleteCount++;
-					obsoleteAccessionLogger.info("GO:{} ({}) is marked as PENDING obsolete. Consider searching for a replacement.",goID, goInstances.toString());
+					String consider = goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER) != null ? " Consider: " + goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER) : "";
+					obsoleteAccessionLogger.info("GO:{} ({}) is marked as PENDING obsolete. Consider searching for a replacement.{}",goID, goInstances.toString(), consider);
 				}
 			}
 			else if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && goTermsFromFile.get(goID).get(GoUpdateConstants.IS_OBSOLETE).equals(true))
