@@ -155,28 +155,6 @@ class GoTermsUpdater
 						newMFLogger.info("{}\t{}\t{}", dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
 					}
 					newGoTermCount++;
-					if (goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID) != null)
-					{
-						@SuppressWarnings("unchecked")
-						List<String> alternates = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID);
-						for (GKInstance primaryGOTerm : allGoInstances.get(goID))
-						{
-							// Now that we have a list of alternates for *this* accession, we need to mark them for deletion and have their referrers refer to *this* accession.
-							for (String secondaryAccession : alternates)
-							{
-								// Check that we're even using this secondary accession.
-								if (allGoInstances.get(secondaryAccession) != null)
-								{
-									logger.info("{} is an alternate/secondary ID for {} - {} will be deleted and its referrers will refer to {}.", secondaryAccession, goID, secondaryAccession, goID);
-									for (GKInstance altGoInst : allGoInstances.get(secondaryAccession))
-									{
-										GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, altGoInst, instanceEdit);
-										modifier.deleteSecondaryGOInstance(primaryGOTerm, deletionStringBuilder);
-									}
-								}
-							}
-						}
-					}
 				}
 				else
 				{
@@ -202,6 +180,7 @@ class GoTermsUpdater
 						}
 					}
 				}
+				processAlternates(goTermsFromFile, allGoInstances, goID);
 			}
 			else if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTermsFromFile.get(goID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
 			{
@@ -316,6 +295,32 @@ class GoTermsUpdater
 		
 		return mainOutput;
 	}
+
+	private void processAlternates(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<GKInstance>> allGoInstances, String goID)
+	{
+		if (goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID) != null)
+		{
+			@SuppressWarnings("unchecked")
+			List<String> alternates = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID);
+			for (GKInstance primaryGOTerm : allGoInstances.get(goID))
+			{
+				// Now that we have a list of alternates for *this* accession, we need to mark them for deletion and have their referrers refer to *this* accession.
+				for (String secondaryAccession : alternates)
+				{
+					// Check that we're even using this secondary accession.
+					if (allGoInstances.get(secondaryAccession) != null)
+					{
+						logger.info("{} is an alternate/secondary ID for {} - {} will be deleted and its referrers will refer to {}.", secondaryAccession, goID, secondaryAccession, goID);
+						for (GKInstance altGoInst : allGoInstances.get(secondaryAccession))
+						{
+							GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, altGoInst, instanceEdit);
+							modifier.deleteSecondaryGOInstance(primaryGOTerm, deletionStringBuilder);
+						}
+					}
+				}
+			}
+		}
+	}
 	
 	private void reconcile(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers) throws Exception
 	{
@@ -333,7 +338,7 @@ class GoTermsUpdater
 				for (GKInstance instance : instances)
 				{
 					this.adaptor.fastLoadInstanceAttributeValues(instance);
-					// We'll just grab all relationshipsin advance.
+					// We'll just grab all relationships in advance.
 					@SuppressWarnings("unchecked")
 					Collection<GKInstance> instancesOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.instanceOf);
 					@SuppressWarnings("unchecked")
@@ -563,6 +568,5 @@ class GoTermsUpdater
 				goToECNumbers.put(goNumber, ecNumbers);
 			}
 		}
-	}
-	
+	}	
 }
