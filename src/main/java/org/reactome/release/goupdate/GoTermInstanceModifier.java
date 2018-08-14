@@ -287,7 +287,7 @@ class GoTermInstanceModifier
 		try
 		{
 			String goId = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.accession);
-			moveReferrersToOtherInstance(primaryGOTerm);
+			pointAllReferrersToOtherInstance(primaryGOTerm);
 			deletionStringBuffer.append("Deleting secondary GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
 			adaptor.deleteInstance(this.goInstance);
 		}
@@ -315,7 +315,7 @@ class GoTermInstanceModifier
 				if (allGoInstances.get(replacementGOTermAccession) != null && allGoInstances.get(replacementGOTermAccession).size() > 0)
 				{
 					GKInstance replacementGOTerm = allGoInstances.get(replacementGOTermAccession).get(0);
-					moveReferrersToOtherInstance(replacementGOTerm);
+					pointAllReferrersToOtherInstance(replacementGOTerm);
 				}
 				deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
 				adaptor.deleteInstance(this.goInstance);
@@ -332,15 +332,35 @@ class GoTermInstanceModifier
 		}
 	}
 	
-	private void moveReferrersToOtherInstance(GKInstance replacementGOTerm) throws Exception
+	private void pointAllReferrersToOtherInstance(GKInstance replacementGOTerm) throws Exception
 	{
-		Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(this.goInstance);
-		for (GKInstance referrer : referrers)
-		{
-			// need to figure out which attribute is used to refer from ${referrer} to ${this.goInstance}.
-			String attributeName = "GET CORRECT REFERRER ATTRIBUTE NAME";
-			referrer.setAttributeValue(attributeName, replacementGOTerm);
-		}
+//		Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(this.goInstance);
+//		for (GKInstance referrer : referrers)
+//		{
+			@SuppressWarnings("unchecked")
+			Collection<GKSchemaAttribute> attributes = (Collection<GKSchemaAttribute>) this.goInstance.getSchemClass().getReferers();
+			for (GKSchemaAttribute attribute : attributes)
+			{
+				String attributeName = attribute.getName();
+				@SuppressWarnings("unchecked")
+				List<GKInstance> referrers = (List<GKInstance>) this.goInstance.getReferers(attribute);
+				if (referrers != null)
+				{
+					for (GKInstance referrer : referrers)
+					{
+						List<GKInstance> values = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
+						// remove this goInstance from the referrer
+						values.remove(this.goInstance);
+						// add the replacement to the referrer
+						values.add(replacementGOTerm);
+						referrer.setAttributeValue(attributeName, replacementGOTerm);
+						// update in db.
+						adaptor.updateInstanceAttribute(referrer, attributeName);
+						logger.debug("\"{}\" now refers to {} via {}, instead of referring to \"{}\"", referrer.toString(), replacementGOTerm, attributeName, this.goInstance.toString());
+					}
+				}
+			}
+//		}
 		
 	}
 

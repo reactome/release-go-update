@@ -198,7 +198,8 @@ class GoTermsUpdater
 				if (goInstances!=null)
 				{
 					obsoleteCount++;
-					obsoleteAccessionLogger.warn("GO:{} ({}) marked as OBSOLETE!",goID, goInstances.toString());
+					String replacementValue = goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) != null ? " Replacement Accesion: " + goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) : " No replacement suggested.";
+					obsoleteAccessionLogger.warn("GO:{} ({}) marked as OBSOLETE!{}",goID, goInstances.toString(), replacementValue);
 					for (GKInstance inst : goInstances)
 					{
 						instancesForDeletion.add(inst);
