@@ -343,14 +343,18 @@ class GoTermInstanceModifier
 			{
 				String attributeName = attribute.getName();
 				@SuppressWarnings("unchecked")
-				List<GKInstance> referrers = (List<GKInstance>) this.goInstance.getReferers(attribute);
+				Set<GKInstance> referrers = (Set<GKInstance>) this.goInstance.getReferers(attribute);
 				if (referrers != null)
 				{
 					for (GKInstance referrer : referrers)
 					{
+						// the referrer could refer to many things via the attribute.
+						// we should ONLY remove *this* GO instance that will probably be deleted
+						// and add the replacement GO term. All other values should be left alone.
+						@SuppressWarnings("unchecked")
 						List<GKInstance> values = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
-						// remove this goInstance from the referrer
-						values.remove(this.goInstance);
+						// remove *this* goInstance from the referrer
+						values = values.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
 						// add the replacement to the referrer
 						values.add(replacementGOTerm);
 						referrer.setAttributeValue(attributeName, replacementGOTerm);
@@ -416,6 +420,11 @@ class GoTermInstanceModifier
 						updatedGOTermLogger.warn("Trying to set {} on GO:{} ({}) but could not find instance with GO ID = {}. Relationship update could not be completed.", reactomeRelationshipName, this.goInstance.getAttributeValue(ReactomeJavaConstants.accession), this.goInstance.toString(), otherID);
 					}
 				}
+			}
+			catch (InvalidAttributeValueException e)
+			{
+				logger.error(e.getMessage());
+				logger.error("Tried to set the '{}' attribute of \"{}\", but this attribute is not valid for this object.", reactomeRelationshipName, this.goInstance.toString());
 			}
 			catch (Exception e)
 			{

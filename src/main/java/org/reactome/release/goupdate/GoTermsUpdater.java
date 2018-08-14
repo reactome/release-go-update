@@ -198,11 +198,15 @@ class GoTermsUpdater
 				if (goInstances!=null)
 				{
 					obsoleteCount++;
-					String replacementValue = goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) != null ? " Replacement Accesion: " + goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) : " No replacement suggested.";
+					String replacementValue = goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) != null ? " Replacement Accesion: " + goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) : " No replacement suggested, GO term will NOT be deleted.";
 					obsoleteAccessionLogger.warn("GO:{} ({}) marked as OBSOLETE!{}",goID, goInstances.toString(), replacementValue);
-					for (GKInstance inst : goInstances)
+					// Only add instance(s) to deletion list if they have a valid replacement.
+					if (goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) != null)
 					{
-						instancesForDeletion.add(inst);
+						for (GKInstance inst : goInstances)
+						{
+							instancesForDeletion.add(inst);
+						}
 					}
 				}
 				
@@ -227,10 +231,17 @@ class GoTermsUpdater
 						referrersCount.put(attrib, referrers.size());
 					}
 				}
-				obsoleteAccessionLogger.info("Instance \""+instance.toString()+"\" (GO:"+instance.getAttributeValue(ReactomeJavaConstants.accession)+") has {} referrers but they will not prevent deletion:",referrersCount);
-				for (GKSchemaAttribute referrer : referrersCount.keySet())
+				if (!referrersCount.isEmpty())
 				{
-					obsoleteAccessionLogger.info("\t{} {} referrers.",referrersCount.get(referrer), referrer.getName());
+					obsoleteAccessionLogger.info("Instance \"{}\" (GO:{}) has {} referrers but they will not prevent deletion.", instance.toString(), instance.getAttributeValue(ReactomeJavaConstants.accession), referrersCount.keySet().size());
+					for (GKSchemaAttribute referrer : referrersCount.keySet())
+					{
+						obsoleteAccessionLogger.info("\t{} {} referrers.",referrersCount.get(referrer), referrer.getName());
+					}
+				}
+				else
+				{
+					obsoleteAccessionLogger.info("Instance \"{}\" (GO:{}) has no referrers and will be deleted.", instance.toString(), instance.getAttributeValue(ReactomeJavaConstants.accession));
 				}
 				goTermModifier.deleteGoInstance(goTermsFromFile, allGoInstances, this.deletionStringBuilder);
 				deletedCount ++;
@@ -299,7 +310,7 @@ class GoTermsUpdater
 
 	private void processAlternates(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<GKInstance>> allGoInstances, String goID)
 	{
-		if (goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID) != null)
+		if (goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID) != null && allGoInstances.containsKey(goID))
 		{
 			@SuppressWarnings("unchecked")
 			List<String> alternates = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID);
