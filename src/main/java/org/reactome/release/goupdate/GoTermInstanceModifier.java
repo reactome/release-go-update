@@ -334,38 +334,33 @@ class GoTermInstanceModifier
 	
 	private void pointAllReferrersToOtherInstance(GKInstance replacementGOTerm) throws Exception
 	{
-//		Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(this.goInstance);
-//		for (GKInstance referrer : referrers)
-//		{
+		@SuppressWarnings("unchecked")
+		Collection<GKSchemaAttribute> attributes = (Collection<GKSchemaAttribute>) this.goInstance.getSchemClass().getReferers();
+		for (GKSchemaAttribute attribute : attributes)
+		{
+			String attributeName = attribute.getName();
 			@SuppressWarnings("unchecked")
-			Collection<GKSchemaAttribute> attributes = (Collection<GKSchemaAttribute>) this.goInstance.getSchemClass().getReferers();
-			for (GKSchemaAttribute attribute : attributes)
+			Set<GKInstance> referrers = (Set<GKInstance>) this.goInstance.getReferers(attribute);
+			if (referrers != null)
 			{
-				String attributeName = attribute.getName();
-				@SuppressWarnings("unchecked")
-				Set<GKInstance> referrers = (Set<GKInstance>) this.goInstance.getReferers(attribute);
-				if (referrers != null)
+				for (GKInstance referrer : referrers)
 				{
-					for (GKInstance referrer : referrers)
-					{
-						// the referrer could refer to many things via the attribute.
-						// we should ONLY remove *this* GO instance that will probably be deleted
-						// and add the replacement GO term. All other values should be left alone.
-						@SuppressWarnings("unchecked")
-						List<GKInstance> values = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
-						// remove *this* goInstance from the referrer
-						values = values.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
-						// add the replacement to the referrer
-						values.add(replacementGOTerm);
-						referrer.setAttributeValue(attributeName, replacementGOTerm);
-						// update in db.
-						adaptor.updateInstanceAttribute(referrer, attributeName);
-						logger.debug("\"{}\" now refers to {} via {}, instead of referring to \"{}\"", referrer.toString(), replacementGOTerm, attributeName, this.goInstance.toString());
-					}
+					// the referrer could refer to many things via the attribute.
+					// we should ONLY remove *this* GO instance that will probably be deleted
+					// and add the replacement GO term. All other values should be left alone.
+					@SuppressWarnings("unchecked")
+					List<GKInstance> values = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
+					// remove *this* goInstance from the referrer
+					values = values.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
+					// add the replacement to the referrer
+					values.add(replacementGOTerm);
+					referrer.setAttributeValue(attributeName, replacementGOTerm);
+					// update in db.
+					adaptor.updateInstanceAttribute(referrer, attributeName);
+					logger.debug("\"{}\" now refers to \"{}\" via {}, instead of referring to \"{}\"", referrer.toString(), replacementGOTerm.toString(), attributeName, this.goInstance.toString());
 				}
 			}
-//		}
-		
+		}
 	}
 
 	/**

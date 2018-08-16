@@ -300,7 +300,7 @@ class GoTermsUpdater
 		mainOutput.append(goTermCount + " GO terms were read from the file.\n");
 		mainOutput.append(newGoTermCount + " new GO terms were found (and added to the database).\n");
 		mainOutput.append(mismatchCount + " existing GO term instances in the database had mismatched categories when compared to the file (and were deleted from the database).\n");
-		mainOutput.append(obsoleteCount + " were obsolete. "+deletedCount+ " were actually deleted and "+undeleteble.size()+" could not be deleted due to existing referrers.\n");
+		mainOutput.append(obsoleteCount + " were obsolete. "+deletedCount+ " were actually deleted, and "+undeleteble.size()+" could not be deleted due to existing referrers.\n");
 		mainOutput.append(pendingObsoleteCount + " are pending obsolescence (and will probably be deleted at a future date).\n");
 		
 		reconcile(goTermsFromFile, goToECNumbers);
