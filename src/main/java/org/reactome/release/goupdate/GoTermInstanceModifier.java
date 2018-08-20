@@ -292,9 +292,22 @@ class GoTermInstanceModifier
 		try
 		{
 			String goId = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.accession);
-			
-			adaptor.deleteInstance(this.goInstance);
-			deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
+			if (goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)!= null)
+			{
+				String replacementGOTermAccession = (String) goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY);
+				// this term has a replacement so we will update all referrers of *this* to point to the replacement.
+				if (allGoInstances.get(replacementGOTermAccession) != null && allGoInstances.get(replacementGOTermAccession).size() > 0)
+				{
+					GKInstance replacementGOTerm = allGoInstances.get(replacementGOTermAccession).get(0);
+					pointAllReferrersToOtherInstance(replacementGOTerm);
+				}
+				deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
+				adaptor.deleteInstance(this.goInstance);
+			}
+			else
+			{
+				logger.info("GO:{} ({}) is marked as obsolete but there is no replacement value specified! Instance will *NOT* be deleted, as manual clean-up may be necessary.", goId, this.goInstance.toString());
+			}
 		}
 		catch (Exception e)
 		{
@@ -303,6 +316,42 @@ class GoTermInstanceModifier
 		}
 	}
 	
+	private void pointAllReferrersToOtherInstance(GKInstance replacementGOTerm) throws Exception
+	{
+//		Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(this.goInstance);
+//		for (GKInstance referrer : referrers)
+//		{
+			@SuppressWarnings("unchecked")
+			Collection<GKSchemaAttribute> attributes = (Collection<GKSchemaAttribute>) this.goInstance.getSchemClass().getReferers();
+			for (GKSchemaAttribute attribute : attributes)
+			{
+				String attributeName = attribute.getName();
+				@SuppressWarnings("unchecked")
+				Set<GKInstance> referrers = (Set<GKInstance>) this.goInstance.getReferers(attribute);
+				if (referrers != null)
+				{
+					for (GKInstance referrer : referrers)
+					{
+						// the referrer could refer to many things via the attribute.
+						// we should ONLY remove *this* GO instance that will probably be deleted
+						// and add the replacement GO term. All other values should be left alone.
+						@SuppressWarnings("unchecked")
+						List<GKInstance> values = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
+						// remove *this* goInstance from the referrer
+						values = values.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
+						// add the replacement to the referrer
+						values.add(replacementGOTerm);
+						referrer.setAttributeValue(attributeName, replacementGOTerm);
+						// update in db.
+						adaptor.updateInstanceAttribute(referrer, attributeName);
+						logger.debug("\"{}\" now refers to {} via {}, instead of referring to \"{}\"", referrer.toString(), replacementGOTerm, attributeName, this.goInstance.toString());
+					}
+				}
+			}
+//		}
+		
+	}
+
 	/**
 	 * Updates the relationships between GO terms in the database.
 	 * @param allGoInstances - Map of all GO instances in the database.
@@ -356,6 +405,11 @@ class GoTermInstanceModifier
 					}
 				}
 			}
+			catch (InvalidAttributeValueException e)
+			{
+				logger.error(e.getMessage());
+				logger.error("Tried to set the '{}' attribute of \"{}\", but this attribute is not valid for this object.", reactomeRelationshipName, this.goInstance.toString());
+			}
 			catch (Exception e)
 			{
 				e.printStackTrace();
@@ -363,4 +417,19 @@ class GoTermInstanceModifier
 		}
 	}
 
+	public void deleteSecondaryGOInstance(GKInstance primaryGOTerm, StringBuffer deletionStringBuffer)
+	{
+		try
+		{
+			String goId = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.accession);
+			pointAllReferrersToOtherInstance(primaryGOTerm);
+			deletionStringBuffer.append("Deleting secondary GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
+			adaptor.deleteInstance(this.goInstance);
+		}
+		catch (Exception e)
+		{
+			logger.error("Error occurred while trying to delete instance: \""+this.goInstance.toString()+"\": "+e.getMessage());
+			e.printStackTrace();
+		}
+	}
 }
