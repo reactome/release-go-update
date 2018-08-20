@@ -148,13 +148,7 @@ class GoTermsUpdater
 				{
 					// Create a new Instance if there is nothing in the current list of instances.
 					goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
-					Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
-					newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
-					if ( ((GONamespace)goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE)).getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction) )
-					{
-						newMFLogger.info("{}\t{}\t{}", dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
-					}
-					newGoTermCount++;
+					newGoTermCount = createNewGOTerm(goTermsFromFile, goToECNumbers, newGoTermCount, goID, goTermModifier, currentCategory);
 				}
 				else
 				{
@@ -176,7 +170,12 @@ class GoTermsUpdater
 						{
 							mismatchCount++;
 							categoryMismatchStringBuilder.append("Category mismatch! GO ID: ").append(goID).append(" Category in DB: ").append(goInst.getSchemClass().getName()).append(" category in GO file: ").append(currentCategory).append("\n");
-							instancesForDeletion.add(goInst);
+							// Delete the instance. Don't use the GO Term modifier since it will check for a "replaced_by" value.
+							// In this case, the GO Term is not obsolete but it has the wrong category, so it should be removed and recreated.
+							this.adaptor.deleteByDBID(goInst.getDBID());
+							// Now re-create the GO term with the correct GO type.
+							goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
+							newGoTermCount = createNewGOTerm(goTermsFromFile, goToECNumbers, newGoTermCount, goID, goTermModifier, currentCategory);
 						}
 					}
 				}
@@ -306,6 +305,18 @@ class GoTermsUpdater
 		reconcile(goTermsFromFile, goToECNumbers);
 		
 		return mainOutput;
+	}
+
+	private int createNewGOTerm(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers, int newGoTermCount, String goID, GoTermInstanceModifier goTermModifier, GONamespace currentCategory) throws Exception
+	{
+		Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
+		newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
+		if ( ((GONamespace)goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE)).getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction) )
+		{
+			newMFLogger.info("{}\t{}\t{}", dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
+		}
+		newGoTermCount++;
+		return newGoTermCount;
 	}
 
 	private void processAlternates(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<GKInstance>> allGoInstances, String goID)
@@ -580,5 +591,6 @@ class GoTermsUpdater
 				goToECNumbers.put(goNumber, ecNumbers);
 			}
 		}
-	}	
+	}
+	
 }
