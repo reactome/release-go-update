@@ -14,12 +14,12 @@ import org.gk.persistence.MySQLAdaptor;
 import org.gk.schema.SchemaAttribute;
 import org.reactome.util.compare.DBObjectComparer;
 
-public class JavaVsPerlComparison {
-
+public class JavaVsPerlComparison
+{
 	public static void main(String[] args) throws Exception
 	{
-		MySQLAdaptor javaUpdatedDB = new MySQLAdaptor("localhost", "gk_central_Java_GO_Update", "root", "root");
-		MySQLAdaptor perlUpdatedDB = new MySQLAdaptor("localhost", "gk_central_Perl_GO_Update", "root", "root");
+		MySQLAdaptor perlUpdatedDB = new MySQLAdaptor("localhost", "gk_central_R66_before_chebi_update.sql", "root", "root", 3307);//new MySQLAdaptor("localhost", "gk_central_after_uniprot_update.dump.sql", "root", "root", 3308);
+		MySQLAdaptor javaUpdatedDB = new MySQLAdaptor("localhost", "gk_central_after_uniprot_update.dump.sql", "root", "root", 3308);//new MySQLAdaptor("localhost", "gk_central_R66_before_chebi_update.sql", "root", "root", 3307);
 		int diffCount = 0;
 		int sameCount = 0;
 		
@@ -32,6 +32,7 @@ public class JavaVsPerlComparison {
 		int catActDiffCount = 0;
 		int catActSameCount = 0;
 		
+		int accessionsMissingFromPerl = 0;
 		
 		@SuppressWarnings("unchecked")
 		Set<GKInstance> javaUpdatedGOBiologicalProcesses = (Set<GKInstance>) javaUpdatedDB.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
@@ -50,7 +51,6 @@ public class JavaVsPerlComparison {
 			@Override
 			public int compare(GKInstance o1, GKInstance o2)
 			{
-				//return InstanceUtilities.compareInstances(o1, o2);
 				return o1.getDBID().compareTo(o2.getDBID());
 			}
 			
@@ -63,9 +63,14 @@ public class JavaVsPerlComparison {
 			String accession = (String) javaGoInst.getAttributeValue(ReactomeJavaConstants.accession);
 			@SuppressWarnings("unchecked")
 			Collection<GKInstance> perlGoInsts = (Collection<GKInstance>) perlUpdatedDB.fetchInstanceByAttribute(javaGoInst.getSchemClass().getName(), ReactomeJavaConstants.accession, "=", accession);
-			for (GKInstance perlInst : perlGoInsts)
+			if (perlGoInsts == null || perlGoInsts.size() == 0)
 			{
-				//if (perlInst != null)
+				mainSB.append("Perl database does not have accession " + accession + "\n");
+				accessionsMissingFromPerl++;
+			}
+			else
+			{
+				for (GKInstance perlInst : perlGoInsts)
 				{
 					StringBuilder sb = new StringBuilder();
 					int i = DBObjectComparer.compareInstances(javaGoInst, perlInst, sb, 0);
@@ -78,9 +83,8 @@ public class JavaVsPerlComparison {
 					{
 						sameCount ++;
 					}
-					Predicate<? super SchemaAttribute> predicate = p-> {
-						return p.getName().equals("name")
-								|| p.getName().equals("_displayName");
+					Predicate<? super SchemaAttribute> isNameAttribute = p-> {
+							return p.getName().equals("name") || p.getName().equals("_displayName");
 						};
 					
 					// Now, we need to compare referrers, since they might have display name changes. Want to make sure we capture those correctly.
@@ -100,7 +104,7 @@ public class JavaVsPerlComparison {
 							GKInstance javaReferringRegulation =  javaList.get(0);
 							GKInstance perlReferringRegulation = perlList.get(0);
 
-							int numDiffs = DBObjectComparer.compareInstances(javaReferringRegulation, perlReferringRegulation, sb1, 0, predicate);
+							int numDiffs = DBObjectComparer.compareInstances(javaReferringRegulation, perlReferringRegulation, sb1, 0, isNameAttribute);
 							if (numDiffs > 0)
 							{
 								regulationDiffCount ++;
@@ -127,7 +131,7 @@ public class JavaVsPerlComparison {
 							GKInstance javaReferringPE = javaList.get(0);
 							GKInstance perlReferringPE = perlList.get(0);
 
-							int numDiffs = DBObjectComparer.compareInstances(javaReferringPE, perlReferringPE, sb1, 0, predicate);
+							int numDiffs = DBObjectComparer.compareInstances(javaReferringPE, perlReferringPE, sb1, 0, isNameAttribute);
 							if (numDiffs > 0)
 							{
 								peDiffCount ++;
@@ -155,7 +159,7 @@ public class JavaVsPerlComparison {
 							GKInstance javaReferringCatalystActivity =  javaList.get(0);
 							GKInstance perlReferringCatalystActivity =  perlList.get(0);
 
-							int numDiffs = DBObjectComparer.compareInstances(javaReferringCatalystActivity, perlReferringCatalystActivity, sb1, 0, predicate);
+							int numDiffs = DBObjectComparer.compareInstances(javaReferringCatalystActivity, perlReferringCatalystActivity, sb1, 0, isNameAttribute);
 							if (numDiffs > 0)
 							{
 								catActDiffCount ++;
@@ -169,12 +173,11 @@ public class JavaVsPerlComparison {
 					}
 				}
 			}
-			
 		}
 		System.out.println(mainSB.toString());
+		System.out.println(accessionsMissingFromPerl + " accessions are missing from the Perl database.");
 		System.out.println(sameCount+" instances were the same");
 		System.out.println(diffCount+" instances were different");
-	
 		System.out.println("\nFor instances that *refer* to GO instances...\n");
 		System.out.println(peDiffCount + " PhysicalEntities had differences.");
 		System.out.println(peSameCount + " PhysicalEntities were the same.\n");
@@ -183,5 +186,4 @@ public class JavaVsPerlComparison {
 		System.out.println(catActDiffCount + " CatalystActivities had differences.");
 		System.out.println(catActSameCount + " CatalystActivities were the same.\n");
 	}
-
 }
