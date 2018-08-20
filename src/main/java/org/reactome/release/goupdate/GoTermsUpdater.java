@@ -148,13 +148,7 @@ class GoTermsUpdater
 				{
 					// Create a new Instance if there is nothing in the current list of instances.
 					goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
-					Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
-					newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
-					if ( ((GONamespace)goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE)).getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction) )
-					{
-						newMFLogger.info("{}\t{}\t{}", dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
-					}
-					newGoTermCount++;
+					newGoTermCount = createNewGOTerm(goTermsFromFile, goToECNumbers, newGoTermCount, goID, goTermModifier, currentCategory);
 				}
 				else
 				{
@@ -176,10 +170,16 @@ class GoTermsUpdater
 						{
 							mismatchCount++;
 							categoryMismatchStringBuilder.append("Category mismatch! GO ID: ").append(goID).append(" Category in DB: ").append(goInst.getSchemClass().getName()).append(" category in GO file: ").append(currentCategory).append("\n");
-							instancesForDeletion.add(goInst);
+							// Delete the instance. Don't use the GO Term modifier since it will check for a "replaced_by" value.
+							// In this case, the GO Term is not obsolete but it has the wrong category, so it should be removed and recreated.
+							this.adaptor.deleteByDBID(goInst.getDBID());
+							// Now re-create the GO term with the correct GO type.
+							goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
+							newGoTermCount = createNewGOTerm(goTermsFromFile, goToECNumbers, newGoTermCount, goID, goTermModifier, currentCategory);
 						}
 					}
 				}
+				processAlternates(goTermsFromFile, allGoInstances, goID);
 			}
 			else if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTermsFromFile.get(goID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
 			{
@@ -187,7 +187,8 @@ class GoTermsUpdater
 				if (goInstances!=null)
 				{
 					pendingObsoleteCount++;
-					obsoleteAccessionLogger.info("GO:{} ({}) is marked as PENDING obsolete. Consider searching for a replacement.",goID, goInstances.toString());
+					String consider = goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER) != null ? " Consider: " + goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER) : "";
+					obsoleteAccessionLogger.info("GO:{} ({}) is marked as PENDING obsolete. Consider searching for a replacement.{}",goID, goInstances.toString(), consider);
 				}
 			}
 			else if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && goTermsFromFile.get(goID).get(GoUpdateConstants.IS_OBSOLETE).equals(true))
@@ -196,10 +197,15 @@ class GoTermsUpdater
 				if (goInstances!=null)
 				{
 					obsoleteCount++;
-					obsoleteAccessionLogger.warn("GO:{} ({}) marked as OBSOLETE!",goID, goInstances.toString());
-					for (GKInstance inst : goInstances)
+					String replacementValue = goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) != null ? " Replacement Accesion: " + goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) : " No replacement suggested, GO term will NOT be deleted.";
+					obsoleteAccessionLogger.warn("GO:{} ({}) marked as OBSOLETE!{}",goID, goInstances.toString(), replacementValue);
+					// Only add instance(s) to deletion list if they have a valid replacement.
+					if (goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) != null)
 					{
-						instancesForDeletion.add(inst);
+						for (GKInstance inst : goInstances)
+						{
+							instancesForDeletion.add(inst);
+						}
 					}
 				}
 				
@@ -224,10 +230,17 @@ class GoTermsUpdater
 						referrersCount.put(attrib, referrers.size());
 					}
 				}
-				obsoleteAccessionLogger.info("Instance \""+instance.toString()+"\" (GO:"+instance.getAttributeValue(ReactomeJavaConstants.accession)+") has {} referrers but they will not prevent deletion:",referrersCount);
-				for (GKSchemaAttribute referrer : referrersCount.keySet())
+				if (!referrersCount.isEmpty())
 				{
-					obsoleteAccessionLogger.info("\t{} {} referrers.",referrersCount.get(referrer), referrer.getName());
+					obsoleteAccessionLogger.info("Instance \"{}\" (GO:{}) has {} referrers but they will not prevent deletion.", instance.toString(), instance.getAttributeValue(ReactomeJavaConstants.accession), referrersCount.keySet().size());
+					for (GKSchemaAttribute referrer : referrersCount.keySet())
+					{
+						obsoleteAccessionLogger.info("\t{} {} referrers.",referrersCount.get(referrer), referrer.getName());
+					}
+				}
+				else
+				{
+					obsoleteAccessionLogger.info("Instance \"{}\" (GO:{}) has no referrers and will be deleted.", instance.toString(), instance.getAttributeValue(ReactomeJavaConstants.accession));
 				}
 				goTermModifier.deleteGoInstance(goTermsFromFile, allGoInstances, this.deletionStringBuilder);
 				deletedCount ++;
@@ -286,12 +299,50 @@ class GoTermsUpdater
 		mainOutput.append(goTermCount + " GO terms were read from the file.\n");
 		mainOutput.append(newGoTermCount + " new GO terms were found (and added to the database).\n");
 		mainOutput.append(mismatchCount + " existing GO term instances in the database had mismatched categories when compared to the file (and were deleted from the database).\n");
-		mainOutput.append(obsoleteCount + " were obsolete. "+deletedCount+ " were actually deleted and "+undeleteble.size()+" could not be deleted due to existing referrers.\n");
+		mainOutput.append(obsoleteCount + " were obsolete. "+deletedCount+ " were actually deleted, and "+undeleteble.size()+" could not be deleted due to existing referrers.\n");
 		mainOutput.append(pendingObsoleteCount + " are pending obsolescence (and will probably be deleted at a future date).\n");
 		
 		reconcile(goTermsFromFile, goToECNumbers);
 		
 		return mainOutput;
+	}
+
+	private int createNewGOTerm(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers, int newGoTermCount, String goID, GoTermInstanceModifier goTermModifier, GONamespace currentCategory) throws Exception
+	{
+		Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
+		newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
+		if ( ((GONamespace)goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE)).getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction) )
+		{
+			newMFLogger.info("{}\t{}\t{}", dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
+		}
+		newGoTermCount++;
+		return newGoTermCount;
+	}
+
+	private void processAlternates(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<GKInstance>> allGoInstances, String goID)
+	{
+		if (goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID) != null && allGoInstances.containsKey(goID))
+		{
+			@SuppressWarnings("unchecked")
+			List<String> alternates = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.ALT_ID);
+			for (GKInstance primaryGOTerm : allGoInstances.get(goID))
+			{
+				// Now that we have a list of alternates for *this* accession, we need to mark them for deletion and have their referrers refer to *this* accession.
+				for (String secondaryAccession : alternates)
+				{
+					// Check that we're even using this secondary accession.
+					if (allGoInstances.get(secondaryAccession) != null)
+					{
+						logger.info("{} is an alternate/secondary ID for {} - {} will be deleted and its referrers will refer to {}.", secondaryAccession, goID, secondaryAccession, goID);
+						for (GKInstance altGoInst : allGoInstances.get(secondaryAccession))
+						{
+							GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, altGoInst, instanceEdit);
+							modifier.deleteSecondaryGOInstance(primaryGOTerm, deletionStringBuilder);
+						}
+					}
+				}
+			}
+		}
 	}
 	
 	private void reconcile(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers) throws Exception
@@ -310,7 +361,7 @@ class GoTermsUpdater
 				for (GKInstance instance : instances)
 				{
 					this.adaptor.fastLoadInstanceAttributeValues(instance);
-					// We'll just grab all relationshipsin advance.
+					// We'll just grab all relationships in advance.
 					@SuppressWarnings("unchecked")
 					Collection<GKInstance> instancesOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.instanceOf);
 					@SuppressWarnings("unchecked")
@@ -541,5 +592,4 @@ class GoTermsUpdater
 			}
 		}
 	}
-	
 }
