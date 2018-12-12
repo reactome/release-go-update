@@ -59,7 +59,7 @@ public class DuplicateCleaner extends ReleaseStep
 		
 		DuplicateReporter dupeReporter = new DuplicateReporter(adaptor);
 		Set<Long> dbIDsToDelete = new HashSet<Long>();
-		Set<Long> dbIDsToKeep = new HashSet<Long>();
+
 		Map<String, Integer> duplicates = dupeReporter.getDuplicateAccessions();
 		
 		// loop through all duplicated accessions.
@@ -79,8 +79,7 @@ public class DuplicateCleaner extends ReleaseStep
 					if (refCounts.get(dbId) > 0)
 					{
 						logger.info("\tAccession instance with DB_ID "+dbId + " has "+refCounts.get(dbId) + " significant referrers");
-						// Add to list of IDs to keep (I think this set is no longer needed...)
-						dbIDsToKeep.add(dbId);
+
 						// update count.
 						instancesWithSignificantReferrers ++;
 						GKInstance inst = adaptor.fetchInstance(dbId);
