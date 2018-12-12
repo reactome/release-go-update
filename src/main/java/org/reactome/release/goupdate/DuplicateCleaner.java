@@ -66,7 +66,7 @@ public class DuplicateCleaner extends ReleaseStep
 		for (String accession : duplicates.keySet())
 		{
 			totalDuplicatesCount = duplicates.keySet().size();
-			logger.info("Accession " + accession +" is duplicated " + duplicates.get(accession) + " times.");
+			logger.info("Accession {} is duplicated {} times.", accession, duplicates.get(accession));
 			List<Long> dbIDsWithNoReferrers = new ArrayList<Long>();
 			Map <Long,Integer> refCounts = dupeReporter.getReferrerCountForAccession(accession, ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.Compartment);
 			// if there are referrers...
@@ -78,7 +78,7 @@ public class DuplicateCleaner extends ReleaseStep
 					// if there are referrers.
 					if (refCounts.get(dbId) > 0)
 					{
-						logger.info("\tAccession instance with DB_ID "+dbId + " has "+refCounts.get(dbId) + " significant referrers");
+						logger.info("\tAccession instance with DB_ID {} has {} significant referrers", dbId, refCounts.get(dbId));
 
 						// update count.
 						instancesWithSignificantReferrers ++;
@@ -96,7 +96,7 @@ public class DuplicateCleaner extends ReleaseStep
 								{
 									if (!Arrays.asList(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.Compartment).contains(ref.getSchemClass().getName()))
 									{
-										logger.info("\t\tvia "+refAtt.getName()+":\t"+ref.toString());
+										logger.info("\t\tvia {}:\t{}", refAtt.getName(), ref.toString());
 									}
 								}
 							}
@@ -164,8 +164,8 @@ public class DuplicateCleaner extends ReleaseStep
 				dbIDsToDelete.remove(newestInstance.getDBID());
 			}
 		}
-		logger.info("\n\nSummary:\nTotal number of duplicated accessions: "+totalDuplicatesCount+ " \n"
-				+ "Number of instances with significant (non-GO Term) referrers: "+instancesWithSignificantReferrers + "\n");
+		logger.info("\n\nSummary:\nTotal number of duplicated accessions: {} \n"
+				+ "Number of instances with significant (non-GO Term) referrers: {}\n", totalDuplicatesCount, instancesWithSignificantReferrers);
 		logger.info("{} IDs will be deleted.", dbIDsToDelete.size());
 		adaptor.startTransaction();
 		for (Long dbID : dbIDsToDelete)
