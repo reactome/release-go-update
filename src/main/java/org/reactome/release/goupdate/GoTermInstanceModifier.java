@@ -308,6 +308,7 @@ class GoTermInstanceModifier
 		try
 		{
 			String goId = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.accession);
+			// A GO term can be deleted if it has a replacement value
 			if (goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)!= null)
 			{
 				// If there are multiple replacement options, just use the first one, no clear way to choose a replacement.
@@ -319,6 +320,12 @@ class GoTermInstanceModifier
 					GKInstance replacementGOTerm = allGoInstances.get(replacementGOTermAccession).get(0);
 					this.pointAllReferrersToOtherInstance(replacementGOTerm);
 				}
+				deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
+				adaptor.deleteInstance(this.goInstance);
+			}
+			// A GO term that has no replacement value can still be deleted if it has no referrers.
+			else if (goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY) == null && GoTermsUpdater.getReferrerCounts(this.goInstance).isEmpty())
+			{
 				deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
 				adaptor.deleteInstance(this.goInstance);
 			}
