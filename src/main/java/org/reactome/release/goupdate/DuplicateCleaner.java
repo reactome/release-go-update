@@ -72,8 +72,8 @@ public class DuplicateCleaner extends ReleaseStep
 			logger.info("Accession {} is duplicated {} times.", accession, duplicates.get(accession));
 			List<Long> dbIDsWithNoReferrers = new ArrayList<Long>();
 			Map <Long,Integer> refCounts = dupeReporter.getReferrerCountForAccession(accession, goClasses);
-			// if there are referrers...
-			if (refCounts != null && refCounts.size() > 0)
+			// if there are referrers... refCounts should never be null, unless something catastrophic happens inside getReferrerCountForAccession and in that case, there will probably be a thrown exception.
+			if (refCounts.size() > 0)
 			{
 				// for each DB ID in referrer counts
 				for (Long dbId : refCounts.keySet())
