@@ -84,22 +84,8 @@ public class DuplicateCleaner extends ReleaseStep
 					{
 						// update the counter of all instances with significant referrers.
 						instancesWithSignificantReferrers ++;
-//						logger.info("\tAccession instance with DB_ID {} has {} significant referrers", dbId, refCounts.get(dbId));
-//						GKInstance inst = adaptor.fetchInstance(dbId);
-//						// Get the referring attributes for this instance's class.
-//						@SuppressWarnings("unchecked")
-//						Collection<GKSchemaAttribute> refAttribs = (Collection<GKSchemaAttribute>) inst.getSchemClass().getReferers();
-//						// Check each referring attribute. If there are referrers and they are not a GO_* class, then it must be reported.
-//						for (GKSchemaAttribute refAtt : refAttribs)
-//						{
-//							// Get the referrers for the current referrer attribute.
-//							@SuppressWarnings("unchecked")
-//							Collection<GKInstance> refs = (Collection<GKInstance>) inst.getReferers(refAtt);
-//							if (refs != null && refs.size() > 0)
-//							{
-								logReferrers(dbId, refCounts);
-//							}
-//						}
+						// log info about the referrers 
+						logReferrers(dbId, refCounts);
 					}
 					// if there are NO referrers, add the db_id to the list of DB IDs without referrers.
 					else
@@ -115,7 +101,8 @@ public class DuplicateCleaner extends ReleaseStep
 			if (dbIDsWithNoReferrers.size() == refCounts.keySet().size())
 			{
 				GKInstance newestInstance = null;
-				// Need to try all classes since we don't know which class a GO Accession might be.
+				// Need to try all classes since we don't know which class a GO Accession might be. Note: this.goClasses also contains "Compartment", but here "Compartment" is not used.
+				// It might be safe to use this.goClasses here, but since this bit of code did not use Compartment, we are not going to use this.goClasses here, for now.
 				for (String reactomeClass : Arrays.asList(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.GO_CellularComponent))
 				{
 					@SuppressWarnings("unchecked")
