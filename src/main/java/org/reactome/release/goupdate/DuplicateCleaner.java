@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,6 +19,7 @@ import org.gk.model.GKInstance;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.schema.GKSchemaAttribute;
+import org.gk.schema.InvalidAttributeException;
 import org.reactome.release.common.ReleaseStep;
 
 /**
@@ -28,6 +30,8 @@ import org.reactome.release.common.ReleaseStep;
 public class DuplicateCleaner extends ReleaseStep
 {
 	private static final Logger logger = LogManager.getLogger();
+	private MySQLAdaptor adaptor;
+	private static final String[] goClasses = {ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.Compartment};
 
 	public static void main(String[] args)
 	{
@@ -53,7 +57,7 @@ public class DuplicateCleaner extends ReleaseStep
 	@Override
 	public void executeStep(Properties props) throws Exception
 	{
-		MySQLAdaptor adaptor = DuplicateCleaner.getMySQLAdaptorFromProperties(props);
+		this.adaptor = DuplicateCleaner.getMySQLAdaptorFromProperties(props);
 		int totalDuplicatesCount = 0;
 		int instancesWithSignificantReferrers = 0;
 		
@@ -68,39 +72,34 @@ public class DuplicateCleaner extends ReleaseStep
 			totalDuplicatesCount = duplicates.keySet().size();
 			logger.info("Accession {} is duplicated {} times.", accession, duplicates.get(accession));
 			List<Long> dbIDsWithNoReferrers = new ArrayList<Long>();
-			Map <Long,Integer> refCounts = dupeReporter.getReferrerCountForAccession(accession, ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.Compartment);
+			Map <Long,Integer> refCounts = dupeReporter.getReferrerCountForAccession(accession, goClasses);
 			// if there are referrers...
 			if (refCounts != null && refCounts.size() > 0)
 			{
 				// for each DB ID in referrer counts
 				for (Long dbId : refCounts.keySet())
 				{
-					// if there are referrers.
+					// if there are referrers, we need to report them.
 					if (refCounts.get(dbId) > 0)
 					{
-						logger.info("\tAccession instance with DB_ID {} has {} significant referrers", dbId, refCounts.get(dbId));
-
-						// update count.
+						// update the counter of all instances with significant referrers.
 						instancesWithSignificantReferrers ++;
-						GKInstance inst = adaptor.fetchInstance(dbId);
-						@SuppressWarnings("unchecked")
-						Collection<GKSchemaAttribute> refAttribs = (Collection<GKSchemaAttribute>) inst.getSchemClass().getReferers();
-						// check each atttribute
-						for (GKSchemaAttribute refAtt : refAttribs)
-						{
-							@SuppressWarnings("unchecked")
-							Collection<GKInstance> refs = (Collection<GKInstance>) inst.getReferers(refAtt);
-							if (refs != null && refs.size() > 0)
-							{
-								for (GKInstance ref : refs)
-								{
-									if (!Arrays.asList(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.Compartment).contains(ref.getSchemClass().getName()))
-									{
-										logger.info("\t\tvia {}:\t{}", refAtt.getName(), ref.toString());
-									}
-								}
-							}
-						}
+//						logger.info("\tAccession instance with DB_ID {} has {} significant referrers", dbId, refCounts.get(dbId));
+//						GKInstance inst = adaptor.fetchInstance(dbId);
+//						// Get the referring attributes for this instance's class.
+//						@SuppressWarnings("unchecked")
+//						Collection<GKSchemaAttribute> refAttribs = (Collection<GKSchemaAttribute>) inst.getSchemClass().getReferers();
+//						// Check each referring attribute. If there are referrers and they are not a GO_* class, then it must be reported.
+//						for (GKSchemaAttribute refAtt : refAttribs)
+//						{
+//							// Get the referrers for the current referrer attribute.
+//							@SuppressWarnings("unchecked")
+//							Collection<GKInstance> refs = (Collection<GKInstance>) inst.getReferers(refAtt);
+//							if (refs != null && refs.size() > 0)
+//							{
+								logReferrers(dbId, refCounts);
+//							}
+//						}
 					}
 					// if there are NO referrers, add the db_id to the list of DB IDs without referrers.
 					else
@@ -116,46 +115,17 @@ public class DuplicateCleaner extends ReleaseStep
 			if (dbIDsWithNoReferrers.size() == refCounts.keySet().size())
 			{
 				GKInstance newestInstance = null;
-				LocalDateTime newestDate = null;
-				DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S");
 				// Need to try all classes since we don't know which class a GO Accession might be.
 				for (String reactomeClass : Arrays.asList(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.GO_CellularComponent))
 				{
-					GKInstance modifiedInstance = null;
-					
 					@SuppressWarnings("unchecked")
 					Collection<GKInstance> instances = (Collection<GKInstance>) adaptor.fetchInstanceByAttribute(reactomeClass, ReactomeJavaConstants.accession, "=", accession);
 					// For each instance for this accession, try to find the newest one so that it won't be deleted.
 					if (instances != null && instances.size() > 0)
 					{
-						for (GKInstance instance : instances)
-						{
-							dbIDsToDelete.add(instance.getDBID());
-							LocalDateTime localDate = null;
-							modifiedInstance = (GKInstance) instance.getAttributeValue(ReactomeJavaConstants.modified);
-							
-							if (modifiedInstance != null)
-							{
-								localDate = LocalDateTime.parse((CharSequence) modifiedInstance.getAttributeValue(ReactomeJavaConstants.dateTime), formatter);
-							}
-							else
-							{
-								modifiedInstance = (GKInstance) instance.getAttributeValue(ReactomeJavaConstants.created);
-								localDate = LocalDateTime.parse((CharSequence) modifiedInstance.getAttributeValue(ReactomeJavaConstants.dateTime), formatter);
-							}
-
-							if (newestInstance == null)
-							{
-								newestInstance = instance;
-								newestDate = localDate;
-								
-							}
-							if (localDate != null && newestDate != null && localDate.compareTo(newestDate) > 0)
-							{
-								newestDate = localDate;
-								newestInstance = instance;
-							}
-						}
+						// Add all the DB_IDs to the list to delete. Later, only the DB_ID of the NEWEST instance will be removed from this list, and all other older instances will be deleted.
+						dbIDsToDelete.addAll(instances.stream().map(i -> i.getDBID()).collect(Collectors.toSet()));
+						newestInstance = findNewestInstance(instances);
 					}
 				}
 				logger.debug("Newest instance for accession {} is {} - this instance will NOT be deleted.", accession, newestInstance.toString());
@@ -178,5 +148,82 @@ public class DuplicateCleaner extends ReleaseStep
 			}
 		}
 		adaptor.commit();
+	}
+
+	/**
+	 * Finds the newest GKInstance in a list of instances.
+	 * @param instances - The list of instances
+	 * @return The newest instance.
+	 * @throws InvalidAttributeException
+	 * @throws Exception
+	 */
+	private GKInstance findNewestInstance(Collection<GKInstance> instances) throws InvalidAttributeException, Exception
+	{
+		GKInstance newestInstance = null;
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S");
+		LocalDateTime newestDate = null;
+		for (GKInstance instance : instances)
+		{
+			LocalDateTime localDate = null;
+			GKInstance modifiedInstance = null;
+			modifiedInstance = (GKInstance) instance.getAttributeValue(ReactomeJavaConstants.modified);
+			
+			if (modifiedInstance != null)
+			{
+				localDate = LocalDateTime.parse((CharSequence) modifiedInstance.getAttributeValue(ReactomeJavaConstants.dateTime), formatter);
+			}
+			else
+			{
+				modifiedInstance = (GKInstance) instance.getAttributeValue(ReactomeJavaConstants.created);
+				localDate = LocalDateTime.parse((CharSequence) modifiedInstance.getAttributeValue(ReactomeJavaConstants.dateTime), formatter);
+			}
+
+			if (newestInstance == null)
+			{
+				newestInstance = instance;
+				newestDate = localDate;
+				
+			}
+			if (localDate != null && newestDate != null && localDate.compareTo(newestDate) > 0)
+			{
+				newestDate = localDate;
+				newestInstance = instance;
+			}
+		}
+		return newestInstance;
+	}
+
+	/**
+	 * Logs referrers.
+	 * @param refCounts 
+	 * @param refAtt
+	 * @param refs
+	 * @throws Exception 
+	 */
+	private void logReferrers(Long dbId, Map<Long, Integer> refCounts) throws Exception
+	{
+		GKInstance inst = adaptor.fetchInstance(dbId);
+		logger.info("\tAccession instance with DB_ID {} has {} significant referrers", inst.getDBID(), refCounts.get(dbId));
+		// Get the referring attributes for this instance's class.
+		@SuppressWarnings("unchecked")
+		Collection<GKSchemaAttribute> refAttribs = (Collection<GKSchemaAttribute>) inst.getSchemClass().getReferers();
+		// Check each referring attribute. If there are referrers and they are not a GO_* class, then it must be reported.
+		for (GKSchemaAttribute refAtt : refAttribs)
+		{
+			// Get the referrers for the current referrer attribute.
+			@SuppressWarnings("unchecked")
+			Collection<GKInstance> refs = (Collection<GKInstance>) inst.getReferers(refAtt);
+			if (refs != null && refs.size() > 0)
+			{
+				for (GKInstance ref : refs)
+				{
+					// Report the referrer instance, if it is not a: GO_MolecularFunction, GO_BiologicalProcess, GO_CellularComponent, or Compartment.
+					if (!(Arrays.asList(goClasses)).contains(ref.getSchemClass().getName()))
+					{
+						logger.info("\t\tvia {}:\t{}", refAtt.getName(), ref.toString());
+					}
+				}
+			}
+		}
 	}
 }
