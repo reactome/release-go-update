@@ -58,18 +58,17 @@ public class DuplicateCleaner extends ReleaseStep
 	public void executeStep(Properties props) throws Exception
 	{
 		this.adaptor = DuplicateCleaner.getMySQLAdaptorFromProperties(props);
-		int totalDuplicatesCount = 0;
+		int countOfDuplicatesAccessions = 0;
 		int instancesWithSignificantReferrers = 0;
 		
 		DuplicateReporter dupeReporter = new DuplicateReporter(adaptor);
 		Set<Long> dbIDsToDelete = new HashSet<Long>();
 
 		Map<String, Integer> duplicates = dupeReporter.getDuplicateAccessions();
-		
+		countOfDuplicatesAccessions = duplicates.keySet().size();
 		// loop through all duplicated accessions.
 		for (String accession : duplicates.keySet())
 		{
-			totalDuplicatesCount = duplicates.keySet().size();
 			logger.info("Accession {} is duplicated {} times.", accession, duplicates.get(accession));
 			List<Long> dbIDsWithNoReferrers = new ArrayList<Long>();
 			Map <Long,Integer> refCounts = dupeReporter.getReferrerCountForAccession(accession, goClasses);
@@ -122,7 +121,7 @@ public class DuplicateCleaner extends ReleaseStep
 			}
 		}
 		logger.info("\n\nSummary:\nTotal number of duplicated accessions: {} \n"
-				+ "Number of instances with significant (non-GO Term) referrers: {}\n", totalDuplicatesCount, instancesWithSignificantReferrers);
+				+ "Number of instances with significant (non-GO Term) referrers: {}\n", countOfDuplicatesAccessions, instancesWithSignificantReferrers);
 		logger.info("{} IDs will be deleted.", dbIDsToDelete.size());
 		adaptor.startTransaction();
 		for (Long dbID : dbIDsToDelete)
