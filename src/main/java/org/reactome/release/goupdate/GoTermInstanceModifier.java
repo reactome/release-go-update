@@ -358,11 +358,11 @@ class GoTermInstanceModifier
 					// we should ONLY remove *this* GO instance that will probably be deleted
 					// and add the replacement GO term. All other values should be left alone.
 					@SuppressWarnings("unchecked")
-					List<GKInstance> values = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
+					List<GKInstance> referrerAttributeValues = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
 					// remove *this* goInstance from the referrer
-					values = values.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
+					referrerAttributeValues = referrerAttributeValues.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
 					// add the replacement to the referrer
-					values.add(replacementGOTerm);
+					referrerAttributeValues.add(replacementGOTerm);
 					referrer.setAttributeValue(attributeName, replacementGOTerm);
 					// update in db.
 					adaptor.updateInstanceAttribute(referrer, attributeName);

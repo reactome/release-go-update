@@ -108,11 +108,6 @@ public class DuplicateReporterIT
 				}
 				System.out.print("\n");
 			}
-//			else
-//			{
-//				System.out.println("Accession "+accession+ " has no instances with referrers!");
-//			}
-			
 		}
 		System.out.println("\nSummary:\nTotal number of duplicated accessions: "+totalDuplicatesCount);
 		System.out.println("Number of instances with significant (non-GO Term) referrers: "+instancesWithSignificantReferrers);
