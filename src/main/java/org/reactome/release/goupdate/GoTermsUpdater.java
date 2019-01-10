@@ -91,13 +91,13 @@ class GoTermsUpdater
 	public StringBuilder updateGoTerms() throws Exception
 	{
 		// This map is keyed by GO ID. Values are maps of strings that map to values from the file.
-		Map<String, Map<String,Object>> goTermsFromFile = new HashMap<String, Map<String,Object>>();
+		Map<String, Map<String,Object>> goTermsFromFile = new HashMap<>();
 		// This map is keyed by GO Accession number (GO ID).
 		Map<String, List<GKInstance>> allGoInstances = getMapOfAllGOInstances(adaptor);
 		// This list will track everything that needs to be deleted.
-		List<GKInstance> instancesForDeletion = new ArrayList<GKInstance>();
+		List<GKInstance> instancesForDeletion = new ArrayList<>();
 		// A map of things that can't be deleted, and the referrers that prevent it.
-		Map<GKInstance,Collection<GKInstance>> undeleteble = new HashMap<GKInstance,Collection<GKInstance>>();
+		Map<GKInstance,Collection<GKInstance>> undeleteble = new HashMap<>();
 		// Maps GO IDs to EC Numbers.
 		Map<String,List<String>> goToECNumbers = new HashMap<String,List<String>>();
 		ec2GoLines.stream().filter(line -> !line.startsWith("!")).forEach(line -> processEc2GoLine(line, goToECNumbers));
@@ -201,10 +201,7 @@ class GoTermsUpdater
 					// Only add instance(s) to deletion list if they have a valid replacement.
 					if (goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) != null)
 					{
-						for (GKInstance inst : goInstances)
-						{
-							instancesForDeletion.add(inst);
-						}
+						instancesForDeletion.addAll(goInstances);
 						attemptToDeleteObsoleteMessage.append(" Replacement Accesion: ").append(goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY));
 					}
 					else
@@ -216,7 +213,7 @@ class GoTermsUpdater
 						goInstances.stream().filter(inst -> !instancesForDeletion.contains(inst)).forEach( inst -> {
 							try
 							{
-								referrersCount.putAll( this.getReferrerCounts(inst) );
+								referrersCount.putAll( GoTermsUpdater.getReferrerCounts(inst) );
 								if (referrersCount.isEmpty())
 								{
 									instancesForDeletion.add(inst);
@@ -330,7 +327,7 @@ class GoTermsUpdater
 
 	protected static Map<GKSchemaAttribute, Integer> getReferrerCounts(GKInstance inst) throws Exception
 	{
-		Map<GKSchemaAttribute, Integer> referrersCount = new HashMap<GKSchemaAttribute, Integer>();
+		Map<GKSchemaAttribute, Integer> referrersCount = new HashMap<>();
 		for (GKSchemaAttribute attrib : (Collection<GKSchemaAttribute>)inst.getSchemClass().getReferers())
 		{
 			@SuppressWarnings("unchecked")
@@ -345,14 +342,15 @@ class GoTermsUpdater
 
 	private int createNewGOTerm(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers, int newGoTermCount, String goID, GoTermInstanceModifier goTermModifier, GONamespace currentCategory) throws Exception
 	{
+		int tmpCount = newGoTermCount;
 		Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, currentCategory.getReactomeName(), GoTermsUpdater.goRefDB);
 		newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
 		if ( ((GONamespace)goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE)).getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction) )
 		{
 			newMFLogger.info("{}\t{}\t{}", dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
 		}
-		newGoTermCount++;
-		return newGoTermCount;
+		tmpCount++;
+		return tmpCount;
 	}
 
 	private void processAlternates(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<GKInstance>> allGoInstances, String goID)
@@ -506,7 +504,7 @@ class GoTermsUpdater
 		if (instance.getSchemClass().isValidAttribute(ReactomeJavaConstants.ecNumber))
 		{
 			@SuppressWarnings("unchecked")
-			Set<String> ecNumbersFromDB = new HashSet<String> ( (Collection<String>) instance.getAttributeValuesList(ReactomeJavaConstants.ecNumber) );
+			Set<String> ecNumbersFromDB = new HashSet<> ( (Collection<String>) instance.getAttributeValuesList(ReactomeJavaConstants.ecNumber) );
 			List<String> ecNumbersFromFile = goToECNumbers.get(instance.getAttributeValue(ReactomeJavaConstants.accession));
 			if (ecNumbersFromFile!=null)
 			{
@@ -556,21 +554,21 @@ class GoTermsUpdater
 
 	/**
 	 * Returns a map of all GO-related instances in the databases.
-	 * @param adaptor
+	 * @param dba
 	 * @return
 	 */
-	private Map<String, List<GKInstance>> getMapOfAllGOInstances(MySQLAdaptor adaptor)
+	private Map<String, List<GKInstance>> getMapOfAllGOInstances(MySQLAdaptor dba)
 	{
-		Collection<GKInstance> bioProcesses = new ArrayList<GKInstance>();
-		Collection<GKInstance> molecularFunctions = new ArrayList<GKInstance>();
-		Collection<GKInstance> cellComponents = new ArrayList<GKInstance>();
+		Collection<GKInstance> bioProcesses = new ArrayList<>();
+		Collection<GKInstance> molecularFunctions = new ArrayList<>();
+		Collection<GKInstance> cellComponents = new ArrayList<>();
 		try
 		{
-			bioProcesses = (Collection<GKInstance>) adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
+			bioProcesses = (Collection<GKInstance>) dba.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
 			logger.info(bioProcesses.size() + " GO_BiologicalProcesses in the database.");
-			molecularFunctions = (Collection<GKInstance>) adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
+			molecularFunctions = (Collection<GKInstance>) dba.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
 			logger.info(molecularFunctions.size() + " GO_MolecularFunction in the database.");
-			cellComponents = (Collection<GKInstance>) adaptor.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
+			cellComponents = (Collection<GKInstance>) dba.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
 			logger.info(cellComponents.size() + " GO_CellularComponent in the database.");
 		}
 		catch (Exception e)
@@ -622,7 +620,7 @@ class GoTermsUpdater
 			}
 			else
 			{
-				List<String> ecNumbers = new ArrayList<String>();
+				List<String> ecNumbers = new ArrayList<>();
 				ecNumbers.add(ecNumber);
 				goToECNumbers.put(goNumber, ecNumbers);
 			}

@@ -51,7 +51,7 @@ public class DuplicateReporter
 	 */
 	public Map<String, Integer> getDuplicateAccessions() throws SQLException
 	{
-		Map<String, Integer> duplicateAccessions = new HashMap<String, Integer>();
+		Map<String, Integer> duplicateAccessions = new HashMap<>();
 		
 		ResultSet results = this.adaptor.executeQuery(DuplicateReporter.duplicateAccessionQuery, null);
 		
@@ -72,7 +72,7 @@ public class DuplicateReporter
 	 */
 	public Map<Long, Integer> getReferrerCountForAccession(String accession, String ... classesToIgnore) throws Exception
 	{
-		Map<Long, Integer> referrerCounts = new HashMap<Long, Integer>();
+		Map<Long, Integer> referrerCounts = new HashMap<>();
 		
 		// We'll have to do this for BiologicalProcess, for MolecularFunction, and for CellularComponent
 		for (String reactomeClass : Arrays.asList(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.GO_CellularComponent))
@@ -84,7 +84,7 @@ public class DuplicateReporter
 			{
 				for (GKInstance i : instances)
 				{
-					Long dbid = i.getDBID();
+					long dbid = i.getDBID();
 					int refCount = getReferrerCountforInstance(i, classesToIgnore);
 					referrerCounts.put(dbid,refCount);
 				}
@@ -103,7 +103,9 @@ public class DuplicateReporter
 			Collection<GKInstance> referrers = (Collection<GKInstance>) instance.getReferers(referrerAttrib);
 			if (classesToIgnore != null && classesToIgnore.length > 0)
 			{
-				referrers = referrers.stream().filter(r -> !(new HashSet<String>( Arrays.asList(classesToIgnore))).contains(r.getSchemClass().getName())).collect(Collectors.toList());
+				// filter the referrers: we will collect all Referrers into a new list, IF their Class is not in the list of classes to ignore.
+				referrers = referrers.stream().filter(referrer -> !(Arrays.asList(classesToIgnore)).contains(referrer.getSchemClass().getName()))
+											.collect(Collectors.toList());
 			}
 			refCount += referrers.size();
 		}

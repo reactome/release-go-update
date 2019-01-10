@@ -72,7 +72,7 @@ public class DuplicateReporterIT
 		for (String accession : duplicates.keySet())
 		{
 			assertNotNull(duplicates.get(accession));
-			totalDuplicatesCount = duplicates.keySet().size();
+			totalDuplicatesCount += duplicates.keySet().size();
 			// Values should always be > 1, since these are duplicates!
 			assertTrue(duplicates.get(accession) > 1);
 			System.out.println("Accession " + accession +" is duplicated " + duplicates.get(accession) + " times.");

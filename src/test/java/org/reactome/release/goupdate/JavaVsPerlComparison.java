@@ -132,14 +132,14 @@ public class JavaVsPerlComparison
 								javaList = javaList.stream().sorted(dbIdComparator).collect(Collectors.toList());
 								perlList = perlList.stream().sorted(dbIdComparator).collect(Collectors.toList());
 	
-								GKInstance javaReferringRegulation =  javaList.get(0);
-								GKInstance perlReferringRegulation = perlList.get(0);
+								GKInstance javaReferrer =  javaList.get(0);
+								GKInstance perlReferrer = perlList.get(0);
 	
-								int numDiffs = DBObjectComparer.compareInstances(javaReferringRegulation, perlReferringRegulation, sb1, 0, isNameAttribute, true);
+								int numDiffs = DBObjectComparer.compareInstances(javaReferrer, perlReferrer, sb1, 0, isNameAttribute, true);
 								if (numDiffs > 0)
 								{
 									regulationDiffCount.incrementAndGet();
-									mainSB.append("\n***\nFor Java-updated referring Regulation instance \""+javaReferringRegulation.toString()+"\" there are " + numDiffs + " differences:\n"+sb1.toString());
+									mainSB.append("\n***\nFor Java-updated referring instance \""+javaReferrer.toString()+"\" there are " + numDiffs + " differences:\n"+sb1.toString());
 								}
 								else
 								{

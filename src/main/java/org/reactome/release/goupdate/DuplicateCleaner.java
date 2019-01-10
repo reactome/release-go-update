@@ -58,42 +58,38 @@ public class DuplicateCleaner extends ReleaseStep
 	public void executeStep(Properties props) throws Exception
 	{
 		this.adaptor = DuplicateCleaner.getMySQLAdaptorFromProperties(props);
-		int countOfDuplicatesAccessions = 0;
 		int instancesWithSignificantReferrers = 0;
 		
 		DuplicateReporter dupeReporter = new DuplicateReporter(adaptor);
-		Set<Long> dbIDsToDelete = new HashSet<Long>();
+		Set<Long> dbIDsToDelete = new HashSet<>();
 
 		Map<String, Integer> duplicates = dupeReporter.getDuplicateAccessions();
-		countOfDuplicatesAccessions = duplicates.keySet().size();
 		// loop through all duplicated accessions.
 		for (String accession : duplicates.keySet())
 		{
 			logger.info("Accession {} is duplicated {} times.", accession, duplicates.get(accession));
-			List<Long> dbIDsWithNoReferrers = new ArrayList<Long>();
+			List<Long> dbIDsWithNoReferrers = new ArrayList<>();
 			Map <Long,Integer> refCounts = dupeReporter.getReferrerCountForAccession(accession, goClasses);
-			// if there are referrers... refCounts should never be null, unless something catastrophic happens inside getReferrerCountForAccession and in that case, there will probably be a thrown exception.
-			if (refCounts.size() > 0)
+
+			// for each DB ID in referrer counts
+			for (Long dbId : refCounts.keySet())
 			{
-				// for each DB ID in referrer counts
-				for (Long dbId : refCounts.keySet())
+				// if there are referrers, we need to report them.
+				if (refCounts.get(dbId) > 0)
 				{
-					// if there are referrers, we need to report them.
-					if (refCounts.get(dbId) > 0)
-					{
-						// update the counter of all instances with significant referrers.
-						instancesWithSignificantReferrers ++;
-						// log info about the referrers 
-						logReferrers(dbId, refCounts);
-					}
-					// if there are NO referrers, add the db_id to the list of DB IDs without referrers.
-					else
-					{
-						logger.debug("DB ID {} for accession {} has no significant referrers, and will be deleted.", dbId, accession);
-						dbIDsWithNoReferrers.add(dbId);
-					}
+					// update the counter of all instances with significant referrers.
+					instancesWithSignificantReferrers ++;
+					// log info about the referrers 
+					logReferrers(dbId, refCounts);
+				}
+				// if there are NO referrers, add the db_id to the list of DB IDs without referrers.
+				else
+				{
+					logger.debug("DB ID {} for accession {} has no significant referrers, and will be deleted.", dbId, accession);
+					dbIDsWithNoReferrers.add(dbId);
 				}
 			}
+
 			// update list of things to delete with IDs that have no referrers.
 			dbIDsToDelete.addAll(dbIDsWithNoReferrers);
 			// If no DB IDs have significant referrers, we should delete ALL DB_IDs for the accession, except for the newest one.
@@ -121,7 +117,7 @@ public class DuplicateCleaner extends ReleaseStep
 			}
 		}
 		logger.info("\n\nSummary:\nTotal number of duplicated accessions: {} \n"
-				+ "Number of instances with significant (non-GO Term) referrers: {}\n", countOfDuplicatesAccessions, instancesWithSignificantReferrers);
+				+ "Number of instances with significant (non-GO Term) referrers: {}\n", duplicates.keySet().size(), instancesWithSignificantReferrers);
 		logger.info("{} IDs will be deleted.", dbIDsToDelete.size());
 		adaptor.startTransaction();
 		for (Long dbID : dbIDsToDelete)

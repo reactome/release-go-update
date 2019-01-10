@@ -324,7 +324,7 @@ class GoTermInstanceModifier
 				adaptor.deleteInstance(this.goInstance);
 			}
 			// A GO term that has no replacement value can still be deleted if it has no referrers.
-			else if (goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY) == null && GoTermsUpdater.getReferrerCounts(this.goInstance).isEmpty())
+			else if (GoTermsUpdater.getReferrerCounts(this.goInstance).isEmpty())
 			{
 				deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
 				adaptor.deleteInstance(this.goInstance);
@@ -363,7 +363,7 @@ class GoTermInstanceModifier
 					referrerAttributeValues = referrerAttributeValues.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
 					// add the replacement to the referrer
 					referrerAttributeValues.add(replacementGOTerm);
-					referrer.setAttributeValue(attributeName, replacementGOTerm);
+					referrer.setAttributeValue(attributeName, referrerAttributeValues);
 					// update in db.
 					adaptor.updateInstanceAttribute(referrer, attributeName);
 					logger.debug("\"{}\" now refers to \"{}\" via {}, instead of referring to \"{}\"", referrer.toString(), replacementGOTerm.toString(), attributeName, this.goInstance.toString());
