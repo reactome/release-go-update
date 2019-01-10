@@ -4,3 +4,4 @@ go-update.properties
 logs
 report
 .clover
+.eclipse-pmd
