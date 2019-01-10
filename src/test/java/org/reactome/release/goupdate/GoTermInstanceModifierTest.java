@@ -115,7 +115,7 @@ public class GoTermInstanceModifierTest
 	@Test
 	public void updateRelationshipsTest() throws InvalidAttributeException, Exception
 	{
-		Map<String, List<GKInstance>> allGoInstances = new HashMap<String,List<GKInstance>>();
+		Map<String, List<GKInstance>> allGoInstances = new HashMap<>();
 		GKInstance otherGoTerm = mock(GKInstance.class);
 		Mockito.when(otherGoTerm.getDBID()).thenReturn(12121212L);
 		Mockito.when(otherGoTerm.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn("54321");
@@ -124,7 +124,7 @@ public class GoTermInstanceModifierTest
 		allGoInstances.put("54321", Arrays.asList(otherGoTerm));
 		
 		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm, mockInstanceEdit);
-		Map<String, Object> goProps = new HashMap<String, Object>();
+		Map<String, Object> goProps = new HashMap<>();
 		goProps.put(GoUpdateConstants.IS_A, Arrays.asList("54321"));
 		modifier.updateRelationship(allGoInstances, goProps , GoUpdateConstants.IS_A, "isA");
 		
@@ -138,15 +138,15 @@ public class GoTermInstanceModifierTest
 	public void deleteGoTermTest() throws InvalidAttributeException, Exception
 	{
 		Mockito.when(newGoTerm.getAttributeValue(ReactomeJavaConstants.accession)).thenReturn(TEST_GO_ID);
-		
-		Map<String, Map<String, Object>> goTerms = new HashMap<String, Map<String,Object>>();
-		Map<String, Object> goTermDetail = new HashMap<String, Object>();
+		Mockito.when(newGoTerm.getSchemClass()).thenReturn(biologicalProcessGKSchemaClass);
+		Map<String, Map<String, Object>> goTerms = new HashMap<>();
+		Map<String, Object> goTermDetail = new HashMap<>();
 		goTermDetail.put(GoUpdateConstants.NAME, "Test");
 		goTermDetail.put(GoUpdateConstants.DEF, "This is a test go term");
 		
 		goTerms.put(TEST_GO_ID, goTermDetail);
 		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm, mockInstanceEdit);
-		Map<String, List<GKInstance>> allGoInstances = new HashMap<String,List<GKInstance>>();
+		Map<String, List<GKInstance>> allGoInstances = new HashMap<>();
 		
 		// now, execute the DELETE
 		StringBuffer sb = new StringBuffer();
@@ -201,10 +201,10 @@ public class GoTermInstanceModifierTest
 		Mockito.doNothing().when(adaptor).updateInstanceAttribute(any(GKInstance.class), anyString());
 		
 		// Set up a goTerms structure and a goToEcNumbers structure
-		Map<String, Map<String, Object>> goTerms = new HashMap<String, Map<String,Object>>();
-		Map<String,List<String>> goToEcNumbers = new HashMap<String, List<String>>();
+		Map<String, Map<String, Object>> goTerms = new HashMap<>();
+		Map<String,List<String>> goToEcNumbers = new HashMap<>();
 		
-		Map<String, Object> goTermDetail = new HashMap<String, Object>();
+		Map<String, Object> goTermDetail = new HashMap<>();
 		goTermDetail.put(GoUpdateConstants.NAME, "Test-1");
 		goTermDetail.put(GoUpdateConstants.DEF, "This is a test go term");
 		
@@ -242,10 +242,10 @@ public class GoTermInstanceModifierTest
 		Mockito.when(adaptor.getSchema()).thenReturn(mockSchema);
 		
 		// Set up a goTerms structure and a goToEcNumbers structure
-		Map<String, Map<String, Object>> goTerms = new HashMap<String, Map<String,Object>>();
-		Map<String,List<String>> goToEcNumbers = new HashMap<String, List<String>>();
+		Map<String, Map<String, Object>> goTerms = new HashMap<>();
+		Map<String,List<String>> goToEcNumbers = new HashMap<>();
 		
-		Map<String, Object> goTermDetail = new HashMap<String, Object>();
+		Map<String, Object> goTermDetail = new HashMap<>();
 		goTermDetail.put(GoUpdateConstants.NAME, "Test");
 		goTermDetail.put(GoUpdateConstants.DEF, "This is a test go term");
 		
@@ -269,7 +269,7 @@ public class GoTermInstanceModifierTest
 	@Test
 	public void testUpdateReferrerDisplayNames() throws Exception
 	{
-		Mockito.when(molecularFunctionGKSchemaClass.getReferers()).thenReturn(new HashSet<GKSchemaAttribute>(Arrays.asList(activityAttribute,ecNumberAttribute)));
+		Mockito.when(molecularFunctionGKSchemaClass.getReferers()).thenReturn(new HashSet<>(Arrays.asList(activityAttribute,ecNumberAttribute)));
 		Mockito.when(newGoTerm.getSchemClass()).thenReturn(molecularFunctionGKSchemaClass);
 		
 		Mockito.when(newGoTerm.getReferers(any(String.class))).thenReturn(Arrays.asList(otherInstance));
