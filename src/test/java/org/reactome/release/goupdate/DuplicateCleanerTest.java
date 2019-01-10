@@ -69,6 +69,10 @@ public class DuplicateCleanerTest
 		PowerMockito.whenNew(MySQLAdaptor.class).withAnyArguments().thenReturn(mockAdaptor);
 	}
 
+	/**
+	 * Basic test - basic test with a couple of duplicates, one with a referrer.
+	 * @throws Exception
+	 */
 	@Test
 	public void testExecuteStep() throws Exception
 	{
@@ -106,6 +110,10 @@ public class DuplicateCleanerTest
 	}
 
 	
+	/**
+	 * Very basic test - no duplicates!
+	 * @throws Exception
+	 */
 	@Test
 	public void testExecuteStepNoDuplicates() throws Exception
 	{
