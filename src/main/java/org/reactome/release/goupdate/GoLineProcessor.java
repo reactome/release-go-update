@@ -162,21 +162,6 @@ class GoLineProcessor
 									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_PART_OF_REGEX, GoUpdateConstants.PART_OF);
 									break;
 								}
-//								case GoUpdateConstants.REGULATES:
-//								{
-//									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_REGULATES_REGEX, GoUpdateConstants.REGULATES);
-//									break;
-//								}
-//								case GoUpdateConstants.POSITIVELY_REGULATES:
-//								{
-//									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_POSITIVELY_REGULATES_REGEX, GoUpdateConstants.POSITIVELY_REGULATES);
-//									break;
-//								}
-//								case GoUpdateConstants.NEGATIVELY_REGULATES:
-//								{
-//									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_NEGATIVELY_REGULATES_REGEX, GoUpdateConstants.NEGATIVELY_REGULATES);
-//									break;
-//								}
 							}
 						}
 						break;

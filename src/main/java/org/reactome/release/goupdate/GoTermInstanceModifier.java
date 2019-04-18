@@ -153,7 +153,7 @@ class GoTermInstanceModifier
 						this.goInstance.setAttributeValue(ReactomeJavaConstants.definition, newDefinition);
 						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.definition);
 					}
-					// Now, instanceOf and componentOf are only valid for GO_CellularComponent
+					// Now, instanceOf and componentOf are *OLNLY* valid for GO_CellularComponent
 					// instanceOf and componentOf get set to NULL and will be corrected later in the process.
 					if (this.goInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
 					{
@@ -251,17 +251,17 @@ class GoTermInstanceModifier
 		
 		if (instance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_BiologicalProcess))
 		{
-			referrers = (Collection<GKInstance>)instance.getReferers(ReactomeJavaConstants.goBiologicalProcess);
+			referrers = (Collection<GKInstance>) instance.getReferers(ReactomeJavaConstants.goBiologicalProcess);
 			
 		}
 		else if (instance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_CellularComponent))
 		{
-			referrers = (Collection<GKInstance>)instance.getReferers(ReactomeJavaConstants.compartment);
+			referrers = (Collection<GKInstance>) instance.getReferers(ReactomeJavaConstants.compartment);
 			
 		}
 		else if (instance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
 		{
-			referrers = (Collection<GKInstance>)instance.getReferers(ReactomeJavaConstants.activity);
+			referrers = (Collection<GKInstance>) instance.getReferers(ReactomeJavaConstants.activity);
 		}
 		
 		return referrers;

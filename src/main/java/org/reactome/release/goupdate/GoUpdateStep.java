@@ -50,6 +50,11 @@ public class GoUpdateStep extends ReleaseStep
 			// 5) delete the marked-for-deletion instances.
 			// 6) update relationships between remaining instances, based on content of data structure.
 			
+			// ***UPDATE***
+			// URL to main GO file is now:
+			// http://current.geneontology.org/ontology/go.obo
+			// ...the ec2go file is the same.
+			
 			MySQLAdaptor adaptor = getMySQLAdaptorFromProperties(props);
 			this.loadTestModeFromProperties(props);
 			

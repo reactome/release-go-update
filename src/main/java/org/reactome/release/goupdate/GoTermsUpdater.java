@@ -396,12 +396,15 @@ class GoTermsUpdater
 				{
 					this.adaptor.fastLoadInstanceAttributeValues(instance);
 					// We'll just grab all relationships in advance.
-					@SuppressWarnings("unchecked")
-					Collection<GKInstance> instancesOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.instanceOf);
-					@SuppressWarnings("unchecked")
-					Collection<GKInstance> partOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.componentOf);
-					@SuppressWarnings("unchecked")
-					Collection<GKInstance> hasParts = (Collection<GKInstance>) instance.getAttributeValuesList("hasPart");
+					Collection<GKInstance> instancesOfs = new ArrayList<>();
+					Collection<GKInstance> partOfs = new ArrayList<>();
+					Collection<GKInstance> hasParts = new ArrayList<>();
+					if (instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
+					{
+						instancesOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.instanceOf);
+						partOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.componentOf);
+						hasParts = (Collection<GKInstance>) instance.getAttributeValuesList("hasPart");
+					}
 //					Collection<GKInstance> regulates = null;
 //					Collection<GKInstance> positivelyRegulates = null;
 //					Collection<GKInstance> negativelyRegulates = null;
@@ -448,32 +451,26 @@ class GoTermsUpdater
 							}
 							case GoUpdateConstants.IS_A:
 							{
-								reconcileRelationship(goAccession, goTerm, instancesOfs, k);
+								if (instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
+								{
+									reconcileRelationship(goAccession, goTerm, instancesOfs, k);
+								}
 								break;
 							}
 							case GoUpdateConstants.PART_OF:
 							{
-								reconcileRelationship(goAccession, goTerm, partOfs, k);
+								if (instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
+								{
+									reconcileRelationship(goAccession, goTerm, partOfs, k);
+								}
 								break;
 							}
-//							case GoUpdateConstants.REGULATES:
-//							{
-//								reconcileRelationship(goAccession, goTerm, regulates, k);
-//								break;
-//							}
-//							case GoUpdateConstants.POSITIVELY_REGULATES:
-//							{
-//								reconcileRelationship(goAccession, goTerm, positivelyRegulates, k);
-//								break;
-//							}
-//							case GoUpdateConstants.NEGATIVELY_REGULATES:
-//							{
-//								reconcileRelationship(goAccession, goTerm, negativelyRegulates, k);
-//								break;
-//							}
 							case GoUpdateConstants.HAS_PART:
 							{
-								reconcileRelationship(goAccession, goTerm, hasParts, k);
+								if (instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
+								{
+									reconcileRelationship(goAccession, goTerm, hasParts, k);
+								}
 								break;
 							}
 						}
