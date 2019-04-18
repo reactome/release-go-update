@@ -53,13 +53,13 @@ public class DuplicateReporter
 	{
 		Map<String, Integer> duplicateAccessions = new HashMap<>();
 		
-		ResultSet results = this.adaptor.executeQuery(DuplicateReporter.duplicateAccessionQuery, null);
-		
-		while (results.next())
+		try(ResultSet results = this.adaptor.executeQuery(DuplicateReporter.duplicateAccessionQuery, null);)
 		{
-			duplicateAccessions.put(results.getString("accession"), results.getInt("instance_count"));
+			while (results.next())
+			{
+				duplicateAccessions.put(results.getString("accession"), results.getInt("instance_count"));
+			}
 		}
-		
 		return duplicateAccessions;
 	}
 	
@@ -86,13 +86,21 @@ public class DuplicateReporter
 				{
 					long dbid = i.getDBID();
 					int refCount = getReferrerCountforInstance(i, classesToIgnore);
-					referrerCounts.put(dbid,refCount);
+					referrerCounts.put(dbid, refCount);
 				}
 			}
 		}
 		return referrerCounts;
 	}
 	
+	// TODO: Move this function to release-common-lib, maybe. It's a generic utility function, could be useful somewhere else.
+	/**
+	 * Gets the number of referrers for an instance. That is, it returns how many objects refer to <code>instance</code>.
+	 * @param instance - the object to query about.
+	 * @param classesToIgnore - a list of class names to ignore. Referrers whose SchemaClass name match a name in this list will *not* be included in the final count.
+	 * @return
+	 * @throws Exception
+	 */
 	public int getReferrerCountforInstance(GKInstance instance, String ... classesToIgnore) throws Exception
 	{
 		int refCount = 0;

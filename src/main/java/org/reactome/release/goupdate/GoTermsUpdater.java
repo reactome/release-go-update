@@ -99,7 +99,7 @@ class GoTermsUpdater
 		// A map of things that can't be deleted, and the referrers that prevent it.
 		Map<GKInstance,Collection<GKInstance>> undeleteble = new HashMap<>();
 		// Maps GO IDs to EC Numbers.
-		Map<String,List<String>> goToECNumbers = new HashMap<String,List<String>>();
+		Map<String,List<String>> goToECNumbers = new HashMap<>();
 		ec2GoLines.stream().filter(line -> !line.startsWith("!")).forEach(line -> processEc2GoLine(line, goToECNumbers));
 		
 		int lineCount = 0;
@@ -283,12 +283,11 @@ class GoTermsUpdater
 				for (GKInstance goInst : goInsts)
 				{
 					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
-//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
-//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
-//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
-//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.REGULATES, "regulate");
-//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate");
-//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate");
+					
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
+					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
+					
 					// Update the instanace's "modififed".
 					goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
 					goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
@@ -405,22 +404,14 @@ class GoTermsUpdater
 						partOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.componentOf);
 						hasParts = (Collection<GKInstance>) instance.getAttributeValuesList("hasPart");
 					}
-//					Collection<GKInstance> regulates = null;
-//					Collection<GKInstance> positivelyRegulates = null;
-//					Collection<GKInstance> negativelyRegulates = null;
-//					if (!instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
-//					{
-//						regulates = (Collection<GKInstance>) instance.getAttributeValuesList("regulate");
-//						positivelyRegulates = (Collection<GKInstance>) instance.getAttributeValuesList("positivelyRegulate");
-//						negativelyRegulates = (Collection<GKInstance>) instance.getAttributeValuesList("negativelyRegulate");
-//					}
+
 					for (String k : goTerm.keySet())
 					{
 						switch (k)
 						{
 							case GoUpdateConstants.DEF:
 							{
-								String definition = (String)instance.getAttributeValue(ReactomeJavaConstants.definition);
+								String definition = (String) instance.getAttributeValue(ReactomeJavaConstants.definition);
 								if (!goTerm.get(k).equals(definition))
 								{
 									reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"definition\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), definition);
@@ -429,7 +420,7 @@ class GoTermsUpdater
 							}
 							case GoUpdateConstants.NAME:
 							{
-								String name = (String)instance.getAttributeValue(ReactomeJavaConstants.name);
+								String name = (String) instance.getAttributeValue(ReactomeJavaConstants.name);
 								if (!goTerm.get(k).equals(name))
 								{
 									reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"name\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), name);
@@ -438,7 +429,7 @@ class GoTermsUpdater
 							}
 							case GoUpdateConstants.NAMESPACE:
 							{
-								String dbNameSpace = (String)instance.getSchemClass().getName();
+								String dbNameSpace = (String) instance.getSchemClass().getName();
 								String fileNameSpace = ((GONamespace)goTerm.get(k)).getReactomeName();
 								if (!(dbNameSpace.equals(fileNameSpace)
 									|| ((dbNameSpace.equals(ReactomeJavaConstants.Compartment) || dbNameSpace.equals(ReactomeJavaConstants.EntityCompartment))
