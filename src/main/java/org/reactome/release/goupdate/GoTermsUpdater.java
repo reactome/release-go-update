@@ -283,12 +283,12 @@ class GoTermsUpdater
 				for (GKInstance goInst : goInsts)
 				{
 					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.REGULATES, "regulate");
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate");
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate");
+//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
+//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
+//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
+//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.REGULATES, "regulate");
+//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.POSITIVELY_REGULATES, "positivelyRegulate");
+//					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.NEGATIVELY_REGULATES, "negativelyRegulate");
 					// Update the instanace's "modififed".
 					goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
 					goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
@@ -402,15 +402,15 @@ class GoTermsUpdater
 					Collection<GKInstance> partOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.componentOf);
 					@SuppressWarnings("unchecked")
 					Collection<GKInstance> hasParts = (Collection<GKInstance>) instance.getAttributeValuesList("hasPart");
-					Collection<GKInstance> regulates = null;
-					Collection<GKInstance> positivelyRegulates = null;
-					Collection<GKInstance> negativelyRegulates = null;
-					if (!instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
-					{
-						regulates = (Collection<GKInstance>) instance.getAttributeValuesList("regulate");
-						positivelyRegulates = (Collection<GKInstance>) instance.getAttributeValuesList("positivelyRegulate");
-						negativelyRegulates = (Collection<GKInstance>) instance.getAttributeValuesList("negativelyRegulate");
-					}
+//					Collection<GKInstance> regulates = null;
+//					Collection<GKInstance> positivelyRegulates = null;
+//					Collection<GKInstance> negativelyRegulates = null;
+//					if (!instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
+//					{
+//						regulates = (Collection<GKInstance>) instance.getAttributeValuesList("regulate");
+//						positivelyRegulates = (Collection<GKInstance>) instance.getAttributeValuesList("positivelyRegulate");
+//						negativelyRegulates = (Collection<GKInstance>) instance.getAttributeValuesList("negativelyRegulate");
+//					}
 					for (String k : goTerm.keySet())
 					{
 						switch (k)
@@ -456,21 +456,21 @@ class GoTermsUpdater
 								reconcileRelationship(goAccession, goTerm, partOfs, k);
 								break;
 							}
-							case GoUpdateConstants.REGULATES:
-							{
-								reconcileRelationship(goAccession, goTerm, regulates, k);
-								break;
-							}
-							case GoUpdateConstants.POSITIVELY_REGULATES:
-							{
-								reconcileRelationship(goAccession, goTerm, positivelyRegulates, k);
-								break;
-							}
-							case GoUpdateConstants.NEGATIVELY_REGULATES:
-							{
-								reconcileRelationship(goAccession, goTerm, negativelyRegulates, k);
-								break;
-							}
+//							case GoUpdateConstants.REGULATES:
+//							{
+//								reconcileRelationship(goAccession, goTerm, regulates, k);
+//								break;
+//							}
+//							case GoUpdateConstants.POSITIVELY_REGULATES:
+//							{
+//								reconcileRelationship(goAccession, goTerm, positivelyRegulates, k);
+//								break;
+//							}
+//							case GoUpdateConstants.NEGATIVELY_REGULATES:
+//							{
+//								reconcileRelationship(goAccession, goTerm, negativelyRegulates, k);
+//								break;
+//							}
 							case GoUpdateConstants.HAS_PART:
 							{
 								reconcileRelationship(goAccession, goTerm, hasParts, k);

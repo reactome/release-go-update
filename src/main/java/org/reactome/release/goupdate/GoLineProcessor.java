@@ -30,7 +30,7 @@ class GoLineProcessor
 	 * @param currentGOID - The ID of the GO term currently being processed, line by line.
 	 * @return The GO Accession of the GO term currently being processed. Will be different from <code>currentGOID</code> if the ID for a new GO term is seen on this <code>line</code>
 	 */
-	static String processLine(String line, String currentGOID, Map<String, Map<String,Object>> goTerms)
+	static String processLine(String line, String currentGOID, Map<String, Map<String, Object>> goTerms)
 	{
 		String goID = currentGOID;
 		Matcher m;
@@ -162,21 +162,21 @@ class GoLineProcessor
 									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_PART_OF_REGEX, GoUpdateConstants.PART_OF);
 									break;
 								}
-								case GoUpdateConstants.REGULATES:
-								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_REGULATES_REGEX, GoUpdateConstants.REGULATES);
-									break;
-								}
-								case GoUpdateConstants.POSITIVELY_REGULATES:
-								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_POSITIVELY_REGULATES_REGEX, GoUpdateConstants.POSITIVELY_REGULATES);
-									break;
-								}
-								case GoUpdateConstants.NEGATIVELY_REGULATES:
-								{
-									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_NEGATIVELY_REGULATES_REGEX, GoUpdateConstants.NEGATIVELY_REGULATES);
-									break;
-								}
+//								case GoUpdateConstants.REGULATES:
+//								{
+//									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_REGULATES_REGEX, GoUpdateConstants.REGULATES);
+//									break;
+//								}
+//								case GoUpdateConstants.POSITIVELY_REGULATES:
+//								{
+//									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_POSITIVELY_REGULATES_REGEX, GoUpdateConstants.POSITIVELY_REGULATES);
+//									break;
+//								}
+//								case GoUpdateConstants.NEGATIVELY_REGULATES:
+//								{
+//									addToMultivaluedAttribute(goTerms, currentGOID, line, GoUpdateConstants.RELATIONSHIP_NEGATIVELY_REGULATES_REGEX, GoUpdateConstants.NEGATIVELY_REGULATES);
+//									break;
+//								}
 							}
 						}
 						break;

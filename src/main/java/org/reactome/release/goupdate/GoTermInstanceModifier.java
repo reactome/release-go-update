@@ -135,20 +135,33 @@ class GoTermInstanceModifier
 				// match the name in the file or if the existing definition does not match
 				// the one in the file, we update with the new name and def'n, and then set
 				// InstanceOf and ComponentOf to NULL, and those get updated later, from whatever's in the GO file.
-				if ((newName!=null && !newName.equals(oldName))
-					|| (newDefinition != null && !newDefinition.equals(oldDefinition)))
+				if ( (newName!=null && !newName.equals(oldName)) || (newDefinition != null && !newDefinition.equals(oldDefinition)))
 				{
-					String nameUpdate = newName.equals(oldName) ? "" : "\n\tNew name:\t\""+newName+"\"\n\told name:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.name)+"\"";
-					String defnUpdate = newDefinition.equals(oldDefinition) ? "" : "\n\tNew def'n:\t\""+newDefinition+"\"\n\told def'n:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.definition)+"\"";
-					nameOrDefinitionChangeStringBuilder.append("\nChange in name/definition for GO:").append(currentGOID).append(nameUpdate).append(defnUpdate);
-					this.goInstance.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
-					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.instanceOf);
-					this.goInstance.setAttributeValue(ReactomeJavaConstants.componentOf, null);
-					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.componentOf);
-					this.goInstance.setAttributeValue(ReactomeJavaConstants.name, goTerms.get(currentGOID).get(GoUpdateConstants.NAME));
-					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.name);
-					this.goInstance.setAttributeValue(ReactomeJavaConstants.definition, newDefinition);
-					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.definition);
+					// Changes for name
+					if (newName!=null && !newName.equals(oldName))
+					{
+						String nameUpdate = newName.equals(oldName) ? "" : "\n\tNew name:\t\""+newName+"\"\n\told name:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.name)+"\"";
+						nameOrDefinitionChangeStringBuilder.append("\nChange in name/definition for GO:").append(currentGOID).append(nameUpdate);
+						this.goInstance.setAttributeValue(ReactomeJavaConstants.name, newName);
+						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.name);
+					}
+					// Changes for definition  
+					if (newDefinition != null && !newDefinition.equals(oldDefinition))
+					{
+						String defnUpdate = newDefinition.equals(oldDefinition) ? "" : "\n\tNew def'n:\t\""+newDefinition+"\"\n\told def'n:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.definition)+"\"";
+						nameOrDefinitionChangeStringBuilder.append("\nChange in name/definition for GO:").append(currentGOID).append(defnUpdate);
+						this.goInstance.setAttributeValue(ReactomeJavaConstants.definition, newDefinition);
+						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.definition);
+					}
+					// Now, instanceOf and componentOf are only valid for GO_CellularComponent
+					// instanceOf and componentOf get set to NULL and will be corrected later in the process.
+					if (this.goInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
+					{
+						this.goInstance.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
+						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.instanceOf);
+						this.goInstance.setAttributeValue(ReactomeJavaConstants.componentOf, null);
+						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.componentOf);
+					}
 					modified = true;
 				}
 				
