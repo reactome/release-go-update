@@ -232,7 +232,7 @@ class GoTermsUpdater
 					// so the message must be set to reflect this.
 					if (attemptToDeleteObsoleteMessage.length() == 0)
 					{
-						attemptToDeleteObsoleteMessage.append(" No replacement suggested, and referrering instances seem to exist (").append(referrersCount.toString()).append("), so GO term will NOT be deleted. Manual cleanup for this term will probably be necessary");
+						attemptToDeleteObsoleteMessage.append(" ** Manual cleanup for this term may be necessary! ** No replacement suggested, and referrering instances seem to exist (").append(referrersCount.toString()).append("), so GO term will NOT be deleted.");
 					}
 					obsoleteAccessionLogger.warn("GO:{} ({}) marked as OBSOLETE!{}",goID, goInstances.toString(), attemptToDeleteObsoleteMessage);
 				}
@@ -284,10 +284,12 @@ class GoTermsUpdater
 				{
 					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
 					
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
-					goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
-					
+					if (goInst.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
+					{
+						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
+						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
+						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
+					}
 					// Update the instanace's "modififed".
 					goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
 					goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);

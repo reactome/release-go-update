@@ -375,8 +375,15 @@ class GoTermInstanceModifier
 					// remove *this* goInstance from the referrer
 					referrerAttributeValues = referrerAttributeValues.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
 					// add the replacement to the referrer
-					referrerAttributeValues.add(replacementGOTerm);
-					referrer.setAttributeValue(attributeName, referrerAttributeValues);
+					if (attribute.isMultiple())
+					{
+						referrerAttributeValues.add(replacementGOTerm);
+						referrer.setAttributeValue(attributeName, referrerAttributeValues);
+					}
+					else
+					{
+						referrer.setAttributeValue(attributeName, replacementGOTerm);
+					}
 					// update in db.
 					adaptor.updateInstanceAttribute(referrer, attributeName);
 					logger.debug("\"{}\" now refers to \"{}\" via {}, instead of referring to \"{}\"", referrer.toString(), replacementGOTerm.toString(), attributeName, this.goInstance.toString());

@@ -27,7 +27,7 @@
 		<dependency>
 			<groupId>org.reactome.base</groupId>
 			<artifactId>reactome-base</artifactId>
-			<version>RELEASE</version>
+			<version>1.2.20</version>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
@@ -117,13 +117,13 @@
 				<enabled>true</enabled>
 			</snapshots>
 		</repository>
-		<repository>
+		<!-- <repository>
 			<name>EBI</name>
 			<url>http://www.ebi.ac.uk/Tools/maven/repos/content/repositories/releases/</url>
 			<id>EBI</id>
 			<releases>
 				<enabled>true</enabled>
 			</releases>
-		</repository>
+		</repository> -->
 	</repositories>
 </project>

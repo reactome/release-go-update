@@ -1,7 +1,9 @@
 gene_ontology_ext.obo
+go.obo
 ec2go
 go-update.properties
 logs
+old-logs
 report
 .clover
 .eclipse-pmd

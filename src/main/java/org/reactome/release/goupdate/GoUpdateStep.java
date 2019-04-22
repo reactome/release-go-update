@@ -22,7 +22,7 @@ public class GoUpdateStep extends ReleaseStep
 	@Override
 	public void executeStep(Properties props) throws SQLException
 	{
-		Long startTime = System.currentTimeMillis();
+		long startTime = System.currentTimeMillis();
 		try
 		{
 			// First part:
@@ -58,7 +58,7 @@ public class GoUpdateStep extends ReleaseStep
 			MySQLAdaptor adaptor = getMySQLAdaptorFromProperties(props);
 			this.loadTestModeFromProperties(props);
 			
-			long personID = new Long(props.getProperty("person.id"));
+			long personID = Long.valueOf(props.getProperty("person.id")).longValue();
 			
 			String pathToGOFile = props.getProperty("pathToGOFile","src/main/resources/gene_ontology_ext.obo");
 			String pathToEC2GOFile = props.getProperty("pathToEC2GOFile","src/main/resources/ec2go");
@@ -106,7 +106,7 @@ public class GoUpdateStep extends ReleaseStep
 			e.printStackTrace();
 			throw new RuntimeException(e);
 		}
-		Long endTime = System.currentTimeMillis();
+		long endTime = System.currentTimeMillis();
 		logger.info("Elapsed time: " + Duration.ofMillis(endTime-startTime).toString());
 	}
 
