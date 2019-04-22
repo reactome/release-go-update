@@ -208,7 +208,7 @@ class GoLineProcessor
 			List<String> listOfValues = (List<String>) goTerms.get(currentGOID).get(key);
 			if (listOfValues == null)
 			{
-				listOfValues = new ArrayList<String>();
+				listOfValues = new ArrayList<>();
 				listOfValues.add(extractedValue);
 				goTerms.get(currentGOID).put(key, listOfValues);
 			}
