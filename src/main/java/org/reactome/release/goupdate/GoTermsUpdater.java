@@ -29,7 +29,6 @@ import org.reactome.release.common.database.InstanceEditUtils;
 class GoTermsUpdater
 {
 	private static final Logger logger = LogManager.getLogger();
-	private static final Logger reconciliationLogger = LogManager.getLogger("reconciliationLog");
 	private static final Logger newMFLogger = LogManager.getLogger("newMolecularFunctionsLog");
 	private static final Logger obsoleteAccessionLogger = LogManager.getLogger("obsoleteAccessionLog");
 	private static final Logger newGOTermsLogger = LogManager.getLogger("newGOTermsLog");
@@ -329,7 +328,7 @@ class GoTermsUpdater
 	 * @param goID - The GO ID of the term to process.
 	 * @param goInstances - A list of GO instances.
 	 */
-	private void processObsoleteGOTerm(Map<String, Map<String, Object>> goTermsFromFile, List<GKInstance> instancesForDeletion, String goID, List<GKInstance> goInstances)
+	private static void processObsoleteGOTerm(Map<String, Map<String, Object>> goTermsFromFile, List<GKInstance> instancesForDeletion, String goID, List<GKInstance> goInstances)
 	{
 		StringBuilder attemptToDeleteObsoleteMessage = new StringBuilder();
 		Map<GKSchemaAttribute, Integer> referrersCount = new HashMap<>();
@@ -406,7 +405,7 @@ class GoTermsUpdater
 	 * @return
 	 * @throws Exception
 	 */
-	private void createNewGOTerm(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers, String goID, GoTermInstanceModifier goTermModifier, GONamespace goCategory) throws Exception
+	private static void createNewGOTerm(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers, String goID, GoTermInstanceModifier goTermModifier, GONamespace goCategory) throws Exception
 	{
 		Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goCategory.getReactomeName(), GoTermsUpdater.goRefDB);
 		newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
@@ -448,175 +447,13 @@ class GoTermsUpdater
 			}
 		}
 	}
-	
-//	private void reconcile(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers) throws Exception
-//	{
-//		for (String goAccession : goTermsFromFile.keySet())
-//		{
-//			Map<String, Object> goTerm = goTermsFromFile.get(goAccession);
-//			@SuppressWarnings("unchecked")
-//			Collection<GKInstance> instances = this.adaptor.fetchInstanceByAttribute( ((GONamespace)goTerm.get(GoUpdateConstants.NAMESPACE)).getReactomeName(), ReactomeJavaConstants.accession, "=", goAccession );
-//			if (instances != null)
-//			{
-//				if (instances.size()>1)
-//				{
-//					reconciliationLogger.warn("GO Accession {} appears {} times in the database. It should probably only appear once.",goAccession, instances.size());
-//				}
-//				for (GKInstance instance : instances)
-//				{
-//					this.adaptor.fastLoadInstanceAttributeValues(instance);
-//					// We'll just grab all relationships in advance.
-//					Collection<GKInstance> instancesOfs = new ArrayList<>();
-//					Collection<GKInstance> partOfs = new ArrayList<>();
-//					Collection<GKInstance> hasParts = new ArrayList<>();
-//					if (instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
-//					{
-//						instancesOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.instanceOf);
-//						partOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.componentOf);
-//						hasParts = (Collection<GKInstance>) instance.getAttributeValuesList("hasPart");
-//					}
-//
-//					for (String k : goTerm.keySet())
-//					{
-//						switch (k)
-//						{
-//							case GoUpdateConstants.DEF:
-//							{
-//								String definition = (String) instance.getAttributeValue(ReactomeJavaConstants.definition);
-//								if (!goTerm.get(k).equals(definition))
-//								{
-//									reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"definition\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), definition);
-//								}
-//								break;
-//							}
-//							case GoUpdateConstants.NAME:
-//							{
-//								String name = (String) instance.getAttributeValue(ReactomeJavaConstants.name);
-//								if (!goTerm.get(k).equals(name))
-//								{
-//									reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"name\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, goTerm.get(k), name);
-//								}
-//								break;
-//							}
-//							case GoUpdateConstants.NAMESPACE:
-//							{
-//								String dbNameSpace = instance.getSchemClass().getName();
-//								String fileNameSpace = ((GONamespace)goTerm.get(k)).getReactomeName();
-//								if (!(dbNameSpace.equals(fileNameSpace)
-//									|| ((dbNameSpace.equals(ReactomeJavaConstants.Compartment) || dbNameSpace.equals(ReactomeJavaConstants.EntityCompartment))
-//											&& fileNameSpace.equals(GONamespace.cellular_component.getReactomeName())) )
-//									)
-//								{
-//									reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"namespace/SchemaClass\";\n\tValue from file: \"{}\";\n\tValue from database: \"{}\"",goAccession, fileNameSpace, dbNameSpace);
-//								}
-//								break;
-//							}
-//							case GoUpdateConstants.IS_A:
-//							{
-//								if (instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
-//								{
-//									reconcileRelationship(goAccession, goTerm, instancesOfs, k);
-//								}
-//								break;
-//							}
-//							case GoUpdateConstants.PART_OF:
-//							{
-//								if (instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
-//								{
-//									reconcileRelationship(goAccession, goTerm, partOfs, k);
-//								}
-//								break;
-//							}
-//							case GoUpdateConstants.HAS_PART:
-//							{
-//								if (instance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
-//								{
-//									reconcileRelationship(goAccession, goTerm, hasParts, k);
-//								}
-//								break;
-//							}
-//						}
-//					}
-//					reconcileECNumbers(goToECNumbers, instance);
-//				}
-//			}
-//			else
-//			{
-//				// If there was not instance returned but the file doesn't mark the file as obsolete, that should be reported.
-//				if (!((boolean) goTerm.get(GoUpdateConstants.IS_OBSOLETE)))
-//				{
-//					reconciliationLogger.warn("GO Accession {} is not present in the database, but is NOT marked as obsolete. GO Term might have been deleted in error, or not properly created.",goAccession);
-//				}
-//			}
-//		}
-//	}
-//
-//	/**
-//	 * Reconciles EC Numbers for a GO term, between the data from ec2go file and the database. Logs an ERROR if EC numbers fail to reconcile.
-//	 * @param goToECNumbers - the GO-to-EC Number map generated from the ec2go file.
-//	 * @param instance - the instance to reconcile.
-//	 * @throws InvalidAttributeException
-//	 * @throws Exception
-//	 */
-//	private void reconcileECNumbers(Map<String, List<String>> goToECNumbers, GKInstance instance) throws InvalidAttributeException, Exception
-//	{
-//		if (instance.getSchemClass().isValidAttribute(ReactomeJavaConstants.ecNumber))
-//		{
-//			@SuppressWarnings("unchecked")
-//			Set<String> ecNumbersFromDB = new HashSet<>(instance.getAttributeValuesList(ReactomeJavaConstants.ecNumber));
-//			List<String> ecNumbersFromFile = goToECNumbers.get(instance.getAttributeValue(ReactomeJavaConstants.accession));
-//			if (ecNumbersFromFile!=null)
-//			{
-//				for (String ecNumberFromFile : ecNumbersFromFile)
-//				{
-//					if (!ecNumbersFromDB.contains(ecNumberFromFile))
-//					{
-//						logger.error("EC Nubmer {} is in the file for GO Accession {} but is not in the database for that accession.", ecNumberFromFile, instance.getAttributeValue(ReactomeJavaConstants.accession));
-//					}
-//				}
-//			}
-//		}
-//	}
-//
-//	/**
-//	 * Reconciles a relationship for a GO term. Will not return, but will log an ERROR message if reconciliation fails.
-//	 * @param goAccession - The accession of the term to reconcile.
-//	 * @param goTerm - The GO term, as it was when extracted from the file.
-//	 * @param relationInstances - A list of GKInstances associated with the corresponding database instance, associated by some relationship.
-//	 * @param relationship - The relationship to reconcile.
-//	 * @throws InvalidAttributeException
-//	 * @throws Exception
-//	 */
-//	private void reconcileRelationship(String goAccession, Map<String, Object> goTerm, Collection<GKInstance> relationInstances, String relationship) throws InvalidAttributeException, Exception {
-//		boolean found = false;
-//		@SuppressWarnings("unchecked")
-//		List<String> relationAccessionsFromFile = (List<String>) goTerm.get(relationship);
-//		for (String relationAccessionFromFile: relationAccessionsFromFile)
-//		{
-//			for (GKInstance i : relationInstances)
-//			{
-//				String accessionFromDB = (String)i.getAttributeValue(ReactomeJavaConstants.accession);
-//				if (accessionFromDB.equals(relationAccessionFromFile))
-//				{
-//					found = true;
-//					// exit the loop early, since a match for accession was found.
-//					break;
-//				}
-//			}
-//			if (!found)
-//			{
-//				reconciliationLogger.error("Reconciliation error: GO:{}; Attribute: \"{}\"; File says that GO:{} should be present but it is not in the database.",goAccession, relationship, relationAccessionFromFile);
-//			}
-//			found = false;
-//		}
-//	}
 
 	/**
 	 * Returns a map of all GO-related instances in the databases.
 	 * @param dba
 	 * @return
 	 */
-	private Map<String, List<GKInstance>> getMapOfAllGOInstances(MySQLAdaptor dba)
+	private static Map<String, List<GKInstance>> getMapOfAllGOInstances(MySQLAdaptor dba)
 	{
 		Collection<GKInstance> bioProcesses = new ArrayList<>();
 		Collection<GKInstance> molecularFunctions = new ArrayList<>();
@@ -666,7 +503,7 @@ class GoTermsUpdater
 	 * @param line - The line.
 	 * @param goToECNumbers - The map of GO to EC numbers, which will be updated by this function.
 	 */
-	private void processEc2GoLine(String line, Map<String, List<String>> goToECNumbers)
+	private static void processEc2GoLine(String line, Map<String, List<String>> goToECNumbers)
 	{
 		Matcher m = GoUpdateConstants.EC_NUMBER_REGEX.matcher(line);
 		if (m.matches())
