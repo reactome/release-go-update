@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -321,6 +322,7 @@ class GoTermInstanceModifier
 		try
 		{
 			String goId = (String) this.goInstance.getAttributeValue(ReactomeJavaConstants.accession);
+
 			// A GO term can be deleted if it has a replacement value
 			if (goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)!= null)
 			{
@@ -337,7 +339,7 @@ class GoTermInstanceModifier
 				adaptor.deleteInstance(this.goInstance);
 			}
 			// A GO term that has no replacement value can still be deleted if it has no referrers.
-			else if (GoTermsUpdater.getReferrerCounts(this.goInstance).isEmpty())
+			else if (GoTermsUpdater.getReferrerCountsExcludingGOEntities(this.goInstance).isEmpty())
 			{
 				deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
 				adaptor.deleteInstance(this.goInstance);

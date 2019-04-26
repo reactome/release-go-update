@@ -21,8 +21,8 @@ public class JavaVsPerlComparison
 {
 	public static void main(String[] args) throws Exception
 	{
-		MySQLAdaptor perlUpdatedDB = new MySQLAdaptor("localhost", "gk_central.20181211.dump", "root", "root", 3306);//new MySQLAdaptor("localhost", "gk_central_after_uniprot_update.dump.sql", "root", "root", 3308);
-		MySQLAdaptor javaUpdatedDB = new MySQLAdaptor("localhost", "gk_central.20181211.dump", "root", "root", 3307);//new MySQLAdaptor("localhost", "gk_central_R66_before_chebi_update.sql", "root", "root", 3307);
+		MySQLAdaptor perlUpdatedDB = new MySQLAdaptor("localhost", "gk_central_2019_04_18", "root", "root", 3306);//new MySQLAdaptor("localhost", "gk_central_after_uniprot_update.dump.sql", "root", "root", 3308);
+		MySQLAdaptor javaUpdatedDB = new MySQLAdaptor("localhost", "gk_central_2019_04_18", "root", "root", 3307);//new MySQLAdaptor("localhost", "gk_central_R66_before_chebi_update.sql", "root", "root", 3307);
 		AtomicInteger diffCount = new AtomicInteger(0);
 		AtomicInteger sameCount = new AtomicInteger(0);
 		
@@ -44,7 +44,7 @@ public class JavaVsPerlComparison
 		@SuppressWarnings("unchecked")
 		Set<GKInstance> javaUpdatedGOCellularComponents = (Set<GKInstance>) javaUpdatedDB.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
 		
-		List<GKInstance> listOfAllJavaGOThings = new ArrayList<GKInstance>();
+		List<GKInstance> listOfAllJavaGOThings = new ArrayList<>();
 		listOfAllJavaGOThings.addAll(javaUpdatedGOCellularComponents);
 		listOfAllJavaGOThings.addAll(javaUpdatedGOMolecularFunctions);
 		listOfAllJavaGOThings.addAll(javaUpdatedGOBiologicalProcesses);
