@@ -158,7 +158,18 @@ class GoTermsUpdater
 						// Create a new Instance if there is nothing in the current list of instances.
 						goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
 						newGoTermCount++;
-						createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goTermModifier, currentCategory);
+						GKInstance newInst = createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goTermModifier, currentCategory);
+						List<GKInstance> instList;
+						if (allGoInstances.containsKey(goID))
+						{
+							instList = allGoInstances.get(goID);
+						}
+						else
+						{
+							instList = new ArrayList<>(1);
+						}
+						instList.add(newInst);
+						allGoInstances.put(goID, instList);
 					}
 				}
 				else //update existing instance.
@@ -474,7 +485,7 @@ class GoTermsUpdater
 	 * @return
 	 * @throws Exception
 	 */
-	private static void createNewGOTerm(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers, String goID, GoTermInstanceModifier goTermModifier, GONamespace goCategory) throws Exception
+	private GKInstance createNewGOTerm(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers, String goID, GoTermInstanceModifier goTermModifier, GONamespace goCategory) throws Exception
 	{
 		Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goCategory.getReactomeName(), GoTermsUpdater.goRefDB);
 //		newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
@@ -488,6 +499,7 @@ class GoTermsUpdater
 		{
 			newMFLogger.info("{}\t{}\t{}", dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
 		}
+		return this.adaptor.fetchInstance(dbID);
 	}
 
 	/**
