@@ -123,7 +123,6 @@ public class GoUpdateStep extends ReleaseStep
 				Map<Long,Integer> referrerCounts = duplicateReporter.getReferrerCountForAccession(accession);
 				for (Long dbId : referrerCounts.keySet())
 				{
-//					duplicateLogger.warn("Duplicated accession GO:{} with DB_ID {} has {} referrers", accession, dbId, referrerCounts.get(dbId));
 					duplicateLogger.info("{}\t{}\t{}\t{}", dbId, accession, when, referrerCounts.get(dbId));
 				}
 			}
