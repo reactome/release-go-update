@@ -18,6 +18,7 @@ import org.reactome.release.common.ReleaseStep;
 public class GoUpdateStep extends ReleaseStep
 {
 	private static final Logger logger = LogManager.getLogger();
+	private static final Logger duplicateLogger = LogManager.getLogger("duplicateAccessionsLog");
 	
 	@Override
 	public void executeStep(Properties props) throws SQLException
@@ -66,8 +67,8 @@ public class GoUpdateStep extends ReleaseStep
 			// Load the files.
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
 			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
-
-			reportOnDuplicateAccessions(adaptor);
+			duplicateLogger.info("DBID\tAccession\tBefore or After GO Update process?\tNumber of referrers");
+			reportOnDuplicateAccessions(adaptor, "BEFORE GO Update");
 			// Start a transaction. If that fails, the program will exit.
 			try
 			{
@@ -86,7 +87,7 @@ public class GoUpdateStep extends ReleaseStep
 			logger.info(report);
 
 			logger.info("Post-GO Update check for duplicated accessions...");
-			reportOnDuplicateAccessions(adaptor);
+			reportOnDuplicateAccessions(adaptor, "AFTER GO Update");
 			
 			if (testMode)
 			{
@@ -110,19 +111,20 @@ public class GoUpdateStep extends ReleaseStep
 		logger.info("Elapsed time: " + Duration.ofMillis(endTime-startTime).toString());
 	}
 
-	private void reportOnDuplicateAccessions(MySQLAdaptor adaptor) throws Exception
+	private void reportOnDuplicateAccessions(MySQLAdaptor adaptor, String when) throws Exception
 	{
 		DuplicateReporter duplicateReporter = new DuplicateReporter(adaptor);
 		Map<String, Integer> duplicatedAccessions = duplicateReporter.getDuplicateAccessions();
 		if (duplicatedAccessions!=null && !duplicatedAccessions.keySet().isEmpty())
 		{
-			logger.warn("Duplicated GO accessions exist! Report follows:");
+			logger.warn("Duplicated GO accessions exist! Check report.");
 			for (String accession : duplicatedAccessions.keySet())
 			{
 				Map<Long,Integer> referrerCounts = duplicateReporter.getReferrerCountForAccession(accession);
 				for (Long dbId : referrerCounts.keySet())
 				{
-					logger.warn("Duplicated accession GO:{} with DB_ID {} has {} referrers", accession, dbId, referrerCounts.get(dbId));
+//					duplicateLogger.warn("Duplicated accession GO:{} with DB_ID {} has {} referrers", accession, dbId, referrerCounts.get(dbId));
+					duplicateLogger.info("{}\t{}\t{}\t{}", dbId, accession, when, referrerCounts.get(dbId));
 				}
 			}
 		}
