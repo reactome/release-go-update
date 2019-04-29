@@ -36,6 +36,7 @@ class GoTermsUpdater
 	private static final Logger newGOTermsLogger = LogManager.getLogger("newGOTermsLog");
 	private static final Logger updatedGOTermLogger = LogManager.getLogger("updatedGOTermsLog");
 	private static final Logger replacedByAlternateGOTermLogger = LogManager.getLogger("replacedByAlternateGOTermLog");
+	private static final Logger catMismatchLogger = LogManager.getLogger("catMismatchLog");
 	
 	private MySQLAdaptor adaptor;
 	private List<String> goLines;
@@ -44,7 +45,6 @@ class GoTermsUpdater
 	private long personID;
 	
 	private StringBuffer nameOrDefinitionChangeStringBuilder = new StringBuffer();
-	private StringBuffer categoryMismatchStringBuilder = new StringBuffer();
 	private StringBuffer deletionStringBuilder = new StringBuffer();
 	private StringBuffer obsoletionStringBuffer = new StringBuffer();
 	private StringBuffer replacedByAlternateStringBuffer = new StringBuffer();
@@ -118,6 +118,7 @@ class GoTermsUpdater
 		boolean termStarted = false; 
 		newGOTermsLogger.info("DBID\tGO Term Name\tGO Term ID\tGO Term Type\tDefinition");
 		newMFLogger.info("DBID\tGO ID\tName");
+		catMismatchLogger.info("DBID\tGO ID\tCategory in Database\tCategory in file");
 		String currentGOID = "";
 		for (String line : this.goLines)
 		{
@@ -189,7 +190,7 @@ class GoTermsUpdater
 					else
 					{
 						mismatchCount++;
-						categoryMismatchStringBuilder.append("Category mismatch! GO ID: ").append(goID).append(" Category in DB: ").append(goInst.getSchemClass().getName()).append(" category in GO file: ").append(currentCategory).append("\n");
+						catMismatchLogger.info("{}\t{}\t{}\t{}", goInst.getDBID(), goID, goInst.getSchemClass().getName(), currentCategory);
 						// Delete the instance. Don't use the GO Term modifier since it will check for a "replaced_by" value.
 						// In this case, the GO Term is not obsolete but it has the wrong category, so it should be removed and recreated.
 						this.adaptor.deleteByDBID(goInst.getDBID());
@@ -236,10 +237,7 @@ class GoTermsUpdater
 		logger.info("Updating relationships of GO Instances.");
 		// Now that the main loop has run, update relationships between GO terms.
 		updateRelationships(goTermsFromFile, allGoInstances);
-		
-		mainOutput.append("\n*** Category Mismatches: ***\n"+this.categoryMismatchStringBuilder.toString());
 		updatedGOTermLogger.info(this.nameOrDefinitionChangeStringBuilder.toString());
-
 		for (GKInstance instance : undeleteble.keySet())
 		{
 			obsoleteAccessionLogger.info("GO:{} ({}) could not be deleted because it had {} referrers: ",instance.getAttributeValue(ReactomeJavaConstants.accession), instance.toString(), undeleteble.get(instance).size());
