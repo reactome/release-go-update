@@ -144,67 +144,65 @@ class GoTermsUpdater
 		{
 			GoTermInstanceModifier goTermModifier;
 			GONamespace currentCategory = (GONamespace) goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE);
-			//String currentDefinition = (String) goTerms.get(goID).get(GoUpdateConstants.DEF);
 			// Now we need to process the Term that was just finished.
 			List<GKInstance> goInstances = allGoInstances.get(goID);
-			// First let's make sure the GO Term is not (pending) obsolete.
-			//if ( !goTermsFromFile.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && !goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION))
+			// If there are no objects in allGoInstances whose accession is "goID", we may need to create it.
+			if (goInstances==null)
 			{
-				if (goInstances==null)
+				// BUT... only create a new instance if the data from the file is not Obsolete
+				if (!goTermsFromFile.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && !goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION))
 				{
-					// Only create a new instance if the data from the file is not Obsolete
-					if (!goTermsFromFile.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && !goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION))
+					// Create a new Instance if there is nothing in the current list of instances.
+					goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
+					newGoTermCount++;
+					GKInstance newInst = createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goTermModifier, currentCategory);
+					List<GKInstance> instList;
+					if (allGoInstances.containsKey(goID))
 					{
-						// Create a new Instance if there is nothing in the current list of instances.
-						goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
-						newGoTermCount++;
-						GKInstance newInst = createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goTermModifier, currentCategory);
-						List<GKInstance> instList;
-						if (allGoInstances.containsKey(goID))
-						{
-							instList = allGoInstances.get(goID);
-						}
-						else
-						{
-							instList = new ArrayList<>(1);
-						}
-						instList.add(newInst);
-						allGoInstances.put(goID, instList);
+						instList = allGoInstances.get(goID);
 					}
-				}
-				else //update existing instance.
-				{
-					// Try to update each goInstance that has the current GO ID.
-					for (GKInstance goInst : goInstances)
+					else
 					{
-						// Compartment is a sub-class of GO_CellularComponent - but the GO namespaces don't seem to account for that,
-						// we we'll account for that here.
-						if (goInst.getSchemClass().getName().equals(currentCategory.getReactomeName()) 
-							|| ( (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.Compartment) || goInst.getSchemClass().getName().equals(ReactomeJavaConstants.EntityCompartment) )
-									&& currentCategory.getReactomeName().equals(ReactomeJavaConstants.GO_CellularComponent) )
-							)
-						{
-							//Now do the update.
-							goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
-							goTermModifier.updateGOInstance(goTermsFromFile, goToECNumbers, this.nameOrDefinitionChangeStringBuilder);
-						}
-						else
-						{
-							mismatchCount++;
-							categoryMismatchStringBuilder.append("Category mismatch! GO ID: ").append(goID).append(" Category in DB: ").append(goInst.getSchemClass().getName()).append(" category in GO file: ").append(currentCategory).append("\n");
-							// Delete the instance. Don't use the GO Term modifier since it will check for a "replaced_by" value.
-							// In this case, the GO Term is not obsolete but it has the wrong category, so it should be removed and recreated.
-							this.adaptor.deleteByDBID(goInst.getDBID());
-							// Now re-create the GO term with the correct GO type.
-							goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
-							newGoTermCount++;
-							createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goTermModifier, currentCategory);
-						}
+						instList = new ArrayList<>(1);
 					}
+					instList.add(newInst);
+					allGoInstances.put(goID, instList);
 				}
-				processAlternates(goTermsFromFile, allGoInstances, goID);
 			}
-			/* else */if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTermsFromFile.get(goID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
+			else // update existing instance. Including Obsolete instances, because if they can't be deleted (for some reason) they should be updated so their name/def'n indicates their obsolescence.
+			{
+				// Try to update each goInstance that has the current GO ID.
+				for (GKInstance goInst : goInstances)
+				{
+					// Compartment is a sub-class of GO_CellularComponent - but the GO namespaces don't seem to account for that,
+					// we we'll account for that here.
+					boolean categoryOK = goInst.getSchemClass().getName().equals(currentCategory.getReactomeName()) 
+										|| ( (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.Compartment) || goInst.getSchemClass().getName().equals(ReactomeJavaConstants.EntityCompartment) )
+												&& currentCategory.getReactomeName().equals(ReactomeJavaConstants.GO_CellularComponent) );
+					
+					if (categoryOK)
+					{
+						//Now do the update.
+						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
+						goTermModifier.updateGOInstance(goTermsFromFile, goToECNumbers, this.nameOrDefinitionChangeStringBuilder);
+					}
+					else
+					{
+						mismatchCount++;
+						categoryMismatchStringBuilder.append("Category mismatch! GO ID: ").append(goID).append(" Category in DB: ").append(goInst.getSchemClass().getName()).append(" category in GO file: ").append(currentCategory).append("\n");
+						// Delete the instance. Don't use the GO Term modifier since it will check for a "replaced_by" value.
+						// In this case, the GO Term is not obsolete but it has the wrong category, so it should be removed and recreated.
+						this.adaptor.deleteByDBID(goInst.getDBID());
+						// Now re-create the GO term with the correct GO type.
+						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
+						newGoTermCount++;
+						createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goTermModifier, currentCategory);
+					}
+				}
+			}
+			processAlternates(goTermsFromFile, allGoInstances, goID);
+			
+			if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTermsFromFile.get(goID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
 			{
 				// If we have this GO term in our database, it must be reported as "pending obsolete".
 				if (goInstances!=null)
@@ -329,19 +327,13 @@ class GoTermsUpdater
 				Map<GKSchemaAttribute, Integer> referrersCount = GoTermsUpdater.getReferrerCountsExcludingGOEntities(instance);
 				if (!referrersCount.isEmpty())
 				{
-//					obsoleteAccessionLogger.info("Instance \"{}\" (GO:{}) has {} referrers but they will not prevent deletion.", instance.toString(), goAccession, referrersCount.keySet().size());
 					obsoletionStringBuffer.append(instance.toString()).append("\t")
 											.append(instance.getAttributeValue(ReactomeJavaConstants.accession)).append("\t")
 											.append("Automatic Deletion (referrers will be redirected)\t")
 											.append(replacementGOTermAccession).append("\n");
-//					for (GKSchemaAttribute referrer : referrersCount.keySet())
-//					{
-//						obsoleteAccessionLogger.info("\t{} {} referrers.",referrersCount.get(referrer), referrer.getName());
-//					}
 				}
 				else
 				{
-//					obsoleteAccessionLogger.info("Instance \"{}\" (GO:{}) has no referrers and will be deleted.", instance.toString(), instance.getAttributeValue(ReactomeJavaConstants.accession));
 					obsoletionStringBuffer.append(instance.toString()).append("\t")
 											.append(instance.getAttributeValue(ReactomeJavaConstants.accession)).append("\t")
 											.append("Automatic Deletion (no referrers)\t")
@@ -354,11 +346,6 @@ class GoTermsUpdater
 			{
 				Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(instance);
 				undeleteble.put(instance,referrers);
-//				obsoleteAccessionLogger.warn("GO Term {} ({}) cannot be deleted, it has {} referrers: {}", instance.getAttributeValue(ReactomeJavaConstants.accession), instance.toString(), referrers.size(), referrers.toString());
-//				obsoletionStringBuffer.append(instance.toString()).append("\t")
-//										.append(instance.getAttributeValue(ReactomeJavaConstants.accession)).append("\t")
-//										.append("Manual cleanup (referrers exist)\t")
-//										.append(replacementGOTermAccession).append("\n");
 			}
 		}
 		return deletedCount;
@@ -395,7 +382,6 @@ class GoTermsUpdater
 					if (referrersCount.isEmpty())
 					{
 						instancesForDeletion.add(inst);
-//						attemptToDeleteObsoleteMessage.append(" No replacement accession, but that's OK because this instance (").append(inst.toString()).append(") has no referrers, and it will be safely deleted.");
 					}
 					else
 					{
@@ -413,12 +399,7 @@ class GoTermsUpdater
 				}
 			});
 		}
-		// If attemptToDeleteObsoleteMessage is empty, it means that no replacement value is available AND there ARE referrers,
-		// so the message must be set to reflect this.
-//		if (attemptToDeleteObsoleteMessage.length() == 0)
-//		{
-//			attemptToDeleteObsoleteMessage.append(" ** Manual cleanup for this term may be necessary! ** No replacement was suggested by GO, and referrering instances seem to exist (").append(referrersCount.toString()).append("), so GO term will NOT be deleted.");
-//		}
+
 		logger.warn("GO:{} ({}) marked as OBSOLETE!{}",goID, goInstances.toString(), attemptToDeleteObsoleteMessage);
 	}
 
@@ -488,7 +469,6 @@ class GoTermsUpdater
 	private GKInstance createNewGOTerm(Map<String, Map<String, Object>> goTermsFromFile, Map<String, List<String>> goToECNumbers, String goID, GoTermInstanceModifier goTermModifier, GONamespace goCategory) throws Exception
 	{
 		Long dbID = goTermModifier.createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goCategory.getReactomeName(), GoTermsUpdater.goRefDB);
-//		newGOTermsLogger.info("{}\t{}\t{}",dbID,goID,goTermsFromFile.get(goID));
 		newGOTermsLogger.info(dbID + "\t" +
 								goTermsFromFile.get(goID).get(GoUpdateConstants.NAME) + "\t" +
 								goID + "\t" + 
