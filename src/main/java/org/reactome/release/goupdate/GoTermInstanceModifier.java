@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -186,6 +185,9 @@ class GoTermInstanceModifier
 					InstanceDisplayNameGenerator.setDisplayName(this.goInstance);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants._displayName);
 				}
+				// Referrers might need to be updated, if their DisplayName depends on the GO_* entity which they referr to.
+				this.updateReferrersDisplayNames();
+				
 			}
 			catch (InvalidAttributeException | InvalidAttributeValueException e)
 			{
@@ -203,7 +205,7 @@ class GoTermInstanceModifier
 			}
 		}
 	}
-	
+
 	/**
 	 * Update the Instances that refer to the instance being modified by *this* GoTermInstanceModifier.
 	 * @throws Exception 
@@ -386,8 +388,18 @@ class GoTermInstanceModifier
 					{
 						referrer.setAttributeValue(attributeName, replacementGOTerm);
 					}
+					// The old Perl code would update referrers' displayNames if they were PhysicalEntities or CatalystActivities.
+					if (referrer.getSchemClass().isa(ReactomeJavaConstants.PhysicalEntity) || referrer.getSchemClass().isa(ReactomeJavaConstants.CatalystActivity))
+					{
+						String newReferrerDisplayName = InstanceDisplayNameGenerator.generateDisplayName(referrer);
+						referrer.setAttributeValue(ReactomeJavaConstants._displayName, newReferrerDisplayName);
+						adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants._displayName);
+					}
+					referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
+					referrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
 					// update in db.
 					adaptor.updateInstanceAttribute(referrer, attributeName);
+					adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
 					logger.debug("\"{}\" now refers to \"{}\" via {}, instead of referring to \"{}\"", referrer.toString(), replacementGOTerm.toString(), attributeName, this.goInstance.toString());
 				}
 			}
