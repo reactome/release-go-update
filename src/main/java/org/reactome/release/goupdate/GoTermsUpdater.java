@@ -177,10 +177,14 @@ class GoTermsUpdater
 				{
 					// Compartment is a sub-class of GO_CellularComponent - but the GO namespaces don't seem to account for that,
 					// we we'll account for that here.
-					boolean categoryOK = goInst.getSchemClass().getName().equals(currentCategory.getReactomeName()) 
-										|| ( (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.Compartment) || goInst.getSchemClass().getName().equals(ReactomeJavaConstants.EntityCompartment) )
-												&& currentCategory.getReactomeName().equals(ReactomeJavaConstants.GO_CellularComponent) );
-					
+					boolean isCellularComponentOrSubclass = (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.Compartment)
+																|| goInst.getSchemClass().getName().equals(ReactomeJavaConstants.EntityCompartment) )
+															&& currentCategory.getReactomeName().equals(ReactomeJavaConstants.GO_CellularComponent);
+
+					// The category is "OK" (i.e. NOT a mismatch) if it matches the Reactome name,
+					// OR if it doesn't match exactly, but the current category is CellularComponent
+					// and the instance itself is (Entity)Compartment.
+					boolean categoryOK = goInst.getSchemClass().getName().equals(currentCategory.getReactomeName()) || isCellularComponentOrSubclass;
 					if (categoryOK)
 					{
 						//Now do the update.
@@ -189,6 +193,7 @@ class GoTermsUpdater
 					}
 					else
 					{
+						// increment the mismatch counter.
 						mismatchCount++;
 						catMismatchLogger.info("{}\t{}\t{}\t{}", goInst.getDBID(), goID, goInst.getSchemClass().getName(), currentCategory);
 						// Delete the instance. Don't use the GO Term modifier since it will check for a "replaced_by" value.
@@ -287,7 +292,7 @@ class GoTermsUpdater
 						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
 						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
 					}
-					// Update the instanace's "modififed".
+					// Update the instance's "modififed".
 					goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
 					goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
 					this.adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.modified);
@@ -365,7 +370,7 @@ class GoTermsUpdater
 		if (goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) != null)
 		{
 			instancesForDeletion.addAll(goInstances);
-			attemptToDeleteObsoleteMessage.append(" Replacement Accesion: ").append(goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY));
+			attemptToDeleteObsoleteMessage.append(" Replacement Accession: ").append(goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY));
 		}
 		else
 		{

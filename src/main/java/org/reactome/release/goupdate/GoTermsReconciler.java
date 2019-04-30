@@ -62,7 +62,8 @@ public class GoTermsReconciler
 						partOfs = (Collection<GKInstance>) instance.getAttributeValuesList(ReactomeJavaConstants.componentOf);
 						hasParts = (Collection<GKInstance>) instance.getAttributeValuesList("hasPart");
 					}
-
+					// goTerm is a map of strings to other objects, read in from the GO file.
+					// The keys of the map are the entries for the GO term in the file, such as "id", "name", "namespace", "def", "has_part", etc...
 					for (String k : goTerm.keySet())
 					{
 						switch (k)
@@ -180,9 +181,9 @@ public class GoTermsReconciler
 		List<String> relationAccessionsFromFile = (List<String>) goTerm.get(relationship);
 		for (String relationAccessionFromFile: relationAccessionsFromFile)
 		{
-			for (GKInstance i : relationInstances)
+			for (GKInstance relationInstance : relationInstances)
 			{
-				String accessionFromDB = (String)i.getAttributeValue(ReactomeJavaConstants.accession);
+				String accessionFromDB = (String) relationInstance.getAttributeValue(ReactomeJavaConstants.accession);
 				if (accessionFromDB.equals(relationAccessionFromFile))
 				{
 					found = true;

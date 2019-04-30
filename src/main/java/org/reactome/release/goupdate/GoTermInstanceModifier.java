@@ -140,7 +140,7 @@ class GoTermInstanceModifier
 					// Changes for name
 					if (newName!=null && !newName.equals(oldName))
 					{
-						String nameUpdate = newName.equals(oldName) ? "" : "\n\tNew name:\t\""+newName+"\"\n\told name:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.name)+"\"";
+						String nameUpdate = "\n\tNew name:\t\""+newName+"\"\n\told name:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.name)+"\"";
 						nameOrDefinitionChangeStringBuilder.append("\nChange in name/definition for GO:").append(currentGOID).append(nameUpdate);
 						this.goInstance.setAttributeValue(ReactomeJavaConstants.name, newName);
 						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.name);
@@ -148,12 +148,12 @@ class GoTermInstanceModifier
 					// Changes for definition  
 					if (newDefinition != null && !newDefinition.equals(oldDefinition))
 					{
-						String defnUpdate = newDefinition.equals(oldDefinition) ? "" : "\n\tNew def'n:\t\""+newDefinition+"\"\n\told def'n:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.definition)+"\"";
+						String defnUpdate = "\n\tNew def'n:\t\""+newDefinition+"\"\n\told def'n:\t\""+this.goInstance.getAttributeValue(ReactomeJavaConstants.definition)+"\"";
 						nameOrDefinitionChangeStringBuilder.append("\nChange in name/definition for GO:").append(currentGOID).append(defnUpdate);
 						this.goInstance.setAttributeValue(ReactomeJavaConstants.definition, newDefinition);
 						this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants.definition);
 					}
-					// Now, instanceOf and componentOf are *OLNLY* valid for GO_CellularComponent
+					// Now, instanceOf and componentOf are *ONLY* valid for GO_CellularComponent
 					// instanceOf and componentOf get set to NULL and will be corrected later in the process.
 					if (this.goInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
 					{
@@ -252,17 +252,18 @@ class GoTermInstanceModifier
 	{
 		Collection<GKInstance> referrers = null;
 		
-		if (instance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_BiologicalProcess))
+		SchemaClass instanceSchemaClass = instance.getSchemClass();
+		if (instanceSchemaClass.isa(ReactomeJavaConstants.GO_BiologicalProcess))
 		{
 			referrers = (Collection<GKInstance>) instance.getReferers(ReactomeJavaConstants.goBiologicalProcess);
 			
 		}
-		else if (instance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_CellularComponent))
+		else if (instanceSchemaClass.isa(ReactomeJavaConstants.GO_CellularComponent))
 		{
 			referrers = (Collection<GKInstance>) instance.getReferers(ReactomeJavaConstants.compartment);
 			
 		}
-		else if (instance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction))
+		else if (instanceSchemaClass.isa(ReactomeJavaConstants.GO_MolecularFunction))
 		{
 			referrers = (Collection<GKInstance>) instance.getReferers(ReactomeJavaConstants.activity);
 		}
