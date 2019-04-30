@@ -177,8 +177,8 @@ class GoTermsUpdater
 				{
 					// Compartment is a sub-class of GO_CellularComponent - but the GO namespaces don't seem to account for that,
 					// we we'll account for that here.
-					boolean isCellularComponentOrSubclass = (goInst.getSchemClass().getName().equals(ReactomeJavaConstants.Compartment)
-																|| goInst.getSchemClass().getName().equals(ReactomeJavaConstants.EntityCompartment) )
+					boolean isCellularComponentOrSubclass = (goInst.getSchemClass().isa(ReactomeJavaConstants.Compartment)
+																|| goInst.getSchemClass().isa(ReactomeJavaConstants.EntityCompartment) )
 															&& currentCategory.getReactomeName().equals(ReactomeJavaConstants.GO_CellularComponent);
 
 					// The category is "OK" (i.e. NOT a mismatch) if it matches the Reactome name,
