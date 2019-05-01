@@ -28,30 +28,7 @@
 					<OnStartupTriggeringPolicy />
 				</Policies>
 		</RollingFile>
-		<!-- <RollingFile name="alternatesLogFile" fileName="logs/GO_Update_replacedByAlternate-${date:MM-dd-yyyy_HH.mm.ss}.tsv" filePattern="logs/GO_Update_replacedByAlternate-%d{MM-dd-yyyy_HH.mm.ss}.tsv">
-			<PatternLayout>
-				<Pattern>%msg%n</Pattern>
-			</PatternLayout>
-				<Policies>
-					<OnStartupTriggeringPolicy />
-				</Policies>
-		</RollingFile>
-		<RollingFile name="newMolecularFunctionsLogFile" fileName="logs/GO_Update_newMolecularFunctions-${date:MM-dd-yyyy_HH.mm.ss}.tsv" filePattern="logs/GO_Update_obsolete-%d{MM-dd-yyyy_HH.mm.ss}.log">
-			<PatternLayout>
-				<Pattern>%msg%n</Pattern>
-			</PatternLayout>
-				<Policies>
-					<OnStartupTriggeringPolicy />
-				</Policies>
-		</RollingFile>
-		<RollingFile name="newGOTermsLogFile" fileName="logs/GO_Update_newGOTerms-${date:MM-dd-yyyy_HH.mm.ss}.tsv" filePattern="logs/GO_Update_newGOTerms-%d{MM-dd-yyyy_HH.mm.ss}.log">
-			<PatternLayout>
-				<Pattern>%msg%n</Pattern>
-			</PatternLayout>
-				<Policies>
-					<OnStartupTriggeringPolicy />
-				</Policies>
-		</RollingFile> -->
+
 		<RollingFile name="updatedGOTermsLogFile" fileName="logs/GO_Update_updatedGOTerms-${date:MM-dd-yyyy_HH.mm.ss}.log" filePattern="logs/GO_Update_updatedGOTerms-%d{MM-dd-yyyy_HH.mm.ss}.log">
 			<PatternLayout>
 				<Pattern>%msg%n</Pattern>
@@ -60,48 +37,21 @@
 					<OnStartupTriggeringPolicy />
 				</Policies>
 		</RollingFile>
-		<!-- <RollingFile name="catMismatchLogFile" fileName="logs/GO_Update_categoryMismatch-${date:MM-dd-yyyy_HH.mm.ss}.tsv" filePattern="logs/GO_Update_categoryMismatch-%d{MM-dd-yyyy_HH.mm.ss}.tsv">
-			<PatternLayout>
-				<Pattern>%msg%n</Pattern>
-			</PatternLayout>
-				<Policies>
-					<OnStartupTriggeringPolicy />
-				</Policies>
-		</RollingFile> -->
-<!-- 		<RollingFile name="duplicateAccessionsLogFile" fileName="logs/GO_Update_duplicateAccessions-${date:MM-dd-yyyy_HH.mm.ss}.tsv" filePattern="logs/GO_Update_duplicateAccessions-%d{MM-dd-yyyy_HH.mm.ss}.tsv">
-			<PatternLayout>
-				<Pattern>%msg%n</Pattern>
-			</PatternLayout>
-				<Policies>
-					<OnStartupTriggeringPolicy />
-				</Policies>
-		</RollingFile> -->
+
 	</Appenders>
 	<Loggers>
 		<Logger name="reconciliationLog" level="debug" additivity="false">
 			<AppenderRef ref="reconciliationLogFile"/>
 		</Logger>
-<!-- 		<Logger name="newMolecularFunctionsLog" level="debug" additivity="false">
-			<AppenderRef ref="newMolecularFunctionsLogFile"/>
-		</Logger> -->
+
 		<Logger name="obsoleteAccessionLog" level="debug" additivity="false">
 			<AppenderRef ref="obsoleteLogFile"/>
 		</Logger>
-<!-- 		<Logger name="newGOTermsLog" level="debug" additivity="false">
-			<AppenderRef ref="newGOTermsLogFile"/>
-		</Logger> -->
+
 		<Logger name="updatedGOTermsLog" level="debug" additivity="false">
 			<AppenderRef ref="updatedGOTermsLogFile"/>
 		</Logger>
-<!-- 		<Logger name="replacedByAlternateGOTermLog" level="debug" additivity="false">
-			<AppenderRef ref="alternatesLogFile"/>
-		</Logger>
-		<Logger name="catMismatchLog" level="debug" additivity="false">
-			<AppenderRef ref="catMismatchLogFile"/>
-		</Logger> -->
-<!-- 		<Logger name="duplicateAccessionsLog" level="debug" additivity="false">
-			<AppenderRef ref="duplicateAccessionsLogFile"/>
-		</Logger> -->
+
 		<Root level="debug">
 			<AppenderRef ref="Console" level="debug"/>
 			<AppenderRef ref="LogFile" level="info"/>
