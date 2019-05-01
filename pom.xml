@@ -59,6 +59,11 @@
 			<version>${powermock.version}</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-csv</artifactId>
+			<version>1.6</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>
@@ -117,13 +122,5 @@
 				<enabled>true</enabled>
 			</snapshots>
 		</repository>
-		<!-- <repository>
-			<name>EBI</name>
-			<url>http://www.ebi.ac.uk/Tools/maven/repos/content/repositories/releases/</url>
-			<id>EBI</id>
-			<releases>
-				<enabled>true</enabled>
-			</releases>
-		</repository> -->
 	</repositories>
 </project>

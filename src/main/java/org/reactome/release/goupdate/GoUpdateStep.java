@@ -5,12 +5,18 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.gk.model.GKInstance;
+import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.persistence.TransactionsNotSupportedException;
 import org.reactome.release.common.ReleaseStep;
@@ -18,7 +24,9 @@ import org.reactome.release.common.ReleaseStep;
 public class GoUpdateStep extends ReleaseStep
 {
 	private static final Logger logger = LogManager.getLogger();
-	private static final Logger duplicateLogger = LogManager.getLogger("duplicateAccessionsLog");
+//	private static final Logger duplicateLogger = LogManager.getLogger("duplicateAccessionsLog");
+	
+	private CSVPrinter duplicatePrinter ;
 	
 	@Override
 	public void executeStep(Properties props) throws SQLException
@@ -67,7 +75,13 @@ public class GoUpdateStep extends ReleaseStep
 			// Load the files.
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
 			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
-			duplicateLogger.info("DBID\tAccession\tBefore or After GO Update process?\tNumber of referrers");
+//			duplicateLogger.info("DBID\tAccession\tBefore or After GO Update process?\tNumber of referrers");
+			String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+			if (!Files.exists(Paths.get("reports")))
+			{
+				Files.createDirectory(Paths.get("reports"));
+			}
+			duplicatePrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/duplicate_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "Accession", "GO type", "Before or After GO Update process?", "Number of referrers"));
 			reportOnDuplicateAccessions(adaptor, "BEFORE GO Update");
 			// Start a transaction. If that fails, the program will exit.
 			try
@@ -123,7 +137,9 @@ public class GoUpdateStep extends ReleaseStep
 				Map<Long,Integer> referrerCounts = duplicateReporter.getReferrerCountForAccession(accession);
 				for (Long dbId : referrerCounts.keySet())
 				{
-					duplicateLogger.info("{}\t{}\t{}\t{}", dbId, accession, when, referrerCounts.get(dbId));
+//					duplicateLogger.info("{}\t{}\t{}\t{}", dbId, accession, when, referrerCounts.get(dbId));
+					GKInstance inst = (GKInstance)adaptor.fetchInstance(dbId);
+					duplicatePrinter.printRecord(dbId, accession, inst.getSchemClass(), when, referrerCounts.get(dbId));
 				}
 			}
 		}
