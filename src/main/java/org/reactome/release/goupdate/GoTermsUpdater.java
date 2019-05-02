@@ -97,7 +97,7 @@ class GoTermsUpdater
 		}
 		String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 		this.newMFPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_molecular_functions_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO ID", "GO Term Name") );
-		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("Reactome Instance", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
+		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO Type", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
 		this.newGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO Term Name", "GO Term ID", "GO Term Type", "Definition") );
 		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO ID", "Category in Database", "Category in file") );
 		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "Primary accession", "Primary Class", "DB_ID (Secondary; to be deleted)", "Secondary accession (to be deleted)", "Secondary Class", "Referrers to be redirected to Primary accession") );
@@ -349,7 +349,7 @@ class GoTermsUpdater
 //					this.obsoleteAccessionPrinter.printRecord(instance.toString(), instance.getAttributeValue(ReactomeJavaConstants.accession), "Automatic Deletion (no referrers)", replacementGOTermAccession);
 					action = "Automatic Deletion (no referrers)";
 				}
-				this.obsoleteAccessionPrinter.printRecord(instance.toString(), instance.getAttributeValue(ReactomeJavaConstants.accession), action, replacementGOTermAccession);
+				this.obsoleteAccessionPrinter.printRecord(instance.getDBID(), instance.getSchemClass().getName(), instance.getAttributeValue(ReactomeJavaConstants.accession), action, replacementGOTermAccession);
 				goTermModifier.deleteGoInstance(goTermsFromFile, allGoInstances, this.deletionStringBuilder);
 				deletedCount ++;
 			}
