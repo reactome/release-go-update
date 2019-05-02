@@ -1,5 +1,6 @@
 package org.reactome.release.goupdate;
 
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
@@ -95,15 +96,11 @@ class GoTermsUpdater
 			throw new RuntimeException(message);
 		}
 		String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-		if (!Files.exists(Paths.get("reports")))
-		{
-			Files.createDirectory(Paths.get("reports"));
-		}
 		this.newMFPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_molecular_functions_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO ID", "GO Term Name") );
 		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("Reactome Instance", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
 		this.newGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO Term Name", "GO Term ID", "GO Term Type", "Definition") );
-		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DBID", "GO ID", "Category in Database", "Category in file") );
-		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("Primary accession", "Secondary accession (to be deleted)", "Referrers to be redirected to Primary accession") );
+		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO ID", "Category in Database", "Category in file") );
+		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "Primary accession", "Primary Class", "DB_ID (Secondary; to be deleted)", "Secondary accession (to be deleted)", "Secondary Class", "Referrers to be redirected to Primary accession") );
 	}
 	
 	/**
@@ -529,7 +526,9 @@ class GoTermsUpdater
 							logger.info("{} is an alternate/secondary ID for {} - {} will be deleted and its referrers will refer to {}.", secondaryAccession, goID, secondaryAccession, goID);
 							try
 							{
-								this.replacedGOTermsPrinter.printRecord(goID, secondaryAccession,  getReferrersFilteredByClass(altGoInst, isNotGOEntity).stream().map(inst -> inst.toString()).collect(Collectors.joining("; ")) );
+								this.replacedGOTermsPrinter.printRecord(primaryGOTerm.getDBID(), goID, primaryGOTerm.getSchemClass().getName(),
+																		altGoInst.getDBID(), secondaryAccession, altGoInst.getSchemClass().getName(),
+																		getReferrersFilteredByClass(altGoInst, isNotGOEntity).stream().map(inst -> inst.toString()).collect(Collectors.joining("; ")) );
 							}
 							catch (Exception e)
 							{

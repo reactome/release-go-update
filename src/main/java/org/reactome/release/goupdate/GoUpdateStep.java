@@ -101,7 +101,7 @@ public class GoUpdateStep extends ReleaseStep
 
 			logger.info("Post-GO Update check for duplicated accessions...");
 			reportOnDuplicateAccessions(adaptor, "AFTER GO Update");
-			
+			duplicatePrinter.close();
 			if (testMode)
 			{
 				adaptor.rollback();
@@ -110,6 +110,7 @@ public class GoUpdateStep extends ReleaseStep
 			{
 				adaptor.commit();
 			}
+			
 		}
 		catch (IOException e)
 		{
@@ -137,7 +138,7 @@ public class GoUpdateStep extends ReleaseStep
 				for (Long dbId : referrerCounts.keySet())
 				{
 					GKInstance inst = (GKInstance)adaptor.fetchInstance(dbId);
-					duplicatePrinter.printRecord(dbId, accession, inst.getSchemClass(), when, referrerCounts.get(dbId));
+					duplicatePrinter.printRecord(dbId, accession, inst.getSchemClass().getName(), when, referrerCounts.get(dbId));
 				}
 			}
 		}
