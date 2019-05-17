@@ -1,6 +1,5 @@
 package org.reactome.release.goupdate;
 
-import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
@@ -330,6 +329,7 @@ class GoTermsUpdater
 		for (GKInstance instance : instancesForDeletion)
 		{
 			String goAccession = (String) instance.getAttributeValue(ReactomeJavaConstants.accession);
+			@SuppressWarnings("unchecked")
 			String replacementGOTermAccession = goTermsFromFile.get(goAccession).get(GoUpdateConstants.REPLACED_BY) != null 
 												? ((List<String>) goTermsFromFile.get(goAccession).get(GoUpdateConstants.REPLACED_BY)).get(0)
 												: "N/A" ;
