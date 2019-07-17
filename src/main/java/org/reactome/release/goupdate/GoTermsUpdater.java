@@ -396,7 +396,13 @@ class GoTermsUpdater
 					}
 					else
 					{
-						obsoleteAccessionPrinter.printRecord(inst.toString(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", "N/A");
+						String replaceBy = (String) goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY);
+						String consider = (String) goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER);
+						replaceBy = replaceBy != null ? "Replace by: " + replaceBy + "; " : "";
+						consider = consider != null ? "Consider: " + consider : "";
+						String replacementTermString = replaceBy + consider;
+						replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
+						obsoleteAccessionPrinter.printRecord(inst.toString(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
 					}
 				}
 				catch (Exception e)
