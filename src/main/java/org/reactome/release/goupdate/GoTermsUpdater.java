@@ -396,10 +396,12 @@ class GoTermsUpdater
 					}
 					else
 					{
-						String replaceBy = (String) goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY);
-						String consider = (String) goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER);
-						replaceBy = replaceBy != null ? "Replace by: " + replaceBy + "; " : "";
-						consider = consider != null ? "Consider: " + consider : "";
+						List<String> replaceByList = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY);
+						List<String> considerList = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER);
+						String replaceBy = "";
+						String consider = "";
+						replaceBy = replaceByList != null && !replaceByList.isEmpty() ? "Replace by: " + String.join(", ", replaceByList) : "";
+						consider = considerList != null && !considerList.isEmpty() ? "Consider: " + String.join(", ", replaceByList) : "";
 						String replacementTermString = replaceBy + consider;
 						replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
 						obsoleteAccessionPrinter.printRecord(inst.toString(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
