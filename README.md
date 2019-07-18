@@ -76,7 +76,7 @@ db.name=gk_central
 db.port=3306
 testMode=true
 person.id=123456789
-pathToGOFile=src/main/resources/gene_ontology_ext.obo
+pathToGOFile=src/main/resources/go.obo
 pathToEC2GOFile=src/main/resources/ec2go
 ```
 
