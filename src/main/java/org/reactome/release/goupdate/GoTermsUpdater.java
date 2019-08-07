@@ -368,7 +368,7 @@ class GoTermsUpdater
 	 * @param goTermsFromFile - The GO terms from the file. 
 	 * @param instancesForDeletion - A list of instances for deletion. This list will be modified by this function!
 	 * @param goID - The GO ID of the term to process.
-	 * @param goInstances - A list of GO instances.
+	 * @param goInstances - A list of GO instances that are identified by goID
 	 */
 	private void processObsoleteGOTerm(Map<String, Map<String, Object>> goTermsFromFile, List<GKInstance> instancesForDeletion, String goID, List<GKInstance> goInstances)
 	{
@@ -396,12 +396,14 @@ class GoTermsUpdater
 					}
 					else
 					{
+						@SuppressWarnings("unchecked")
 						List<String> replaceByList = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY);
+						@SuppressWarnings("unchecked")
 						List<String> considerList = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER);
 						String replaceBy = "";
 						String consider = "";
 						replaceBy = replaceByList != null && !replaceByList.isEmpty() ? "Replace by: " + String.join(", ", replaceByList) : "";
-						consider = considerList != null && !considerList.isEmpty() ? "Consider: " + String.join(", ", replaceByList) : "";
+						consider = considerList != null && !considerList.isEmpty() ? "Consider: " + String.join(", ", considerList) : "";
 						String replacementTermString = replaceBy + consider;
 						replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
 						obsoleteAccessionPrinter.printRecord(inst.toString(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
