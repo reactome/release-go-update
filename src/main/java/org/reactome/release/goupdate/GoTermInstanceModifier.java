@@ -366,43 +366,59 @@ class GoTermInstanceModifier
 		for (GKSchemaAttribute attribute : attributes)
 		{
 			String attributeName = attribute.getName();
-			@SuppressWarnings("unchecked")
-			Set<GKInstance> referrers = (Set<GKInstance>) this.goInstance.getReferers(attribute);
-			if (referrers != null)
+			try
 			{
-				for (GKInstance referrer : referrers)
+				@SuppressWarnings("unchecked")
+				Set<GKInstance> referrers = (Set<GKInstance>) this.goInstance.getReferers(attribute);
+				if (referrers != null)
 				{
-					// the referrer could refer to many things via the attribute.
-					// we should ONLY remove *this* GO instance that will probably be deleted
-					// and add the replacement GO term. All other values should be left alone.
-					@SuppressWarnings("unchecked")
-					List<GKInstance> referrerAttributeValues = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
-					// remove *this* goInstance from the referrer
-					referrerAttributeValues = referrerAttributeValues.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
-					// add the replacement to the referrer
-					if (attribute.isMultiple())
+					for (GKInstance referrer : referrers)
 					{
-						referrerAttributeValues.add(replacementGOTerm);
-						referrer.setAttributeValue(attributeName, referrerAttributeValues);
+						// the referrer could refer to many things via the attribute.
+						// we should ONLY remove *this* GO instance that will probably be deleted
+						// and add the replacement GO term. All other values should be left alone.
+						if (referrer.getSchemClass().isValidAttribute(attribute))
+						{
+							@SuppressWarnings("unchecked")
+							List<GKInstance> referrerAttributeValues = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
+							// remove *this* goInstance from the referrer
+							referrerAttributeValues = referrerAttributeValues.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
+							// add the replacement to the referrer
+							if (attribute.isMultiple())
+							{
+								referrerAttributeValues.add(replacementGOTerm);
+								referrer.setAttributeValue(attributeName, referrerAttributeValues);
+							}
+							else
+							{
+								referrer.setAttributeValue(attributeName, replacementGOTerm);
+							}
+							// The old Perl code would update referrers' displayNames if they were PhysicalEntities or CatalystActivities.
+							if (referrer.getSchemClass().isa(ReactomeJavaConstants.PhysicalEntity) || referrer.getSchemClass().isa(ReactomeJavaConstants.CatalystActivity))
+							{
+								String newReferrerDisplayName = InstanceDisplayNameGenerator.generateDisplayName(referrer);
+								referrer.setAttributeValue(ReactomeJavaConstants._displayName, newReferrerDisplayName);
+								adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants._displayName);
+							}
+							referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
+							referrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+							// update in db.
+							adaptor.updateInstanceAttribute(referrer, attributeName);
+							adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
+							logger.debug("\"{}\" now refers to \"{}\" via {}, instead of referring to \"{}\"", referrer.toString(), replacementGOTerm.toString(), attributeName, this.goInstance.toString());
+							
+						}
+						else
+						{
+							logger.error("Sorry, but the attribute {} is not valid for the referrer {}. This happened while trying to make {} refer to {}, instead of currently referring to {}", attributeName, referrer.toString(), referrer.toString(), replacementGOTerm.toString(), this.goInstance.toString());
+						}
 					}
-					else
-					{
-						referrer.setAttributeValue(attributeName, replacementGOTerm);
-					}
-					// The old Perl code would update referrers' displayNames if they were PhysicalEntities or CatalystActivities.
-					if (referrer.getSchemClass().isa(ReactomeJavaConstants.PhysicalEntity) || referrer.getSchemClass().isa(ReactomeJavaConstants.CatalystActivity))
-					{
-						String newReferrerDisplayName = InstanceDisplayNameGenerator.generateDisplayName(referrer);
-						referrer.setAttributeValue(ReactomeJavaConstants._displayName, newReferrerDisplayName);
-						adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants._displayName);
-					}
-					referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
-					referrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
-					// update in db.
-					adaptor.updateInstanceAttribute(referrer, attributeName);
-					adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
-					logger.debug("\"{}\" now refers to \"{}\" via {}, instead of referring to \"{}\"", referrer.toString(), replacementGOTerm.toString(), attributeName, this.goInstance.toString());
 				}
+			}
+			catch (InvalidAttributeException e)
+			{
+				logger.error("Invalid Attribute Error: {}; Attribute was: \"{}\"; GO instance being processed was: \"{}\"", e.getMessage(), attribute.toString(), goInstance.toString());
+				logger.error(e);
 			}
 		}
 	}
