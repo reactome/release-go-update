@@ -1,5 +1,9 @@
 package org.reactome.release.goupdate;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -366,6 +370,7 @@ class GoTermInstanceModifier
 		Collection<GKSchemaAttribute> attributes = (Collection<GKSchemaAttribute>) this.goInstance.getSchemClass().getReferers();
 		for (GKSchemaAttribute attribute : attributes)
 		{
+			GKInstance currentReferrer = null;
 			String attributeName = attribute.getName();
 			try
 			{
@@ -375,13 +380,14 @@ class GoTermInstanceModifier
 				{
 					for (GKInstance referrer : referrers)
 					{
+						currentReferrer = referrer;
 						// the referrer could refer to many things via the attribute.
 						// we should ONLY remove *this* GO instance that will probably be deleted
 						// and add the replacement GO term. All other values should be left alone.
 						if (referrer.getSchemClass().isValidAttribute(attributeName))
 						{
 							@SuppressWarnings("unchecked")
-							List<GKInstance> referrerAttributeValues = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
+							List<GKInstance> referrerAttributeValues = (List<GKInstance>) referrer.getAttributeValuesList(attributeName);
 							// remove *this* goInstance from the referrer
 							referrerAttributeValues = referrerAttributeValues.parallelStream().filter(v -> !v.getDBID().equals(this.goInstance.getDBID())).collect(Collectors.toList());
 							// add the replacement to the referrer
@@ -429,8 +435,11 @@ class GoTermInstanceModifier
 			}
 			catch (InvalidAttributeException e)
 			{
-				logger.error("Invalid Attribute Error: {}; Attribute was: \"{}\"; GO instance being processed was: \"{}\"", e.getMessage(), attribute.toString(), goInstance.toString());
-				logger.error(e);
+				logger.error("Invalid Attribute Error: {}; Attribute was: \"{}\"; GO instance being processed was: \"{}\"; Referrer was: \"{}\"", e.getMessage(), attribute.toString(), goInstance.toString(), currentReferrer != null ? currentReferrer.toString() : "NULL");
+				OutputStream out = new ByteArrayOutputStream();
+				PrintStream s = new PrintStream(out);
+				e.printStackTrace(s);
+				logger.error(out.toString());
 			}
 		}
 	}
