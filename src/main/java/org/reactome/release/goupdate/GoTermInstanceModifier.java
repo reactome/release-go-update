@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -191,12 +192,12 @@ class GoTermInstanceModifier
 			}
 			catch (InvalidAttributeException | InvalidAttributeValueException e)
 			{
-				logger.error("Attribute/Value problem with "+this.goInstance.toString()+ " " + e.getMessage());
+				logger.error("Attribute/Value problem with \""+this.goInstance.toString()+ "\" " + e.getMessage());
 				e.printStackTrace();
 			}
 			catch (NullPointerException e)
 			{
-				logger.error("NullPointerException occurred! GO ID: "+currentGOID+" GO Instance: "+this.goInstance + " GO Term: "+goTerms.get(currentGOID));
+				logger.error("NullPointerException occurred! GO ID: "+currentGOID+" GO Instance: \""+this.goInstance + "\" GO Term: "+goTerms.get(currentGOID));
 				e.printStackTrace();
 			}
 			catch (Exception e)
@@ -377,7 +378,7 @@ class GoTermInstanceModifier
 						// the referrer could refer to many things via the attribute.
 						// we should ONLY remove *this* GO instance that will probably be deleted
 						// and add the replacement GO term. All other values should be left alone.
-						if (referrer.getSchemClass().isValidAttribute(attribute))
+						if (referrer.getSchemClass().isValidAttribute(attributeName))
 						{
 							@SuppressWarnings("unchecked")
 							List<GKInstance> referrerAttributeValues = (List<GKInstance>) referrer.getAttributeValuesList(attribute);
@@ -410,7 +411,18 @@ class GoTermInstanceModifier
 						}
 						else
 						{
-							logger.error("Sorry, but the attribute {} is not valid for the referrer {}. This happened while trying to make {} refer to {}, instead of currently referring to {}", attributeName, referrer.toString(), referrer.toString(), replacementGOTerm.toString(), this.goInstance.toString());
+							Function<String, String> abbreviate = new Function<String, String>()
+							{
+								@Override
+								public String apply(String t)
+								{
+									return t.substring(0,Math.min(t.length(), 47)) + ( t.length() > 47 ? "..." : "" );
+								}
+							};
+							
+							logger.error("Sorry, but the attribute \"{}\" is not valid for the referrer \"{}\". This happened while trying to make \"{}\" refer to \"{}\", instead of currently referring to \"GO ID: {}; {}\"",
+										attributeName, abbreviate.apply(referrer.toString()), abbreviate.apply(referrer.toString()),
+										abbreviate.apply(replacementGOTerm.toString()), this.goInstance.getAttributeValue(ReactomeJavaConstants.accession) , abbreviate.apply(this.goInstance.toString()));
 						}
 					}
 				}
