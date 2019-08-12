@@ -3,12 +3,10 @@ package org.reactome.release.goupdate;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -350,6 +348,8 @@ class GoTermInstanceModifier
 			else if (GoTermsUpdater.getReferrerCountsExcludingGOEntities(this.goInstance).isEmpty())
 			{
 				deletionStringBuilder.append("Deleting GO instance: \"").append(this.goInstance.toString()).append("\" (GO:").append(goId).append(")\n");
+				// But... we still need to clear GO Entity *references* to this.goInstance before deleting THIS instance.
+				this.clearAttributesFromReferringGOEntities();
 				adaptor.deleteInstance(this.goInstance);
 			}
 			else
@@ -361,6 +361,66 @@ class GoTermInstanceModifier
 		{
 			logger.error("Error occurred while trying to delete instance: \""+this.goInstance.toString()+"\": "+e.getMessage());
 			e.printStackTrace();
+		}
+	}
+
+	/*
+	 * Clears reference attributes that point TO *this* goInstance FROM other GO entities. To be used when an instance is being deleted.
+	 */
+	private void clearAttributesFromReferringGOEntities() throws Exception
+	{
+		Map<GKSchemaAttribute, Integer> goReferrerCounts = GoTermsUpdater.getReferrerCountsFilteredByClass(this.goInstance, GoTermsUpdater.isNotGOEntity.negate());
+		// If there are any referrers that are GO entities...
+		if (goReferrerCounts.size() > 0)
+		{
+			for (GKSchemaAttribute attrib : goReferrerCounts.keySet())
+			{
+				// set the referring attributes to NULL so that we don't end up with "dangling pointers" in the database.
+				Collection<GKInstance> attribReferrers = (Collection<GKInstance>) this.goInstance.getReferers(attrib);
+				for (GKInstance attribReferrer : attribReferrers)
+				{
+					try
+					{
+						// if the attribute is multi-valued, we need to be a little more careful and remove *this* instance from the list, but not affect other items in the list.
+						if (attrib.isMultiple())
+						{
+							List<GKInstance> refVals = attribReferrer.getAttributeValuesList(attrib.getName());
+							int i = 0;
+							boolean done = false;
+							while (!done && i < refVals.size())
+							{
+								GKInstance refVal = refVals.get(i);
+								// Using DB_ID match for equality test. There is a compare method in InstanceUtilities, but it looks much deeper
+								// into the objects than I think is necessary in this case. I can't think of a situation where two objects are
+								// different despite having the same DB_ID!
+								if (refVal.getDBID().equals(this.goInstance.getDBID()))
+								{
+									refVals.remove(refVal);
+									done = true;
+								}
+								i++;
+							}
+							// SET the attribute to the list, which has had the offending object removed from it.
+							attribReferrer.setAttributeValue(attrib.getName(), refVals);
+						}
+						// Single-valued attributes are SO much easier!
+						else
+						{
+							attribReferrer.setAttributeValue(attrib.getName(), null);
+						}
+						// now that the references to *this* GO Instance have been removed, record this operation by adding a "modified" InstanceEdit.
+						attribReferrer.getAttributeValuesList(ReactomeJavaConstants.modified);
+						attribReferrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+						updatedGOTermLogger.info("CLEARING the attribute {} on \"{}\" because it refers to \"{}\", which is flagged for deletion.", attrib.getName(), abbreviate(attribReferrer.toString(), 55), abbreviate(this.goInstance.toString(), 55));
+						adaptor.updateInstance(attribReferrer); 
+					}
+					catch (Exception  e)
+					{
+						logger.error("Error trying to clear {} attribute on \"{}\", referring to \"{}\" (which is to be deleted).", attrib.getName(), abbreviate(attribReferrer.toString(), 55), abbreviate(this.goInstance.toString(), 55));
+						e.printStackTrace();
+					}
+				}
+			}
 		}
 	}
 	
@@ -417,18 +477,9 @@ class GoTermInstanceModifier
 						}
 						else
 						{
-							Function<String, String> abbreviate = new Function<String, String>()
-							{
-								@Override
-								public String apply(String t)
-								{
-									return t.substring(0,Math.min(t.length(), 47)) + ( t.length() > 47 ? "..." : "" );
-								}
-							};
-							
 							logger.error("Sorry, but the attribute \"{}\" is not valid for the referrer \"{}\". This happened while trying to make \"{}\" refer to \"{}\", instead of currently referring to \"GO ID: {}; {}\"",
-										attributeName, abbreviate.apply(referrer.toString()), abbreviate.apply(referrer.toString()),
-										abbreviate.apply(replacementGOTerm.toString()), this.goInstance.getAttributeValue(ReactomeJavaConstants.accession) , abbreviate.apply(this.goInstance.toString()));
+										attributeName, abbreviate(referrer.toString()), abbreviate(referrer.toString()),
+										abbreviate(replacementGOTerm.toString()), this.goInstance.getAttributeValue(ReactomeJavaConstants.accession) , abbreviate(this.goInstance.toString()));
 						}
 					}
 				}
@@ -508,5 +559,14 @@ class GoTermInstanceModifier
 			}
 		}
 	}
-
+	
+	private static String abbreviate(String s, int maxLength)
+	{
+		return s.substring(0,Math.min(s.length(), maxLength)) + ( s.length() > maxLength ? "..." : "" );
+	}
+	
+	private static String abbreviate(String s)
+	{
+		return abbreviate(s, 47);
+	}
 }

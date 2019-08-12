@@ -58,7 +58,7 @@ class GoTermsUpdater
 	// this can be static, since there's only one "GO" ReferenceDatabase object in the database.
 	private static GKInstance goRefDB;
 	
-	private static Predicate<GKInstance> isNotGOEntity = i -> !i.getSchemClass().isa(ReactomeJavaConstants.GO_MolecularFunction)
+	static Predicate<GKInstance> isNotGOEntity = i -> !i.getSchemClass().isa(ReactomeJavaConstants.GO_MolecularFunction)
 																&& !i.getSchemClass().isa(ReactomeJavaConstants.GO_BiologicalProcess)
 																&& !i.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent);
 	/**
