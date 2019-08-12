@@ -346,7 +346,6 @@ class GoTermsUpdater
 				}
 				else
 				{
-//					this.obsoleteAccessionPrinter.printRecord(instance.toString(), instance.getAttributeValue(ReactomeJavaConstants.accession), "Automatic Deletion (no referrers)", replacementGOTermAccession);
 					action = "Automatic Deletion (no referrers)";
 				}
 				this.obsoleteAccessionPrinter.printRecord(instance.getDBID(), instance.getSchemClass().getName(), instance.getAttributeValue(ReactomeJavaConstants.accession), action, replacementGOTermAccession);
@@ -382,7 +381,7 @@ class GoTermsUpdater
 		}
 		else
 		{
-			// ...or, if an obsolete term has no replacement AND also has no referreres, it can be 
+			// ...or, if an obsolete term has no replacement AND also has no referrers, it can be 
 			// safely be deleted because nothing will be affected.
 			// 
 			// (Check that the instance has not already been added to instancesForDeletion by some other path)
@@ -394,7 +393,7 @@ class GoTermsUpdater
 					{
 						instancesForDeletion.add(inst);
 					}
-					else
+					else // if referrers DO exists, log that, with suggestions about REPLACE_BY/CONSIDER terms.
 					{
 						@SuppressWarnings("unchecked")
 						List<String> replaceByList = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY);
@@ -406,7 +405,7 @@ class GoTermsUpdater
 						consider = considerList != null && !considerList.isEmpty() ? "Consider: " + String.join(", ", considerList) : "";
 						String replacementTermString = replaceBy + consider;
 						replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
-						obsoleteAccessionPrinter.printRecord(inst.toString(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
+						obsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
 					}
 				}
 				catch (Exception e)
