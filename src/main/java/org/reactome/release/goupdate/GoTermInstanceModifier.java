@@ -381,6 +381,7 @@ class GoTermInstanceModifier
 				{
 					try
 					{
+						updatedGOTermLogger.info("CLEARING the attribute {} on \"{}\" because it refers to \"{}\", which is flagged for deletion.", attrib.getName(), abbreviate(attribReferrer.toString(), 55), abbreviate(this.goInstance.toString(), 55));
 						// if the attribute is multi-valued, we need to be a little more careful and remove *this* instance from the list, but not affect other items in the list.
 						if (attrib.isMultiple())
 						{
@@ -402,17 +403,18 @@ class GoTermInstanceModifier
 							}
 							// SET the attribute to the list, which has had the offending object removed from it.
 							attribReferrer.setAttributeValue(attrib.getName(), refVals);
+							this.adaptor.updateInstanceAttribute(attribReferrer, attrib.getName());
 						}
 						// Single-valued attributes are SO much easier!
 						else
 						{
 							attribReferrer.setAttributeValue(attrib.getName(), null);
+							this.adaptor.updateInstanceAttribute(attribReferrer, attrib.getName());
 						}
 						// now that the references to *this* GO Instance have been removed, record this operation by adding a "modified" InstanceEdit.
 						attribReferrer.getAttributeValuesList(ReactomeJavaConstants.modified);
 						attribReferrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
-						updatedGOTermLogger.info("CLEARING the attribute {} on \"{}\" because it refers to \"{}\", which is flagged for deletion.", attrib.getName(), abbreviate(attribReferrer.toString(), 55), abbreviate(this.goInstance.toString(), 55));
-						adaptor.updateInstance(attribReferrer); 
+						this.adaptor.updateInstanceAttribute(attribReferrer, ReactomeJavaConstants.modified);
 					}
 					catch (Exception  e)
 					{
