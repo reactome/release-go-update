@@ -377,7 +377,7 @@ class GoTermInstanceModifier
 			for (GKInstance attribReferrer : attribReferrers)
 			{
 				// From a few tests, it seems that 55 is a good target length to abbreviate to.
-				int abbrevLength = 55;
+				final int abbrevLength = 55;
 				try
 				{
 					updatedGOTermLogger.info("CLEARING the attribute {} on \"{}\" because it refers to \"{}\", which is flagged for deletion.", attrib.getName(), abbreviate(attribReferrer.toString(), abbrevLength), abbreviate(this.goInstance.toString(), abbrevLength));
