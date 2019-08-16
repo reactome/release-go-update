@@ -26,8 +26,8 @@ class GoLineProcessor
 	/**
 	 * Process a line from the GO file.
 	 * @param line - The line.
-	 * @param goTerms - The GO terms map. This map will be updated by this function.
 	 * @param currentGOID - The ID of the GO term currently being processed, line by line.
+	 * @param goTerms - The GO terms map. This map will be updated by this function. The key of the outer map is a GO ID. The inner key is the name of the GO term.
 	 * @return The GO Accession of the GO term currently being processed. Will be different from <code>currentGOID</code> if the ID for a new GO term is seen on this <code>line</code>
 	 */
 	static String processLine(String line, String currentGOID, Map<String, Map<String, Object>> goTerms)
