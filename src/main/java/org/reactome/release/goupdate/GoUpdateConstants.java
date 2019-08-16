@@ -7,8 +7,10 @@ public final class GoUpdateConstants {
 	static final String ALT_ID = "alt_id";
 	static final String NAME = "name";
 	static final String NAMESPACE = "namespace";
+	/**
+	 * DEF refers to "def", which is GO's abbreviation for "definition.
+	 */
 	static final String DEF = "def";
-	//private static final String SUBSET = "subset";
 	static final String RELATIONSHIP = "relationship";
 	static final String IS_A = "is_a";
 	static final String CONSIDER = "consider";
