@@ -370,57 +370,55 @@ class GoTermInstanceModifier
 	private void clearAttributesFromReferringGOEntities() throws Exception
 	{
 		Map<GKSchemaAttribute, Integer> goReferrerCounts = GoTermsUpdater.getReferrerCountsFilteredByClass(this.goInstance, GoTermsUpdater.isNotGOEntity.negate());
-		// If there are any referrers that are GO entities...
-		if (goReferrerCounts.size() > 0)
+		for (GKSchemaAttribute attrib : goReferrerCounts.keySet())
 		{
-			for (GKSchemaAttribute attrib : goReferrerCounts.keySet())
+			// set the referring attributes to NULL so that we don't end up with "dangling pointers" in the database.
+			Collection<GKInstance> attribReferrers = (Collection<GKInstance>) this.goInstance.getReferers(attrib);
+			for (GKInstance attribReferrer : attribReferrers)
 			{
-				// set the referring attributes to NULL so that we don't end up with "dangling pointers" in the database.
-				Collection<GKInstance> attribReferrers = (Collection<GKInstance>) this.goInstance.getReferers(attrib);
-				for (GKInstance attribReferrer : attribReferrers)
+				// From a few tests, it seems that 55 is a good target length to abbreviate to.
+				int abbrevLength = 55;
+				try
 				{
-					try
+					updatedGOTermLogger.info("CLEARING the attribute {} on \"{}\" because it refers to \"{}\", which is flagged for deletion.", attrib.getName(), abbreviate(attribReferrer.toString(), abbrevLength), abbreviate(this.goInstance.toString(), abbrevLength));
+					// if the attribute is multi-valued, we need to be a little more careful and remove *this* instance from the list, but not affect other items in the list.
+					if (attrib.isMultiple())
 					{
-						updatedGOTermLogger.info("CLEARING the attribute {} on \"{}\" because it refers to \"{}\", which is flagged for deletion.", attrib.getName(), abbreviate(attribReferrer.toString(), 55), abbreviate(this.goInstance.toString(), 55));
-						// if the attribute is multi-valued, we need to be a little more careful and remove *this* instance from the list, but not affect other items in the list.
-						if (attrib.isMultiple())
+						List<GKInstance> refVals = attribReferrer.getAttributeValuesList(attrib.getName());
+						int i = 0;
+						boolean done = false;
+						while (!done && i < refVals.size())
 						{
-							List<GKInstance> refVals = attribReferrer.getAttributeValuesList(attrib.getName());
-							int i = 0;
-							boolean done = false;
-							while (!done && i < refVals.size())
+							GKInstance refVal = refVals.get(i);
+							// Using DB_ID match for equality test. There is a compare method in InstanceUtilities, but it looks much deeper
+							// into the objects than I think is necessary in this case. I can't think of a situation where two objects are
+							// different despite having the same DB_ID!
+							if (refVal.getDBID().equals(this.goInstance.getDBID()))
 							{
-								GKInstance refVal = refVals.get(i);
-								// Using DB_ID match for equality test. There is a compare method in InstanceUtilities, but it looks much deeper
-								// into the objects than I think is necessary in this case. I can't think of a situation where two objects are
-								// different despite having the same DB_ID!
-								if (refVal.getDBID().equals(this.goInstance.getDBID()))
-								{
-									refVals.remove(refVal);
-									done = true;
-								}
-								i++;
+								refVals.remove(refVal);
+								done = true;
 							}
-							// SET the attribute to the list, which has had the offending object removed from it.
-							attribReferrer.setAttributeValue(attrib.getName(), refVals);
-							this.adaptor.updateInstanceAttribute(attribReferrer, attrib.getName());
+							i++;
 						}
-						// Single-valued attributes are SO much easier!
-						else
-						{
-							attribReferrer.setAttributeValue(attrib.getName(), null);
-							this.adaptor.updateInstanceAttribute(attribReferrer, attrib.getName());
-						}
-						// now that the references to *this* GO Instance have been removed, record this operation by adding a "modified" InstanceEdit.
-						attribReferrer.getAttributeValuesList(ReactomeJavaConstants.modified);
-						attribReferrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
-						this.adaptor.updateInstanceAttribute(attribReferrer, ReactomeJavaConstants.modified);
+						// SET the attribute to the list, which has had the offending object removed from it.
+						attribReferrer.setAttributeValue(attrib.getName(), refVals);
+						this.adaptor.updateInstanceAttribute(attribReferrer, attrib.getName());
 					}
-					catch (Exception  e)
+					// Single-valued attributes are SO much easier!
+					else
 					{
-						logger.error("Error trying to clear {} attribute on \"{}\", referring to \"{}\" (which is to be deleted).", attrib.getName(), abbreviate(attribReferrer.toString(), 55), abbreviate(this.goInstance.toString(), 55));
-						e.printStackTrace();
+						attribReferrer.setAttributeValue(attrib.getName(), null);
+						this.adaptor.updateInstanceAttribute(attribReferrer, attrib.getName());
 					}
+					// now that the references to *this* GO Instance have been removed, record this operation by adding a "modified" InstanceEdit.
+					attribReferrer.getAttributeValuesList(ReactomeJavaConstants.modified);
+					attribReferrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+					this.adaptor.updateInstanceAttribute(attribReferrer, ReactomeJavaConstants.modified);
+				}
+				catch (Exception  e)
+				{
+					logger.error("Error trying to clear {} attribute on \"{}\", referring to \"{}\" (which is to be deleted).", attrib.getName(), abbreviate(attribReferrer.toString(), abbrevLength), abbreviate(this.goInstance.toString(), abbrevLength));
+					e.printStackTrace();
 				}
 			}
 		}
@@ -569,6 +567,8 @@ class GoTermInstanceModifier
 	
 	private static String abbreviate(String s)
 	{
+		// 47 is used because if the input string is too long it will be shortened to 47 characters, plus 3 for "..." so it will be
+		// EXCATLY 50 characters long.
 		return abbreviate(s, 47);
 	}
 }
