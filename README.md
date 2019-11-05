@@ -66,7 +66,7 @@ GO:0106041 ([GO_BiologicalProcess:9016333] positive regulation of GABA-A recepto
  
 ## Configuration
 
-This application requires a properties file that contains the necessary configuration information. It should look something like this:
+This application requires a properties file at `./go-update.properties` that contains the necessary configuration information. It should look something like this:
 
 ```
 db.host=${hostname}
