@@ -304,7 +304,7 @@ public class JavaVsPerlComparison
 		Files.write(Paths.get( prefix + ".txt"), mainSB.toString().getBytes(), StandardOpenOption.CREATE);
 		Files.write(
 			Paths.get(prefix + "_same_instances.txt"),
-			getNameValuesAsString(sameNameToCount.keySet()).getBytes(),
+			String.join(System.lineSeparator(), sameNameToCount.keySet()).getBytes(),
 			StandardOpenOption.CREATE
 		);
 		Files.write(
@@ -332,15 +332,6 @@ public class JavaVsPerlComparison
 		} catch (Exception e) {
 			throw new RuntimeException("Can't find accession for instance " + instance.getDBID(), e);
 		}
-	}
-
-	private static String getNameValuesAsString(Set<String> values)
-	{
-		return values
-			.stream()
-			.map(l -> l.concat(System.lineSeparator()))
-			.collect(Collectors.toSet())
-			.toString();
 	}
 
 	private static String getEntryValuesAsString(Set<Entry<String, Integer>> values)
