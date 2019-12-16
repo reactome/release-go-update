@@ -24,6 +24,9 @@ import org.reactome.util.compare.DBObjectComparer;
 
 public class JavaVsPerlComparison
 {
+	private static final int MAX_COMPARISON_RECURSION_DEPTH = 0;
+	private static final boolean CHECK_REFERRERS = true;
+
 	public static void main(String[] args) throws Exception
 	{
 		MySQLAdaptor perlUpdatedDB = new MySQLAdaptor("localhost", "perl_gk_central", "root", "root", 3306);
@@ -58,30 +61,30 @@ public class JavaVsPerlComparison
 
 		System.out.println("All Java GO instances obtained");
 
-		List<GKInstance> listOfAllJavaGOThings = new ArrayList<>();
-		listOfAllJavaGOThings.addAll(javaUpdatedGOCellularComponents);
-		listOfAllJavaGOThings.addAll(javaUpdatedGOMolecularFunctions);
-		listOfAllJavaGOThings.addAll(javaUpdatedGOBiologicalProcesses);
+		List<GKInstance> listOfAllJavaGOInstances = new ArrayList<>();
+		listOfAllJavaGOInstances.addAll(javaUpdatedGOCellularComponents);
+		listOfAllJavaGOInstances.addAll(javaUpdatedGOMolecularFunctions);
+		listOfAllJavaGOInstances.addAll(javaUpdatedGOBiologicalProcesses);
 
 		@SuppressWarnings("unchecked")
 		Set<GKInstance> perlUpdatedGOBiologicalProcesses =
 			(Set<GKInstance>) perlUpdatedDB.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
 		@SuppressWarnings("unchecked")
-		Set<GKInstance> perlUpdatedGOMolecularFunctions = (
-			Set<GKInstance>) perlUpdatedDB.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
+		Set<GKInstance> perlUpdatedGOMolecularFunctions =
+			(Set<GKInstance>) perlUpdatedDB.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
 		@SuppressWarnings("unchecked")
 		Set<GKInstance> perlUpdatedGOCellularComponents =
 			(Set<GKInstance>) perlUpdatedDB.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
 
 		System.out.println("All Perl GO instances obtained");
 
-		List<GKInstance> listOfAllPerlGOThings = new ArrayList<>();
-		listOfAllPerlGOThings.addAll(perlUpdatedGOCellularComponents);
-		listOfAllPerlGOThings.addAll(perlUpdatedGOMolecularFunctions);
-		listOfAllPerlGOThings.addAll(perlUpdatedGOBiologicalProcesses);
+		List<GKInstance> listOfAllPerlGOInstances = new ArrayList<>();
+		listOfAllPerlGOInstances.addAll(perlUpdatedGOCellularComponents);
+		listOfAllPerlGOInstances.addAll(perlUpdatedGOMolecularFunctions);
+		listOfAllPerlGOInstances.addAll(perlUpdatedGOBiologicalProcesses);
 
 		Map<String, List<GKInstance>> accessionToPerlInstances = new HashMap<>();
-		for (GKInstance perlGOInstance : listOfAllPerlGOThings) {
+		for (GKInstance perlGOInstance : listOfAllPerlGOInstances) {
 			accessionToPerlInstances.computeIfAbsent(
 				getAccession(perlGOInstance), k -> new ArrayList<>()
 			).add(perlGOInstance);
@@ -98,15 +101,15 @@ public class JavaVsPerlComparison
 
 		};
 
-		listOfAllJavaGOThings.sort(dbIdComparator);
+		listOfAllJavaGOInstances.sort(dbIdComparator);
 		StringBuilder mainSB = new StringBuilder();
 		Map<String, MySQLAdaptor> javaAdaptorPool = new HashMap<>();
 		Map<String, MySQLAdaptor> perlAdaptorPool = new HashMap<>();
 
-		System.out.println("Number of Java GO instances is " + listOfAllJavaGOThings.size());
+		System.out.println("Number of Java GO instances is " + listOfAllJavaGOInstances.size());
 
 		AtomicInteger processJavaGOInstances = new AtomicInteger(0);
-		listOfAllJavaGOThings.parallelStream().forEach( javaGoInst ->
+		listOfAllJavaGOInstances.parallelStream().forEach( javaGoInst ->
 		{
 			try
 			{
@@ -153,7 +156,9 @@ public class JavaVsPerlComparison
 					for (GKInstance perlInst : perlGoInsts)
 					{
 						StringBuilder sb = new StringBuilder();
-						int i = DBObjectComparer.compareInstances(javaGoInst, perlInst, sb, 0, true);
+						int i = DBObjectComparer.compareInstances(
+							javaGoInst, perlInst, sb, MAX_COMPARISON_RECURSION_DEPTH, CHECK_REFERRERS
+						);
 						if (i> 0)
 						{
 							diffNameToCount.put(perlInst.getExtendedDisplayName(), i);
@@ -193,7 +198,8 @@ public class JavaVsPerlComparison
 								GKInstance perlReferrer = perlList.get(0);
 
 								int numDiffs = DBObjectComparer.compareInstances(
-									javaReferrer, perlReferrer, sb1, 0, isNameAttribute, true
+									javaReferrer, perlReferrer, sb1, MAX_COMPARISON_RECURSION_DEPTH, isNameAttribute,
+									CHECK_REFERRERS
 								);
 								if (numDiffs > 0)
 								{
@@ -227,7 +233,8 @@ public class JavaVsPerlComparison
 								GKInstance perlReferringPE = perlList.get(0);
 
 								int numDiffs = DBObjectComparer.compareInstances(
-									javaReferringPE, perlReferringPE, sb1, 0, isNameAttribute, true
+									javaReferringPE, perlReferringPE, sb1, MAX_COMPARISON_RECURSION_DEPTH,
+									isNameAttribute, CHECK_REFERRERS
 								);
 								if (numDiffs > 0)
 								{
@@ -262,8 +269,8 @@ public class JavaVsPerlComparison
 								GKInstance perlReferringCatalystActivity =  perlList.get(0);
 
 								int numDiffs = DBObjectComparer.compareInstances(
-									javaReferringCatalystActivity, perlReferringCatalystActivity, sb1, 0,
-									isNameAttribute, true
+									javaReferringCatalystActivity, perlReferringCatalystActivity, sb1,
+									MAX_COMPARISON_RECURSION_DEPTH, isNameAttribute, CHECK_REFERRERS
 								);
 								if (numDiffs > 0)
 								{
@@ -292,8 +299,8 @@ public class JavaVsPerlComparison
 			if (processJavaGOInstances.get() % 100 == 0) {
 				System.out.print(
 					"Processed " + processJavaGOInstances.get() +
-						" Java GO instances out of " + listOfAllJavaGOThings.size() + System.lineSeparator() +
-						" " + (processJavaGOInstances.get() * 100.0f / listOfAllJavaGOThings.size()) + " %"
+						" Java GO instances out of " + listOfAllJavaGOInstances.size() + System.lineSeparator() +
+						" " + (processJavaGOInstances.get() * 100.0f / listOfAllJavaGOInstances.size()) + " %"
 				);
 
 			}
