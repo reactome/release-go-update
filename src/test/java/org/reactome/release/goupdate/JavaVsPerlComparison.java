@@ -174,7 +174,7 @@ public class JavaVsPerlComparison
 
 						// Now, we need to compare referrers, since they might have display name changes.
 						// Want to make sure we capture those correctly.
-						if (javaGoInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_BiologicalProcess))
+						if (hasSchemaClass(ReactomeJavaConstants.GO_BiologicalProcess, javaGoInst))
 						{
 							StringBuilder sb1 = new StringBuilder();
 
@@ -209,9 +209,7 @@ public class JavaVsPerlComparison
 								}
 							}
 						}
-						else if (
-							javaGoInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_CellularComponent)
-						)
+						else if (hasSchemaClass(ReactomeJavaConstants.GO_CellularComponent, javaGoInst))
 						{
 							StringBuilder sb1 = new StringBuilder();
 							@SuppressWarnings("unchecked")
@@ -245,9 +243,7 @@ public class JavaVsPerlComparison
 								}
 							}
 						}
-						else if (
-							javaGoInst.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction)
-						)
+						else if (hasSchemaClass(ReactomeJavaConstants.GO_MolecularFunction, javaGoInst))
 						{
 							StringBuilder sb1 = new StringBuilder();
 							@SuppressWarnings("unchecked")
@@ -354,5 +350,10 @@ public class JavaVsPerlComparison
 			.map(e -> e.toString().concat(System.lineSeparator()))
 			.collect(Collectors.toSet())
 			.toString();
+	}
+
+	private static boolean hasSchemaClass(String className, GKInstance instance)
+	{
+		return instance.getSchemClass().getName().equals(className);
 	}
 }
