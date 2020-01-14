@@ -99,7 +99,11 @@
 				</configuration>
 			</plugin>
 
-			<!-- allows 'mvn clean compile assembly:single' command to create a jar with dependencies -->
+			<!--
+			allows 'mvn clean compile assembly:single' command to create a jar with dependencies
+
+			execution section also allows 'mvn clean package' command to create two jars - with/without dependencies
+			-->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-assembly-plugin</artifactId>
@@ -125,7 +129,10 @@
 				</executions>
 			</plugin>
 
-			<!-- allows 'mvn release' command to create a new release of the project -->
+			<!--
+			allows 'mvn release' command to create a new release of the project
+			https://maven.apache.org/maven-release/maven-release-plugin/
+			-->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-release-plugin</artifactId>
