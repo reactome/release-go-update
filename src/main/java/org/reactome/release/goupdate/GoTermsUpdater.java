@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,11 @@ class GoTermsUpdater
 	private List<String> goLines;
 	private List<String> ec2GoLines;
 	private GKInstance instanceEdit;
+
+	// For each type of InstanceEdit update we have, there is a list of actual GKInstances. The reason is that the instances in each list could vary
+	// by having a different Java class name in their note. The class names are to help track down *where* in the code the InstanceEdit was used. 
+	private static Map<GOUpdateInstEditType, List<GKInstance>> availableInstanceEdits = new EnumMap<>(GOUpdateInstEditType.class);
+	
 	private long personID;
 	
 	private StringBuffer nameOrDefinitionChangeStringBuilder = new StringBuffer();
@@ -61,6 +67,28 @@ class GoTermsUpdater
 	static Predicate<GKInstance> isNotGOEntity = i -> !i.getSchemClass().isa(ReactomeJavaConstants.GO_MolecularFunction)
 																&& !i.getSchemClass().isa(ReactomeJavaConstants.GO_BiologicalProcess)
 																&& !i.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent);
+	enum GOUpdateInstEditType
+	{
+		NEW("New GO term was created"),
+		MODIFIED("GO term attributes were modified"),
+		REF_CLEARED("Attribute referring to a GO term has been cleared"),
+		REF_ATTRIB_UPDATE("Attribute referring to a GO term has set to a *different* GO term"),
+		DISPLAY_NAME("Display Name updated because a GO term was updated"),
+		UPDATE_RELATIONSHIP("GO Term relationships were updated");
+		
+		private String note;
+		
+		GOUpdateInstEditType(String note)
+		{
+			this.note = note;
+		}
+		
+		public String getNote()
+		{
+			return this.note;
+		}
+	}
+	
 	/**
 	 * Creates a new GoTermsUpdater
 	 * @param dba - The adaptor to use.
@@ -72,10 +100,24 @@ class GoTermsUpdater
 	public GoTermsUpdater(MySQLAdaptor dba, List<String> goLines, List<String> ec2GoLines, long personID) throws Exception
 	{
 		this.adaptor = dba;
+		this.personID = personID;
+		
 		this.goLines = goLines;
 		this.ec2GoLines = ec2GoLines;
-		this.personID = personID;
 		instanceEdit = InstanceEditUtils.createInstanceEdit(this.adaptor, this.personID, this.getClass().getName());
+		
+		synchronized(availableInstanceEdits)
+		{
+			if (availableInstanceEdits != null && availableInstanceEdits.isEmpty())
+			{
+				//Populate the map of available InstanceEdits with actual InstanceEdit objects.
+				for (GOUpdateInstEditType instEdType : GOUpdateInstEditType.values())
+				{
+					availableInstanceEdits.put(instEdType, Arrays.asList(InstanceEditUtils.createDefaultIE(this.adaptor, this.personID, true, instEdType.getNote() + "\n" + this.getClass().getName())));
+				}
+			}
+		}
+		
 		if (instanceEdit == null)
 		{
 			logger.fatal("Cannot proceed without a valid InstanceEdit. Aborting.");
@@ -301,13 +343,14 @@ class GoTermsUpdater
 						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
 						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
 						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
+
+						// Update the instance's "modififed".
+						goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
+						goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+						this.adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.modified);
+						// Now, update the displayName of other instances that refers to this GO Term instance.
+						goModifier.updateReferrersDisplayNames();
 					}
-					// Update the instance's "modififed".
-					goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
-					goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
-					this.adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.modified);
-					// Now, update the displayName of other instances that refers to this GO Term instance.
-					goModifier.updateReferrersDisplayNames();
 				}
 			}
 		}
