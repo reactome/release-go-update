@@ -90,7 +90,7 @@ class GoTermInstanceModifier
 		}
 		catch (InvalidAttributeException | InvalidAttributeValueException e)
 		{
-			logger.error("Attribute/value error! "+ e.getMessage());
+			logger.error("Attribute/value error! ", e);
 			e.printStackTrace();
 			throw e;
 		}
@@ -194,12 +194,12 @@ class GoTermInstanceModifier
 			}
 			catch (InvalidAttributeException | InvalidAttributeValueException e)
 			{
-				logger.error("Attribute/Value problem with \""+this.goInstance.toString()+ "\" " + e.getMessage());
+				logger.error("Attribute/Value problem with \""+this.goInstance.toString()+ "\" ", e);
 				e.printStackTrace();
 			}
 			catch (NullPointerException e)
 			{
-				logger.error("NullPointerException occurred! GO ID: "+currentGOID+" GO Instance: \""+this.goInstance + "\" GO Term: "+goTerms.get(currentGOID));
+				logger.error("NullPointerException occurred! GO ID: {} GO Instance: \"{}\" GO Term: {}", currentGOID, this.goInstance, goTerms.get(currentGOID));
 				e.printStackTrace();
 			}
 			catch (Exception e)
@@ -289,7 +289,7 @@ class GoTermInstanceModifier
 		
 		Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(instance);
 		
-		if (referrers != null && referrers.size() > 0)
+		if (referrers != null && !referrers.isEmpty())
 		{
 			isDeletable = false;
 		}
@@ -336,7 +336,7 @@ class GoTermInstanceModifier
 				@SuppressWarnings("unchecked")
 				String replacementGOTermAccession = ((List<String>) goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)).get(0);
 				// this term has a replacement so we will update all referrers of *this* to point to the replacement.
-				if (allGoInstances.get(replacementGOTermAccession) != null && allGoInstances.get(replacementGOTermAccession).size() > 0)
+				if (allGoInstances.get(replacementGOTermAccession) != null && !allGoInstances.get(replacementGOTermAccession).isEmpty())
 				{
 					GKInstance replacementGOTerm = allGoInstances.get(replacementGOTermAccession).get(0);
 					this.pointAllReferrersToOtherInstance(replacementGOTerm);
@@ -359,7 +359,7 @@ class GoTermInstanceModifier
 		}
 		catch (Exception e)
 		{
-			logger.error("Error occurred while trying to delete instance: \""+this.goInstance.toString()+"\": "+e.getMessage());
+			logger.error("Error occurred while trying to delete instance: \""+this.goInstance.toString()+"\": ", e);
 			e.printStackTrace();
 		}
 	}

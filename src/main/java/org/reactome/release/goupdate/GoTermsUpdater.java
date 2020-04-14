@@ -7,7 +7,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +27,7 @@ import org.gk.schema.GKSchemaAttribute;
 import org.gk.schema.InvalidAttributeException;
 import org.gk.schema.InvalidAttributeValueException;
 import org.reactome.release.common.database.InstanceEditUtils;
+import org.reactome.release.goupdate.GoUpdateInstanceEditUtils.GOUpdateInstEditType;
 
 /**
  * This class can be used to update GOTerms in the "gk_central" database.
@@ -51,10 +51,6 @@ class GoTermsUpdater
 	private List<String> ec2GoLines;
 	private GKInstance instanceEdit;
 
-	// For each type of InstanceEdit update we have, there is a list of actual GKInstances. The reason is that the instances in each list could vary
-	// by having a different Java class name in their note. The class names are to help track down *where* in the code the InstanceEdit was used. 
-	private static Map<GOUpdateInstEditType, List<GKInstance>> availableInstanceEdits = new EnumMap<>(GOUpdateInstEditType.class);
-	
 	private long personID;
 	
 	private StringBuffer nameOrDefinitionChangeStringBuilder = new StringBuffer();
@@ -67,27 +63,7 @@ class GoTermsUpdater
 	static Predicate<GKInstance> isNotGOEntity = i -> !i.getSchemClass().isa(ReactomeJavaConstants.GO_MolecularFunction)
 																&& !i.getSchemClass().isa(ReactomeJavaConstants.GO_BiologicalProcess)
 																&& !i.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent);
-	enum GOUpdateInstEditType
-	{
-		NEW("New GO term was created"),
-		MODIFIED("GO term attributes were modified"),
-		REF_CLEARED("Attribute referring to a GO term has been cleared"),
-		REF_ATTRIB_UPDATE("Attribute referring to a GO term has set to a *different* GO term"),
-		DISPLAY_NAME("Display Name updated because a GO term was updated"),
-		UPDATE_RELATIONSHIP("GO Term relationships were updated");
-		
-		private String note;
-		
-		GOUpdateInstEditType(String note)
-		{
-			this.note = note;
-		}
-		
-		public String getNote()
-		{
-			return this.note;
-		}
-	}
+
 	
 	/**
 	 * Creates a new GoTermsUpdater
@@ -106,17 +82,17 @@ class GoTermsUpdater
 		this.ec2GoLines = ec2GoLines;
 		instanceEdit = InstanceEditUtils.createInstanceEdit(this.adaptor, this.personID, this.getClass().getName());
 		
-		synchronized(availableInstanceEdits)
-		{
-			if (availableInstanceEdits != null && availableInstanceEdits.isEmpty())
-			{
-				//Populate the map of available InstanceEdits with actual InstanceEdit objects.
-				for (GOUpdateInstEditType instEdType : GOUpdateInstEditType.values())
-				{
-					availableInstanceEdits.put(instEdType, Arrays.asList(InstanceEditUtils.createDefaultIE(this.adaptor, this.personID, true, instEdType.getNote() + "\n" + this.getClass().getName())));
-				}
-			}
-		}
+//		synchronized(availableInstanceEdits)
+//		{
+//			if (availableInstanceEdits != null && availableInstanceEdits.isEmpty())
+//			{
+//				//Populate the map of available InstanceEdits with actual InstanceEdit objects.
+//				for (GOUpdateInstEditType instEdType : GOUpdateInstEditType.values())
+//				{
+//					availableInstanceEdits.put(instEdType, Arrays.asList(InstanceEditUtils.createDefaultIE(this.adaptor, this.personID, true, instEdType.getNote() + "\n" + this.getClass().getName())));
+//				}
+//			}
+//		}
 		
 		if (instanceEdit == null)
 		{
@@ -346,7 +322,8 @@ class GoTermsUpdater
 
 						// Update the instance's "modififed".
 						goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
-						goInst.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+						GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(GOUpdateInstEditType.UPDATE_RELATIONSHIP, this.getClass());
+						goInst.addAttributeValue(ReactomeJavaConstants.modified, instEd);
 						this.adaptor.updateInstanceAttribute(goInst, ReactomeJavaConstants.modified);
 						// Now, update the displayName of other instances that refers to this GO Term instance.
 						goModifier.updateReferrersDisplayNames();
@@ -356,6 +333,8 @@ class GoTermsUpdater
 		}
 	}
 
+	
+	
 	/**
 	 * Deletes GO instances that have been flagged for deletion.
 	 * @param goTermsFromFile - A map of GO terms from the file.
@@ -473,7 +452,7 @@ class GoTermsUpdater
 	 */
 	static Map<GKSchemaAttribute, Integer> getReferrerCounts(GKInstance inst) throws Exception
 	{
-		return getReferrerCountsFilteredByClass(inst, x -> {return true;} );
+		return getReferrerCountsFilteredByClass(inst, x -> true );
 	}
 
 	/**
@@ -505,7 +484,7 @@ class GoTermsUpdater
 			
 			referrers = referrers.stream().filter(classFilter).collect(Collectors.toList());
 			
-			if ( referrers!=null && referrers.size() > 0)
+			if ( referrers!=null && !referrers.isEmpty())
 			{
 				referrersCount.put(attrib, referrers.size());
 			}
@@ -522,7 +501,7 @@ class GoTermsUpdater
 			
 			attribReferrers = attribReferrers.stream().filter(classFilter).collect(Collectors.toList());
 			
-			if ( attribReferrers!=null && attribReferrers.size() > 0)
+			if ( attribReferrers!=null && !attribReferrers.isEmpty())
 			{
 				referrers.addAll(attribReferrers);
 			}
@@ -608,11 +587,11 @@ class GoTermsUpdater
 		try
 		{
 			bioProcesses = (Collection<GKInstance>) dba.fetchInstancesByClass(ReactomeJavaConstants.GO_BiologicalProcess);
-			logger.info(bioProcesses.size() + " GO_BiologicalProcesses in the database.");
+			logger.info("{} GO_BiologicalProcesses in the database.", bioProcesses.size());
 			molecularFunctions = (Collection<GKInstance>) dba.fetchInstancesByClass(ReactomeJavaConstants.GO_MolecularFunction);
-			logger.info(molecularFunctions.size() + " GO_MolecularFunction in the database.");
+			logger.info("{} GO_MolecularFunction in the database.", molecularFunctions.size());
 			cellComponents = (Collection<GKInstance>) dba.fetchInstancesByClass(ReactomeJavaConstants.GO_CellularComponent);
-			logger.info(cellComponents.size() + " GO_CellularComponent in the database.");
+			logger.info("{} GO_CellularComponent in the database.", cellComponents.size());
 		}
 		catch (Exception e)
 		{
