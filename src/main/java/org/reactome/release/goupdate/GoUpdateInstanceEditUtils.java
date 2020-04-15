@@ -58,7 +58,7 @@ class GoUpdateInstanceEditUtils
 			// If there is no InstanceEdit for the class in question, need to create one.
 			if (instanceEdit == null)
 			{
-				instanceEdit = InstanceEditUtils.createDefaultIE(adaptor, personID, true, instanceEditType.getNote() + "\n" + classUsingInstanceEdit.getName());
+				instanceEdit = InstanceEditUtils.createDefaultIE(adaptor, personID, true, instanceEditType.getNote() + "\nCreated by: " + classUsingInstanceEdit.getName());
 				availableInstanceEdits.get(instanceEditType).put(classUsingInstanceEdit, instanceEdit);
 			}
 		}
