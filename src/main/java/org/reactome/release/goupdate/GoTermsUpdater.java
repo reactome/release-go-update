@@ -215,7 +215,7 @@ class GoTermsUpdater
 					if (categoryOK)
 					{
 						//Now do the update.
-						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
+						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst/* , this.instanceEdit */);
 						goTermModifier.updateGOInstance(goTermsFromFile, goToECNumbers, this.nameOrDefinitionChangeStringBuilder);
 					}
 					else
@@ -227,7 +227,7 @@ class GoTermsUpdater
 						// In this case, the GO Term is not obsolete but it has the wrong category, so it should be removed and recreated.
 						this.adaptor.deleteByDBID(goInst.getDBID());
 						// Now re-create the GO term with the correct GO type.
-						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
+						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst/* , this.instanceEdit */);
 						newGoTermCount++;
 						createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goTermModifier, currentCategory);
 					}
@@ -312,7 +312,7 @@ class GoTermsUpdater
 			{
 				for (GKInstance goInst : goInsts)
 				{
-					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst, this.instanceEdit);
+					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst/* , this.instanceEdit */);
 					
 					if (goInst.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
 					{
@@ -356,7 +356,7 @@ class GoTermsUpdater
 												? ((List<String>) goTermsFromFile.get(goAccession).get(GoUpdateConstants.REPLACED_BY)).get(0)
 												: "N/A" ;
 			
-			GoTermInstanceModifier goTermModifier = new GoTermInstanceModifier(this.adaptor, instance, this.instanceEdit);
+			GoTermInstanceModifier goTermModifier = new GoTermInstanceModifier(this.adaptor, instance/* , this.instanceEdit */);
 			if (GoTermInstanceModifier.isGoTermDeleteable(instance))
 			{
 				// Let's get a count of irrelevant (because there is a replacement instance) referrers
@@ -565,7 +565,7 @@ class GoTermsUpdater
 							{
 								e.printStackTrace();
 							}
-							GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, altGoInst, instanceEdit);
+							GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, altGoInst/* , instanceEdit */);
 							modifier.deleteSecondaryGOInstance(primaryGOTerm, deletionStringBuilder);
 						}
 					}

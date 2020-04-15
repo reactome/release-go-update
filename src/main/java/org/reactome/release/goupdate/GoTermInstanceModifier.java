@@ -33,7 +33,7 @@ class GoTermInstanceModifier
 	private static final Logger updatedGOTermLogger = LogManager.getLogger("updatedGOTermsLog");
 	private MySQLAdaptor adaptor;
 	private GKInstance goInstance;
-	private GKInstance instanceEdit;
+//	private GKInstance instanceEdit;
 	
 	/**
 	 * Create the data modifier that is suitable for creating updating or deleting existing GO terms in the database.
@@ -41,11 +41,11 @@ class GoTermInstanceModifier
 	 * @param goInstance - the GKInstance for the GO term you wish to update/delete.
 	 * @param instanceEdit - the InstanceEdit that the data modification should be associated with.
 	 */
-	public GoTermInstanceModifier(MySQLAdaptor adaptor, GKInstance goInstance, GKInstance instanceEdit)
+	public GoTermInstanceModifier(MySQLAdaptor adaptor, GKInstance goInstance/* , GKInstance instanceEdit */)
 	{
 		this.adaptor = adaptor;
 		this.goInstance = goInstance;
-		this.instanceEdit = instanceEdit;
+//		this.instanceEdit = instanceEdit;
 	}
 	
 	/**
@@ -53,9 +53,9 @@ class GoTermInstanceModifier
 	 * @param adaptor - the database adaptor to use.
 	 * @param instanceEdit - the InstanceEdit that the data modification should be associated with.
 	 */
-	public GoTermInstanceModifier(MySQLAdaptor adaptor, GKInstance instanceEdit)
+	public GoTermInstanceModifier(MySQLAdaptor adaptor/* , GKInstance instanceEdit */)
 	{
-		this(adaptor,null,instanceEdit);
+		this(adaptor,null/*,instanceEdit*/);
 	}
 
 	
