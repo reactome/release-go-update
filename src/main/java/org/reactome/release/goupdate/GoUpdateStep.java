@@ -1,5 +1,6 @@
 package org.reactome.release.goupdate;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -69,6 +70,16 @@ public class GoUpdateStep extends ReleaseStep
 			
 			String pathToGOFile = props.getProperty("pathToGOFile","src/main/resources/go.obo");
 			String pathToEC2GOFile = props.getProperty("pathToEC2GOFile","src/main/resources/ec2go");
+			
+			
+			if (Files.notExists(Paths.get(pathToGOFile)))
+			{
+				throw new FileNotFoundException("Sorry, but the GO file \""+pathToGOFile+"\" could not be found.");
+			}
+			if (Files.notExists(Paths.get(pathToEC2GOFile)))
+			{
+				throw new FileNotFoundException("Sorry, but the EC2GO file \""+pathToEC2GOFile+"\" could not be found.");
+			}
 			
 			// Load the files.
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
