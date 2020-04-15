@@ -38,7 +38,7 @@ import org.powermock.modules.junit4.PowerMockRunner;
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({GoTermInstanceModifier.class, InstanceDisplayNameGenerator.class})
 @MockitoSettings(strictness = Strictness.WARN)
-@PowerMockIgnore({"javax.management.*","javax.script.*"})
+@PowerMockIgnore({"javax.management.*","javax.script.*", "javax.xml.*", "java.xml.*", "com.sun.org.apache.*", "org.w3c.*", "org.apache.logging.*"})
 public class GoTermInstanceModifierTest 
 {
 	private static final String TEST_GO_ID = "00001";
@@ -123,7 +123,7 @@ public class GoTermInstanceModifierTest
 		Mockito.doNothing().when(adaptor).updateInstanceAttribute(any(GKInstance.class), anyString());
 		allGoInstances.put("54321", Arrays.asList(otherGoTerm));
 		
-		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm, mockInstanceEdit);
+		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm/* , mockInstanceEdit */);
 		Map<String, Object> goProps = new HashMap<>();
 		goProps.put(GoUpdateConstants.IS_A, Arrays.asList("54321"));
 		modifier.updateRelationship(allGoInstances, goProps , GoUpdateConstants.IS_A, "isA");
@@ -145,7 +145,7 @@ public class GoTermInstanceModifierTest
 		goTermDetail.put(GoUpdateConstants.DEF, "This is a test go term");
 		
 		goTerms.put(TEST_GO_ID, goTermDetail);
-		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm, mockInstanceEdit);
+		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm/* , mockInstanceEdit */);
 		Map<String, List<GKInstance>> allGoInstances = new HashMap<>();
 		
 		// now, execute the DELETE
@@ -211,7 +211,7 @@ public class GoTermInstanceModifierTest
 		goTerms.put(TEST_GO_ID, goTermDetail);
 		
 		goToEcNumbers.put(TEST_GO_ID, Arrays.asList("1.2.3.4"));
-		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm, mockInstanceEdit);
+		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm/* , mockInstanceEdit */);
 		StringBuffer sb = new StringBuffer();
 		try
 		{
@@ -274,7 +274,7 @@ public class GoTermInstanceModifierTest
 		
 		Mockito.when(newGoTerm.getReferers(any(String.class))).thenReturn(Arrays.asList(otherInstance));
 		
-		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm, mockInstanceEdit);
+		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm/* , mockInstanceEdit */);
 		
 		PowerMockito.mockStatic(InstanceDisplayNameGenerator.class);
 		//PowerMockito.doNothing().when(InstanceDisplayNameGenerator.class);
