@@ -93,7 +93,7 @@ public class GoUpdateStep extends ReleaseStep
 			{
 				Files.createDirectory(Paths.get("reports"));
 			}
-			try(BufferedWriter writer = Files.newBufferedWriter(Paths.get("reports/duplicate_GO_terms_"+dateString+".csv")))
+			try(BufferedWriter writer = Files.newBufferedWriter(Paths.get("reports","duplicate_GO_terms_"+dateString+".csv")))
 			{
 				duplicatePrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "Accession", "GO type", "Before or After GO Update process?", "Number of referrers"));
 				reportOnDuplicateAccessions(adaptor, "BEFORE GO Update");
