@@ -1,5 +1,6 @@
 package org.reactome.release.goupdate;
 
+import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -66,8 +67,9 @@ public class GoUpdateStep extends ReleaseStep
 			MySQLAdaptor adaptor = getMySQLAdaptorFromProperties(props);
 			this.loadTestModeFromProperties(props);
 			
-			long personID = Long.valueOf(props.getProperty("person.id")).longValue();
-			
+			long personID = Long.parseLong(props.getProperty("person.id"));
+			GoUpdateInstanceEditUtils.setAdaptor(adaptor);
+			GoUpdateInstanceEditUtils.setPersonID(personID);
 			String pathToGOFile = props.getProperty("pathToGOFile","src/main/resources/go.obo");
 			String pathToEC2GOFile = props.getProperty("pathToEC2GOFile","src/main/resources/ec2go");
 			
@@ -90,28 +92,32 @@ public class GoUpdateStep extends ReleaseStep
 			{
 				Files.createDirectory(Paths.get("reports"));
 			}
-			duplicatePrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/duplicate_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "Accession", "GO type", "Before or After GO Update process?", "Number of referrers"));
-			reportOnDuplicateAccessions(adaptor, "BEFORE GO Update");
-			// Start a transaction. If that fails, the program will exit.
-			try
+			try(BufferedWriter writer = Files.newBufferedWriter(Paths.get("reports/duplicate_GO_terms_"+dateString+".csv")))
 			{
-				adaptor.startTransaction();
-			}
-			catch (TransactionsNotSupportedException e1)
-			{
-				e1.printStackTrace();
-				logger.error("This program should run within a transaction. Exiting.");
-				System.exit(1);
-			}
+				duplicatePrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "Accession", "GO type", "Before or After GO Update process?", "Number of referrers"));
+				reportOnDuplicateAccessions(adaptor, "BEFORE GO Update");
+				// Start a transaction. If that fails, the program will exit.
+				try
+				{
+					adaptor.startTransaction();
+				}
+				catch (TransactionsNotSupportedException e1)
+				{
+					e1.printStackTrace();
+					logger.error("This program should run within a transaction. Exiting.");
+					System.exit(1);
+				}
 
-			// Do the updates.
-			GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines, personID);
-			StringBuilder report = goTermsUpdator.updateGoTerms();
-			logger.info(report);
+				// Do the updates.
+				GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines, personID);
+				StringBuilder report = goTermsUpdator.updateGoTerms();
+				logger.info(report);
 
-			logger.info("Post-GO Update check for duplicated accessions...");
-			reportOnDuplicateAccessions(adaptor, "AFTER GO Update");
-			duplicatePrinter.close();
+				logger.info("Post-GO Update check for duplicated accessions...");
+				reportOnDuplicateAccessions(adaptor, "AFTER GO Update");
+				duplicatePrinter.close();
+			}
+			
 			if (testMode)
 			{
 				adaptor.rollback();
@@ -132,7 +138,7 @@ public class GoUpdateStep extends ReleaseStep
 			throw new RuntimeException(e);
 		}
 		long endTime = System.currentTimeMillis();
-		logger.info("Elapsed time: " + Duration.ofMillis(endTime-startTime).toString());
+		logger.info("Elapsed time: {}", Duration.ofMillis(endTime-startTime).toString());
 	}
 
 	private void reportOnDuplicateAccessions(MySQLAdaptor adaptor, String when) throws Exception
