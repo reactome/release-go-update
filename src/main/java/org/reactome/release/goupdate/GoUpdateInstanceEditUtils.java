@@ -1,6 +1,7 @@
 package org.reactome.release.goupdate;
 
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.gk.model.GKInstance;
@@ -55,13 +56,16 @@ class GoUpdateInstanceEditUtils
 		if (GoUpdateInstanceEditUtils.availableInstanceEdits.containsKey(instanceEditType))
 		{
 			instanceEdit = availableInstanceEdits.get(instanceEditType).get(classUsingInstanceEdit);
-			// If there is no InstanceEdit for the class in question, need to create one.
-			if (instanceEdit == null)
-			{
-				instanceEdit = InstanceEditUtils.createDefaultIE(adaptor, personID, true, instanceEditType.getNote() + "\nCreated by: " + classUsingInstanceEdit.getName());
-				availableInstanceEdits.get(instanceEditType).put(classUsingInstanceEdit, instanceEdit);
-			}
 		}
+		// If there is no InstanceEdit for the class in question, need to create one.
+		if (instanceEdit == null)
+		{
+			instanceEdit = InstanceEditUtils.createDefaultIE(adaptor, personID, true, instanceEditType.getNote() + "\nCreated by: " + classUsingInstanceEdit.getName());
+			Map<Class<?>, GKInstance> existingInstEds = availableInstanceEdits.computeIfAbsent(instanceEditType, x -> new HashMap<>());
+			existingInstEds.put(classUsingInstanceEdit, instanceEdit);
+			availableInstanceEdits.put(instanceEditType, existingInstEds);
+		}
+
 		return instanceEdit;
 	}
 }
