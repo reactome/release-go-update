@@ -34,9 +34,10 @@ import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
+import org.reactome.release.goupdate.GoUpdateInstanceEditUtils.GOUpdateInstEditType;
 
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({GoTermInstanceModifier.class, InstanceDisplayNameGenerator.class})
+@PrepareForTest({GoTermInstanceModifier.class, InstanceDisplayNameGenerator.class, GoUpdateInstanceEditUtils.class})
 @MockitoSettings(strictness = Strictness.WARN)
 @PowerMockIgnore({"javax.management.*","javax.script.*", "javax.xml.*", "java.xml.*", "com.sun.org.apache.*", "org.w3c.*", "org.apache.logging.*"})
 public class GoTermInstanceModifierTest 
@@ -237,7 +238,9 @@ public class GoTermInstanceModifierTest
 		Mockito.when(adaptor.storeInstance(any(GKInstance.class))).thenReturn(123L);
 		
 		PowerMockito.mockStatic(InstanceDisplayNameGenerator.class) ;
-		
+		PowerMockito.mockStatic(GoUpdateInstanceEditUtils.class);
+		PowerMockito.when(GoUpdateInstanceEditUtils.getInstanceEditForClass( any(GOUpdateInstEditType.class), any(Class.class))).thenReturn(this.mockInstanceEdit);
+//		Mockito.when(GoUpdateInstanceEditUtils.getInstanceEditForClass(any(GOUpdateInstEditType.class), anyString());
 		Mockito.when(mockSchema.getClassByName( anyString() )).thenReturn(biologicalProcessGKSchemaClass).thenReturn(molecularFunctionGKSchemaClass);
 		Mockito.when(adaptor.getSchema()).thenReturn(mockSchema);
 		
@@ -252,7 +255,7 @@ public class GoTermInstanceModifierTest
 		goTerms.put(TEST_GO_ID, goTermDetail);
 		
 		goToEcNumbers.put(TEST_GO_ID, Arrays.asList("1.2.3.4"));
-		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, mockInstanceEdit);
+		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor);
 		try
 		{
 			modifier.createNewGOTerm(goTerms, goToEcNumbers, TEST_GO_ID, ReactomeJavaConstants.GO_BiologicalProcess, mockRefDB);
@@ -269,6 +272,8 @@ public class GoTermInstanceModifierTest
 	@Test
 	public void testUpdateReferrerDisplayNames() throws Exception
 	{
+		PowerMockito.mockStatic(GoUpdateInstanceEditUtils.class);
+		PowerMockito.when(GoUpdateInstanceEditUtils.getInstanceEditForClass( any(GOUpdateInstEditType.class), any(Class.class))).thenReturn(this.mockInstanceEdit);
 		Mockito.when(molecularFunctionGKSchemaClass.getReferers()).thenReturn(new HashSet<>(Arrays.asList(activityAttribute,ecNumberAttribute)));
 		Mockito.when(newGoTerm.getSchemClass()).thenReturn(molecularFunctionGKSchemaClass);
 		
