@@ -20,3 +20,4 @@ go-update.iml
 .classpath
 .settings
 .project
+.dbeaver
