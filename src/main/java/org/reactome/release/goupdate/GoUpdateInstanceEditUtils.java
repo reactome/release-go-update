@@ -70,7 +70,7 @@ class GoUpdateInstanceEditUtils
 
 	/**
 	 * Gets an InstanceEdit object for a given type and class. If no such InstanceEdit exists, a new one will be created!<br/>
-	 * The name of the class will be appended to the InstanceEdit's "note" attribute as a new line, beggingin with "Created by:"<br/>
+	 * The name of the class will be appended to the InstanceEdit's "note" attribute as a new line, beginning with "Created by:"<br/>
 	 * The InstanceEdit will be created using the adaptor and person ID that have been set using the appropriate setters.
 	 * @param instanceEditType - The InstanceEdit type.
 	 * @param classUsingInstanceEdit - The Class that is using this InstanceEdit.
