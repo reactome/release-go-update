@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 
 import org.apache.commons.csv.CSVFormat;
@@ -109,7 +110,7 @@ public class GoUpdateStep extends ReleaseStep
 				}
 
 				// Do the updates.
-				GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines, personID);
+				GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines);
 				StringBuilder report = goTermsUpdator.updateGoTerms();
 				logger.info(report);
 
@@ -151,10 +152,11 @@ public class GoUpdateStep extends ReleaseStep
 			for (String accession : duplicatedAccessions.keySet())
 			{
 				Map<Long,Integer> referrerCounts = duplicateReporter.getReferrerCountForAccession(accession);
-				for (Long dbId : referrerCounts.keySet())
+				for (Entry<Long, Integer> entry : referrerCounts.entrySet())
 				{
-					GKInstance inst = (GKInstance)adaptor.fetchInstance(dbId);
-					duplicatePrinter.printRecord(dbId, accession, inst.getSchemClass().getName(), when, referrerCounts.get(dbId));
+					Long dbId = entry.getKey();
+					GKInstance inst = (GKInstance) adaptor.fetchInstance(dbId);
+					duplicatePrinter.printRecord(dbId, accession, inst.getSchemClass().getName(), when, entry.getValue());
 				}
 			}
 		}

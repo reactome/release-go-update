@@ -26,7 +26,6 @@ import org.gk.persistence.MySQLAdaptor;
 import org.gk.schema.GKSchemaAttribute;
 import org.gk.schema.InvalidAttributeException;
 import org.gk.schema.InvalidAttributeValueException;
-import org.reactome.release.common.database.InstanceEditUtils;
 import org.reactome.release.goupdate.GoUpdateInstanceEditUtils.GOUpdateInstEditType;
 
 /**
@@ -49,10 +48,7 @@ class GoTermsUpdater
 	private MySQLAdaptor adaptor;
 	private List<String> goLines;
 	private List<String> ec2GoLines;
-	private GKInstance instanceEdit;
 
-	private long personID;
-	
 	private StringBuffer nameOrDefinitionChangeStringBuilder = new StringBuffer();
 	private StringBuffer deletionStringBuilder = new StringBuffer();
 	
@@ -68,42 +64,22 @@ class GoTermsUpdater
 	/**
 	 * Creates a new GoTermsUpdater
 	 * @param dba - The adaptor to use.
-	 * @param goLines - The lines from the GO file, probably it was named "gene_ontology_ext.obo". The <em>must</em> be in the same sequnces as they were in the original file!!
+	 * @param goLines - The lines from the GO file, probably it was named "gene_ontology_ext.obo". The <em>must</em> be in the same sequences as they were in the original file!!
 	 * @param ec2GoLines - The lines from the EC-to-GO mapping file, probably named "ec2go".
-	 * @param personID - The Person ID that will be used as the author for all created/modified InstanceEdits.
 	 * @throws Exception 
 	 */
-	public GoTermsUpdater(MySQLAdaptor dba, List<String> goLines, List<String> ec2GoLines, long personID) throws Exception
+	public GoTermsUpdater(MySQLAdaptor dba, List<String> goLines, List<String> ec2GoLines) throws Exception
 	{
 		this.adaptor = dba;
-		this.personID = personID;
 		
 		this.goLines = goLines;
 		this.ec2GoLines = ec2GoLines;
-		instanceEdit = InstanceEditUtils.createInstanceEdit(this.adaptor, this.personID, this.getClass().getName());
-		
-//		synchronized(availableInstanceEdits)
-//		{
-//			if (availableInstanceEdits != null && availableInstanceEdits.isEmpty())
-//			{
-//				//Populate the map of available InstanceEdits with actual InstanceEdit objects.
-//				for (GOUpdateInstEditType instEdType : GOUpdateInstEditType.values())
-//				{
-//					availableInstanceEdits.put(instEdType, Arrays.asList(InstanceEditUtils.createDefaultIE(this.adaptor, this.personID, true, instEdType.getNote() + "\n" + this.getClass().getName())));
-//				}
-//			}
-//		}
-		
-		if (instanceEdit == null)
-		{
-			logger.fatal("Cannot proceed without a valid InstanceEdit. Aborting.");
-			throw new RuntimeException("Cannot proceed without a valid InstanceEdit. Aborting.");
-		}
+
 		try
 		{
 			// Grab a copy of the GKInstance representing the GO Database
 			GoTermsUpdater.goRefDB = ((Set<GKInstance>) adaptor.fetchInstanceByAttribute(ReactomeJavaConstants.ReferenceDatabase, ReactomeJavaConstants.name, "=","GO")).stream().findFirst().get();
-			logger.info("RefDB for GO: "+GoTermsUpdater.goRefDB.toString());
+			logger.info("RefDB for GO: {}", GoTermsUpdater.goRefDB.toString());
 		}
 		catch (Exception e1)
 		{
@@ -181,7 +157,7 @@ class GoTermsUpdater
 				if (!goTermsFromFile.get(goID).containsKey(GoUpdateConstants.IS_OBSOLETE) && !goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION))
 				{
 					// Create a new Instance if there is nothing in the current list of instances.
-					goTermModifier = new GoTermInstanceModifier(this.adaptor, this.instanceEdit);
+					goTermModifier = new GoTermInstanceModifier(this.adaptor);
 					newGoTermCount++;
 					GKInstance newInst = createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goTermModifier, currentCategory);
 					List<GKInstance> instList;
@@ -215,7 +191,7 @@ class GoTermsUpdater
 					if (categoryOK)
 					{
 						//Now do the update.
-						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst/* , this.instanceEdit */);
+						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst);
 						goTermModifier.updateGOInstance(goTermsFromFile, goToECNumbers, this.nameOrDefinitionChangeStringBuilder);
 					}
 					else
@@ -227,7 +203,7 @@ class GoTermsUpdater
 						// In this case, the GO Term is not obsolete but it has the wrong category, so it should be removed and recreated.
 						this.adaptor.deleteByDBID(goInst.getDBID());
 						// Now re-create the GO term with the correct GO type.
-						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst/* , this.instanceEdit */);
+						goTermModifier = new GoTermInstanceModifier(this.adaptor, goInst);
 						newGoTermCount++;
 						createNewGOTerm(goTermsFromFile, goToECNumbers, goID, goTermModifier, currentCategory);
 					}
@@ -312,7 +288,7 @@ class GoTermsUpdater
 			{
 				for (GKInstance goInst : goInsts)
 				{
-					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst/* , this.instanceEdit */);
+					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst);
 					
 					if (goInst.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
 					{
@@ -356,7 +332,7 @@ class GoTermsUpdater
 												? ((List<String>) goTermsFromFile.get(goAccession).get(GoUpdateConstants.REPLACED_BY)).get(0)
 												: "N/A" ;
 			
-			GoTermInstanceModifier goTermModifier = new GoTermInstanceModifier(this.adaptor, instance/* , this.instanceEdit */);
+			GoTermInstanceModifier goTermModifier = new GoTermInstanceModifier(this.adaptor, instance);
 			if (GoTermInstanceModifier.isGoTermDeleteable(instance))
 			{
 				// Let's get a count of irrelevant (because there is a replacement instance) referrers
@@ -565,7 +541,7 @@ class GoTermsUpdater
 							{
 								e.printStackTrace();
 							}
-							GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, altGoInst/* , instanceEdit */);
+							GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, altGoInst);
 							modifier.deleteSecondaryGOInstance(primaryGOTerm, deletionStringBuilder);
 						}
 					}
