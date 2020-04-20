@@ -86,10 +86,14 @@ class GoTermInstanceModifier
 			newGOTerm.setDbAdaptor(this.adaptor);
 			return this.adaptor.storeInstance(newGOTerm);
 		}
-		catch (InvalidAttributeException | InvalidAttributeValueException e)
+		catch (InvalidAttributeException e)
 		{
-			logger.error("Attribute/value error! ", e);
-			e.printStackTrace();
+			logger.error("Attribute error! The attribute might not be valid for the object.", e);
+			throw e;
+		}
+		catch (InvalidAttributeValueException e)
+		{
+			logger.error("Attribute-value error! The value is not valid for that object.", e);
 			throw e;
 		}
 		catch (Exception e)
@@ -191,10 +195,13 @@ class GoTermInstanceModifier
 				this.updateReferrersDisplayNames();
 				
 			}
-			catch (InvalidAttributeException | InvalidAttributeValueException e)
+			catch (InvalidAttributeException e)
 			{
-				logger.error("Attribute/Value problem with \""+this.goInstance.toString()+ "\" ", e);
-				e.printStackTrace();
+				logger.error("Attribute problem with \""+this.goInstance.toString()+ "\" - attribute is probably not valid for this object.", e);
+			}
+			catch (InvalidAttributeValueException e)
+			{
+				logger.error("Attribute value problem with \""+this.goInstance.toString()+ "\" - the value is probably not valid for the attribute.", e);
 			}
 			catch (NullPointerException e)
 			{
