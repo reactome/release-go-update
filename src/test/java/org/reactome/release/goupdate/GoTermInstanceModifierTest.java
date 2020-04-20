@@ -232,7 +232,6 @@ public class GoTermInstanceModifierTest
 	@Test
 	public void createGoTermTest() throws InvalidAttributeException, InvalidAttributeValueException, Exception
 	{
-		//PowerMockito.whenNew(GKInstance.class).withAnyArguments().thenReturn(newGoTerm);
 
 		// Mock storing any instance
 		Mockito.when(adaptor.storeInstance(any(GKInstance.class))).thenReturn(123L);
@@ -240,7 +239,6 @@ public class GoTermInstanceModifierTest
 		PowerMockito.mockStatic(InstanceDisplayNameGenerator.class) ;
 		PowerMockito.mockStatic(GoUpdateInstanceEditUtils.class);
 		PowerMockito.when(GoUpdateInstanceEditUtils.getInstanceEditForClass( any(GOUpdateInstEditType.class), any(Class.class))).thenReturn(this.mockInstanceEdit);
-//		Mockito.when(GoUpdateInstanceEditUtils.getInstanceEditForClass(any(GOUpdateInstEditType.class), anyString());
 		Mockito.when(mockSchema.getClassByName( anyString() )).thenReturn(biologicalProcessGKSchemaClass).thenReturn(molecularFunctionGKSchemaClass);
 		Mockito.when(adaptor.getSchema()).thenReturn(mockSchema);
 		
@@ -282,7 +280,6 @@ public class GoTermInstanceModifierTest
 		GoTermInstanceModifier modifier = new GoTermInstanceModifier(adaptor, newGoTerm);
 		
 		PowerMockito.mockStatic(InstanceDisplayNameGenerator.class);
-		//PowerMockito.doNothing().when(InstanceDisplayNameGenerator.class);
 		
 		modifier.updateReferrersDisplayNames();
 	}

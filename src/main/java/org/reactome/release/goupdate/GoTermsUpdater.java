@@ -296,7 +296,7 @@ class GoTermsUpdater
 						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.HAS_PART, "hasPart");
 						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.PART_OF, ReactomeJavaConstants.componentOf);
 
-						// Update the instance's "modififed".
+						// Update the instance's "modified".
 						goInst.getAttributeValuesList(ReactomeJavaConstants.modified);
 						GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(GOUpdateInstEditType.UPDATE_RELATIONSHIP, this.getClass());
 						goInst.addAttributeValue(ReactomeJavaConstants.modified, instEd);
