@@ -19,6 +19,7 @@ import org.gk.schema.GKSchemaAttribute;
 import org.gk.schema.InvalidAttributeException;
 import org.gk.schema.InvalidAttributeValueException;
 import org.gk.schema.SchemaClass;
+import org.reactome.release.goupdate.GoUpdateInstanceEditUtils.GOUpdateInstEditType;
 
 /**
  * This class is responsible for creating/modifying/deleting a single GO term (as a GKInstance) in the database.
@@ -32,29 +33,25 @@ class GoTermInstanceModifier
 	private static final Logger updatedGOTermLogger = LogManager.getLogger("updatedGOTermsLog");
 	private MySQLAdaptor adaptor;
 	private GKInstance goInstance;
-	private GKInstance instanceEdit;
 	
 	/**
 	 * Create the data modifier that is suitable for creating updating or deleting existing GO terms in the database.
 	 * @param adaptor - the database adaptor to use.
 	 * @param goInstance - the GKInstance for the GO term you wish to update/delete.
-	 * @param instanceEdit - the InstanceEdit that the data modification should be associated with.
 	 */
-	public GoTermInstanceModifier(MySQLAdaptor adaptor, GKInstance goInstance, GKInstance instanceEdit)
+	public GoTermInstanceModifier(MySQLAdaptor adaptor, GKInstance goInstance)
 	{
 		this.adaptor = adaptor;
 		this.goInstance = goInstance;
-		this.instanceEdit = instanceEdit;
 	}
 	
 	/**
 	 * Create a data modifier that is suitable for creating *new* GO terms in the database.
 	 * @param adaptor - the database adaptor to use.
-	 * @param instanceEdit - the InstanceEdit that the data modification should be associated with.
 	 */
-	public GoTermInstanceModifier(MySQLAdaptor adaptor, GKInstance instanceEdit)
+	public GoTermInstanceModifier(MySQLAdaptor adaptor)
 	{
-		this(adaptor,null,instanceEdit);
+		this(adaptor,null);
 	}
 
 	
@@ -84,14 +81,19 @@ class GoTermInstanceModifier
 				}
 			}
 			InstanceDisplayNameGenerator.setDisplayName(newGOTerm);
-			newGOTerm.setAttributeValue(ReactomeJavaConstants.created, this.instanceEdit);
+			GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(GOUpdateInstEditType.NEW, this.getClass());
+			newGOTerm.setAttributeValue(ReactomeJavaConstants.created, instEd);
 			newGOTerm.setDbAdaptor(this.adaptor);
 			return this.adaptor.storeInstance(newGOTerm);
 		}
-		catch (InvalidAttributeException | InvalidAttributeValueException e)
+		catch (InvalidAttributeException e)
 		{
-			logger.error("Attribute/value error! "+ e.getMessage());
-			e.printStackTrace();
+			logger.error("Attribute error! The attribute might not be valid for the object.", e);
+			throw e;
+		}
+		catch (InvalidAttributeValueException e)
+		{
+			logger.error("Attribute-value error! The value is not valid for that object.", e);
 			throw e;
 		}
 		catch (Exception e)
@@ -183,8 +185,9 @@ class GoTermInstanceModifier
 				}
 				if (modified)
 				{
+					GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(GOUpdateInstEditType.MODIFIED, this.getClass());
 					this.goInstance.getAttributeValuesList(ReactomeJavaConstants.modified);
-					this.goInstance.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+					this.goInstance.addAttributeValue(ReactomeJavaConstants.modified, instEd);
 					InstanceDisplayNameGenerator.setDisplayName(this.goInstance);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants._displayName);
 				}
@@ -192,14 +195,17 @@ class GoTermInstanceModifier
 				this.updateReferrersDisplayNames();
 				
 			}
-			catch (InvalidAttributeException | InvalidAttributeValueException e)
+			catch (InvalidAttributeException e)
 			{
-				logger.error("Attribute/Value problem with \""+this.goInstance.toString()+ "\" " + e.getMessage());
-				e.printStackTrace();
+				logger.error("Attribute problem with \""+this.goInstance.toString()+ "\" - attribute is probably not valid for this object.", e);
+			}
+			catch (InvalidAttributeValueException e)
+			{
+				logger.error("Attribute value problem with \""+this.goInstance.toString()+ "\" - the value is probably not valid for the attribute.", e);
 			}
 			catch (NullPointerException e)
 			{
-				logger.error("NullPointerException occurred! GO ID: "+currentGOID+" GO Instance: \""+this.goInstance + "\" GO Term: "+goTerms.get(currentGOID));
+				logger.error("NullPointerException occurred! GO ID: {} GO Instance: \"{}\" GO Term: {}", currentGOID, this.goInstance, goTerms.get(currentGOID));
 				e.printStackTrace();
 			}
 			catch (Exception e)
@@ -231,8 +237,9 @@ class GoTermInstanceModifier
 				for (GKInstance referrer : referrers)
 				{
 					InstanceDisplayNameGenerator.setDisplayName(referrer);
+					GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(GOUpdateInstEditType.DISPLAY_NAME, this.getClass());
 					referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
-					referrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+					referrer.addAttributeValue(ReactomeJavaConstants.modified, instEd);
 					this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants._displayName);
 					this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
 				}
@@ -289,7 +296,7 @@ class GoTermInstanceModifier
 		
 		Collection<GKInstance> referrers = GoTermInstanceModifier.getReferrersForGoTerm(instance);
 		
-		if (referrers != null && referrers.size() > 0)
+		if (referrers != null && !referrers.isEmpty())
 		{
 			isDeletable = false;
 		}
@@ -336,7 +343,7 @@ class GoTermInstanceModifier
 				@SuppressWarnings("unchecked")
 				String replacementGOTermAccession = ((List<String>) goTerms.get(goId).get(GoUpdateConstants.REPLACED_BY)).get(0);
 				// this term has a replacement so we will update all referrers of *this* to point to the replacement.
-				if (allGoInstances.get(replacementGOTermAccession) != null && allGoInstances.get(replacementGOTermAccession).size() > 0)
+				if (allGoInstances.get(replacementGOTermAccession) != null && !allGoInstances.get(replacementGOTermAccession).isEmpty())
 				{
 					GKInstance replacementGOTerm = allGoInstances.get(replacementGOTermAccession).get(0);
 					this.pointAllReferrersToOtherInstance(replacementGOTerm);
@@ -359,7 +366,7 @@ class GoTermInstanceModifier
 		}
 		catch (Exception e)
 		{
-			logger.error("Error occurred while trying to delete instance: \""+this.goInstance.toString()+"\": "+e.getMessage());
+			logger.error("Error occurred while trying to delete instance: \""+this.goInstance.toString()+"\": ", e);
 			e.printStackTrace();
 		}
 	}
@@ -411,8 +418,9 @@ class GoTermInstanceModifier
 						this.adaptor.updateInstanceAttribute(attribReferrer, attrib.getName());
 					}
 					// now that the references to *this* GO Instance have been removed, record this operation by adding a "modified" InstanceEdit.
+					GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(GOUpdateInstEditType.REF_CLEARED, this.getClass());
 					attribReferrer.getAttributeValuesList(ReactomeJavaConstants.modified);
-					attribReferrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+					attribReferrer.addAttributeValue(ReactomeJavaConstants.modified, instEd);
 					this.adaptor.updateInstanceAttribute(attribReferrer, ReactomeJavaConstants.modified);
 				}
 				catch (Exception  e)
@@ -467,8 +475,9 @@ class GoTermInstanceModifier
 								referrer.setAttributeValue(ReactomeJavaConstants._displayName, newReferrerDisplayName);
 								adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants._displayName);
 							}
+							GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(GOUpdateInstEditType.REF_ATTRIB_UPDATE, this.getClass());
 							referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
-							referrer.addAttributeValue(ReactomeJavaConstants.modified, this.instanceEdit);
+							referrer.addAttributeValue(ReactomeJavaConstants.modified, instEd);
 							// update in db.
 							adaptor.updateInstanceAttribute(referrer, attributeName);
 							adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
