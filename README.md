@@ -70,8 +70,8 @@ This application requires a properties file at `./go-update.properties` that con
 
 ```
 db.host=${hostname}
-db.user=${root_username}
-db.password=${root_password}
+db.user=${username}
+db.password=${password}
 db.name=gk_central
 db.port=3306
 testMode=true
