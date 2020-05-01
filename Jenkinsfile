@@ -9,6 +9,7 @@ pipeline {
 
 	stages {
 		// This stage checks that an upstream project, ConfirmReleaseConfig, was run successfully for its last build.
+		/*
 		stage('Check ConfirmReleaseConfig build succeeded'){
 			steps{
 				script{
@@ -29,7 +30,7 @@ pipeline {
 			}
 		}
 		// This stage backs up the gk_central database before it is modified.
-		stage('Setup: Back up Curator gk_central DB'){
+		stage('Setup: Back up gk_central before modifications'){
 			steps{
 				script{
 					withCredentials([usernamePassword(credentialsId: 'mySQLCuratorUsernamePassword', passwordVariable: 'pass', usernameVariable: 'user')]){
@@ -52,7 +53,7 @@ pipeline {
 			}
 		}
 		// This stage builds the jar file using maven.
-		stage('Setup: Build jar files'){
+		stage('Setup: Build jar file'){
 			steps{
 				script{
 					sh "mvn clean compile assembly:single"
@@ -60,11 +61,24 @@ pipeline {
 			}
 		}
 		// This stage executes the GOUpdate jar file. 
-		stage('Main: Update Stable Identifiers'){
+		stage('Main: GO Update'){
 			steps {
 				script{
 					withCredentials([file(credentialsId: 'Config', variable: 'ConfigFile')]){
 						sh "java -Xmx${env.JAVA_MEM_MAX}m -jar target/go-update-*-jar-with-dependencies.jar $ConfigFile"
+					}
+				}
+			}
+		}
+		*/
+				// This stage backs up the gk_central and slice_current databases after they have been modified.
+		stage('Post: Backup gk_central after modifications'){
+			steps{
+				script{
+					withCredentials([usernamePassword(credentialsId: 'mySQLCuratorUsernamePassword', passwordVariable: 'pass', usernameVariable: 'user')]){
+						def central_after_update_go_update_dump = "${env.GK_CENTRAL}_${currentRelease}_after_go_update.dump"
+						sh "mysqldump -u$user -p$pass -h${env.CURATOR_SERVER} ${env.GK_CENTRAL} > $central_after_update_go_update_dump"
+						sh "gzip -f $central_after_update_go_update_dump"
 					}
 				}
 			}
