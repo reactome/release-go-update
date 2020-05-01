@@ -28,5 +28,17 @@ pipeline {
 				}
 			}
 		}
+		// This stage backs up the gk_central database before it is modified.
+		stage('Setup: Back up Curator gk_central DB'){
+			steps{
+				script{
+					withCredentials([usernamePassword(credentialsId: 'mySQLCuratorUsernamePassword', passwordVariable: 'pass', usernameVariable: 'user')]){
+						def central_before_go_update_dump = "${env.GK_CENTRAL}_${currentRelease}_before_go_update.dump"
+						sh "mysqldump -u$user -p$pass -h${env.CURATOR_SERVER} ${env.GK_CENTRAL} > $central_before_go_update_dump"
+						sh "gzip -f $central_before_go_update_dump"
+					}
+				}
+			}
+		}
 	}
 }
