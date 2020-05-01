@@ -40,5 +40,16 @@ pipeline {
 				}
 			}
 		}
+		// Download go.obo and ec2go files from GO.
+		stage('Setup: Download go.obo and ec2go files'){
+			steps{
+				script{
+					sh "wget http://current.geneontology.org/ontology/go.obo"
+					sh "wget http://current.geneontology.org/ontology/external2go/ec2go"
+					sh "mv go.obo src/main/resources/"
+					sh "mv ec2go src/main/resources/"
+				}
+			}
+		}
 	}
 }
