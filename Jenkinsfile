@@ -51,5 +51,23 @@ pipeline {
 				}
 			}
 		}
+		// This stage builds the jar file using maven.
+		stage('Setup: Build jar files'){
+			steps{
+				script{
+					sh "mvn clean compile assembly:single"
+				}
+			}
+		}
+		// This stage executes the GOUpdate jar file. 
+		stage('Main: Update Stable Identifiers'){
+			steps {
+				script{
+					withCredentials([file(credentialsId: 'Config', variable: 'ConfigFile')]){
+						sh "java -Xmx${env.JAVA_MEM_MAX}m -jar target/go-update-*-jar-with-dependencies.jar $ConfigFile"
+					}
+				}
+			}
+		}
 	}
 }
