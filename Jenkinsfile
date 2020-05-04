@@ -1,15 +1,15 @@
 import groovy.json.JsonSlurper
-// This Jenkinsfile is used by Jenkins to run the GOUpdate step of Reactome's release.
+// This Jenkinsfile is used by Jenkins to run the 'GOUpdate' step of Reactome's release.
 // This step synchronizes Reactome's GO terms with Gene Ontology. 
-// It requires that the ConfirmReleaseConfigs step has been run successfully before it can be run.
+// It requires that the 'ConfirmReleaseConfigs' step has been run successfully before it can be run.
 def currentRelease
 def previousRelease
 pipeline {
 	agent any
 
 	stages {
-		// This stage checks that an upstream project, ConfirmReleaseConfig, was run successfully for its last build.
-		stage('Check ConfirmReleaseConfig build succeeded'){
+		// This stage checks that an upstream step, ConfirmReleaseConfigs, was run successfully.
+		stage('Check ConfirmReleaseConfigs build succeeded'){
 			steps{
 				script{
 					// Get current release number from directory
@@ -51,7 +51,7 @@ pipeline {
 				}
 			}
 		}
-		// This stage builds the jar file using maven.
+		// This stage builds the jar file using Maven.
 		stage('Setup: Build jar file'){
 			steps{
 				script{
@@ -113,10 +113,7 @@ pipeline {
 					sh "aws s3 --no-progress --recursive cp databases/ $s3Path/databases/"
 					sh "aws s3 --no-progress --recursive cp logs/ $s3Path/logs/"
 					sh "aws s3 --no-progress --recursive cp data/ $s3Path/data/"
-					sh "rm -r databases"
-					sh "rm -r logs"
-					sh "rm -r data"
-					sh "rm -r reports"
+					sh "rm -r databases logs data reports"
 				}
 			}
 		}						
