@@ -1,6 +1,6 @@
-
 import groovy.json.JsonSlurper
 // This Jenkinsfile is used by Jenkins to run the GOUpdate step of Reactome's release.
+// This step synchronizes Reactome's GO terms with Gene Ontology. 
 // It requires that the ConfirmReleaseConfigs step has been run successfully before it can be run.
 def currentRelease
 def previousRelease
