@@ -9,7 +9,6 @@ pipeline {
 
 	stages {
 		// This stage checks that an upstream project, ConfirmReleaseConfig, was run successfully for its last build.
-		/*
 		stage('Check ConfirmReleaseConfig build succeeded'){
 			steps{
 				script{
@@ -70,8 +69,7 @@ pipeline {
 				}
 			}
 		}
-		*/
-				// This stage backs up the gk_central and slice_current databases after they have been modified.
+		// This stage backs up the gk_central and slice_current databases after they have been modified.
 		stage('Post: Backup gk_central after modifications'){
 			steps{
 				script{
