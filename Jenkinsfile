@@ -69,7 +69,7 @@ pipeline {
 				}
 			}
 		}
-		// This stage backs up the gk_central and slice_current databases after they have been modified.
+		// This stage backs up the gk_central database after modification.
 		stage('Post: Backup gk_central after modifications'){
 			steps{
 				script{
