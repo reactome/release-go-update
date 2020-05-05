@@ -1,28 +1,28 @@
 import groovy.json.JsonSlurper
 // This Jenkinsfile is used by Jenkins to run the 'GOUpdate' step of Reactome's release.
 // This step synchronizes Reactome's GO terms with Gene Ontology. 
-// It requires that the 'ConfirmReleaseConfigs' step has been run successfully before it can be run.
+// It requires that the 'UniProtUpdate' step has been run successfully before it can be run.
 def currentRelease
 def previousRelease
 pipeline {
 	agent any
 
 	stages {
-		// This stage checks that an upstream step, ConfirmReleaseConfigs, was run successfully.
-		stage('Check ConfirmReleaseConfigs build succeeded'){
+		// This stage checks that an upstream step, UniProtUpdate, was run successfully.
+		stage('Check UniProtUpdate build succeeded'){
 			steps{
 				script{
 					// Get current release number from directory
 					currentRelease = (pwd() =~ /Releases\/(\d+)\//)[0][1];
 					previousRelease = (pwd() =~ /Releases\/(\d+)\//)[0][1].toInteger() - 1;
-					// This queries the Jenkins API to confirm that the most recent build of ConfirmReleaseConfigs was successful.
-					def configStatusUrl = httpRequest authentication: 'jenkinsKey', validResponseCodes: "${env.VALID_RESPONSE_CODES}", url: "${env.JENKINS_JOB_URL}/job/${currentRelease}/job/ConfirmReleaseConfigs/lastBuild/api/json"
-					if (configStatusUrl.getStatus() == 404) {
-						error("ConfirmReleaseConfigs has not yet been run. Please complete a successful build.")
+					// This queries the Jenkins API to confirm that the most recent build of 'UniProtUpdate' was successful.
+					def uniprotStatusUrl = httpRequest authentication: 'jenkinsKey', validResponseCodes: "${env.VALID_RESPONSE_CODES}", url: "${env.JENKINS_JOB_URL}/job/${currentRelease}/job/Pre-Slice/job/UniProtUpdate/lastBuild/api/json"
+					if (uniprotStatusUrl.getStatus() == 404) {
+						error("UniProtUpdate has not yet been run. Please complete a successful build.")
 					} else {
-						def configStatusJson = new JsonSlurper().parseText(configStatusUrl.getContent())
-						if (configStatusJson['result'] != "SUCCESS"){
-							error("Most recent ConfirmReleaseConfigs build status: " + configStatusJson['result'] + ". Please complete a successful build.")
+						def uniprotStatusJson = new JsonSlurper().parseText(uniprotStatusUrl.getContent())
+						if (uniprotStatusJson['result'] != "SUCCESS"){
+							error("Most recent UniProtUpdate build status: " + uniprotStatusJson['result'] + ". Please complete a successful build.")
 						}
 					}
 				}
@@ -87,7 +87,7 @@ pipeline {
 				script{
 					sh "tar zcf go-update-v${currentRelease}-reports.tgz reports/"
 					emailext (
-						body: "Hello,\n\nThis is an automated message from Jenkins regarding an update for v${currentRelease}. The GO Update step has completed. Please review the reports attached to this email. If they look correct, these reports need to be uploaded to the Reactome Drive at Reactome>Release>Release QA>V${currentRelease}_QA>V${currentRelease}_QA_GO_Update_Reports. If they don't look correct, please email the developer running Release. \n\nThanks!",
+						body: "Hello,\n\nThis is an automated message from Jenkins regarding an update for v${currentRelease}. The GO Update step has completed. Please review the reports attached to this email. If they look correct, these reports need to be uploaded to the Reactome Drive at Reactome>Release>Release QA>V${currentRelease}_QA>V${currentRelease}_QA_GO_Update_Reports. The URL to the new V${currentRelease}_QA_GO_Update_Reports folder also needs to be updated at https://devwiki.reactome.org/index.php/Reports_Archive under 'GO Update Reports'. Please add the older GO report URL to the 'Archived reports' section of the page. If they don't look correct, please email the developer running Release. \n\nThanks!",
 						to: '$DEFAULT_RECIPIENTS',
 						from: "${env.JENKINS_RELEASE_EMAIL}",
 						subject: "GO Update Reports for v${currentRelease}",
