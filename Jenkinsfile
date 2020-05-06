@@ -102,14 +102,12 @@ pipeline {
 			steps{
 				script{
 					def s3Path = "${env.S3_RELEASE_DIRECTORY_URL}/${currentRelease}/go_update"
-					sh "mkdir -p databases/"
-					sh "mkdir -p data/"
+					sh "mkdir -p databases/ data/"
 					sh "mv --backup=numbered *_${currentRelease}_*.dump.gz databases/"
 					sh "mv src/main/resources/go.obo data/"
 					sh "mv src/main/resources/ec2go data/"
-					sh "gzip data/*"
+					sh "gzip data/* logs/*"
 					sh "mv go-update-v${currentRelease}-reports.tgz data/"
-					sh "gzip logs/*"
 					sh "aws s3 --no-progress --recursive cp databases/ $s3Path/databases/"
 					sh "aws s3 --no-progress --recursive cp logs/ $s3Path/logs/"
 					sh "aws s3 --no-progress --recursive cp data/ $s3Path/data/"
