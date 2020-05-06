@@ -1,5 +1,5 @@
 import groovy.json.JsonSlurper
-// This Jenkinsfile is used by Jenkins to run the 'GOUpdate' step of Reactome's release.
+// This Jenkinsfile is used by Jenkins to run the 'GO Update' step of Reactome's release.
 // This step synchronizes Reactome's GO terms with Gene Ontology. 
 // It requires that the 'UniProt Update' step has been run successfully before it can be run.
 def currentRelease
@@ -18,11 +18,11 @@ pipeline {
 					// This queries the Jenkins API to confirm that the most recent build of 'UniProt Update' was successful.
 					def uniprotStatusUrl = httpRequest authentication: 'jenkinsKey', validResponseCodes: "${env.VALID_RESPONSE_CODES}", url: "${env.JENKINS_JOB_URL}/job/${currentRelease}/job/Pre-Slice/job/UniProtUpdate/lastBuild/api/json"
 					if (uniprotStatusUrl.getStatus() == 404) {
-						error("UniProtUpdate has not yet been run. Please complete a successful build.")
+						error("UniProt Update has not yet been run. Please complete a successful build.")
 					} else {
 						def uniprotStatusJson = new JsonSlurper().parseText(uniprotStatusUrl.getContent())
 						if (uniprotStatusJson['result'] != "SUCCESS"){
-							error("Most recent UniProtUpdate build status: " + uniprotStatusJson['result'] + ". Please complete a successful build.")
+							error("Most recent UniProt Update build status: " + uniprotStatusJson['result'] + ". Please complete a successful build.")
 						}
 					}
 				}
