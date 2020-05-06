@@ -87,7 +87,7 @@ pipeline {
 				script{
 					sh "tar zcf go-update-v${currentRelease}-reports.tgz reports/"
 					emailext (
-						body: "Hello,\n\nThis is an automated message from Jenkins regarding an update for v${currentRelease}. The GO Update step has completed. Please review the reports attached to this email. If they look correct, these reports need to be uploaded to the Reactome Drive at Reactome>Release>Release QA>V${currentRelease}_QA>V${currentRelease}_QA_GO_Update_Reports. The URL to the new V${currentRelease}_QA_GO_Update_Reports folder also needs to be updated at https://devwiki.reactome.org/index.php/Reports_Archive under 'GO Update Reports'. Please add the older GO report URL to the 'Archived reports' section of the page. If they don't look correct, please email the developer running Release. \n\nThanks!",
+						body: "Hello,\n\nThis is an automated message from Jenkins regarding an update for v${currentRelease}. The GO Update step has completed. Please review the reports attached to this email. If they look correct, these reports need to be uploaded to the Reactome Drive at Reactome>Release>Release QA>V${currentRelease}_QA>V${currentRelease}_QA_GO_Update_Reports. The URL to the new V${currentRelease}_QA_GO_Update_Reports folder also needs to be updated at https://devwiki.reactome.org/index.php/Reports_Archive under 'GO Update Reports'. Please add the current GO report wiki URL to the 'Archived reports' section of the page. If the reports don't look correct, please email the developer running Release. \n\nThanks!",
 						to: '$DEFAULT_RECIPIENTS',
 						from: "${env.JENKINS_RELEASE_EMAIL}",
 						subject: "GO Update Reports for v${currentRelease}",
