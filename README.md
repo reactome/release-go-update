@@ -81,10 +81,10 @@ pathToEC2GOFile=src/main/resources/ec2go
 ```
 
 - The db.* values are required to make a database connection.
-- `testMode` can be set to `true` if you want to see what the results might look like, but not commit them to the database. Set this to false when you _do_ want the rsults to get committed.
+- `testMode` can be set to `true` if you want to see what the results might look like, but not commit them to the database. Set this to false when you _do_ want the results to get committed.
 - person.id - This will be used as the Person ID for the InstanceEdits that this program creates.
-- pathToGOFile - the path to `gene_ontology_ext.obo`. This file contains the GO terms. You can download this file from [http://geneontology.org/ontology/obo_format_1_2/gene_ontology_ext.obo](http://geneontology.org/ontology/obo_format_1_2/gene_ontology_ext.obo).
-- pathToEC2GOFile - the path to `ec2go`. This file contains a mapping of EC numbers mapped to GO accessions. You can download this file from [http://geneontology.org/external2go/ec2go](http://geneontology.org/external2go/ec2go).
+- pathToGOFile - the path to the `go.obo` file. This file contains the GO terms. You can download this file from http://current.geneontology.org/ontology/go.obo).
+- pathToEC2GOFile - the path to the `ec2go` file. This file contains a mapping of EC numbers mapped to GO accessions. You can download this file from http://geneontology.org/external2go/ec2go.
 
 Pass this path to this properties file to the program as the first argument.
 
