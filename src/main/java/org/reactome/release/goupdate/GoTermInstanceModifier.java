@@ -190,10 +190,9 @@ class GoTermInstanceModifier
 					this.goInstance.addAttributeValue(ReactomeJavaConstants.modified, instEd);
 					InstanceDisplayNameGenerator.setDisplayName(this.goInstance);
 					this.adaptor.updateInstanceAttribute(this.goInstance, ReactomeJavaConstants._displayName);
+					// Referrers might need to be updated, if their DisplayName depends on the GO_* entity which they refer to.
+					this.updateReferrersDisplayNames();
 				}
-				// Referrers might need to be updated, if their DisplayName depends on the GO_* entity which they referr to.
-				this.updateReferrersDisplayNames();
-				
 			}
 			catch (InvalidAttributeException e)
 			{
