@@ -37,8 +37,8 @@ public class GoUpdateStep extends ReleaseStep
 		{
 			// First part:
 			// 1) Get the GO files:
-			// - http://geneontology.org/ontology/obo_format_1_2/gene_ontology_ext.obo
-			// - http://geneontology.org/external2go/ec2go
+			// - http://current.geneontology.org/ontology/go.obo (replaces outdated URL http://geneontology.org/ontology/obo_format_1_2/gene_ontology_ext.obo)
+			// - http://current.geneontology.org/ontology/external2go/ec2go (replaces outdated URL http://geneontology.org/external2go/ec2go)			
 			// 2) from database, get list of all things where:
 			//    biological_process=GO_BiologicalProcess, molecular_function=GO_MolecularFunction, cellular_component=GO_CellularComponent 
 			// 3) Read gene_ontology_ext.obo
@@ -59,11 +59,6 @@ public class GoUpdateStep extends ReleaseStep
 			// 4) use this data structure to create/update/mark-for-deletion instances in database.
 			// 5) delete the marked-for-deletion instances.
 			// 6) update relationships between remaining instances, based on content of data structure.
-			
-			// ***UPDATE***
-			// URL to main GO file is now:
-			// http://current.geneontology.org/ontology/go.obo
-			// ...the ec2go file is the same.
 			
 			MySQLAdaptor adaptor = getMySQLAdaptorFromProperties(props);
 			this.loadTestModeFromProperties(props);
