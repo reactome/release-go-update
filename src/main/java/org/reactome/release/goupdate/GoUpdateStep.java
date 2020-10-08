@@ -63,7 +63,7 @@ public class GoUpdateStep extends ReleaseStep
 			MySQLAdaptor adaptor = getMySQLAdaptorFromProperties(props);
 			this.loadTestModeFromProperties(props);
 			
-			long personID = Long.parseLong(props.getProperty("person.id"));
+			long personID = Long.parseLong(props.getProperty("personId"));
 			GoUpdateInstanceEditUtils.setAdaptor(adaptor);
 			GoUpdateInstanceEditUtils.setPersonID(personID);
 			String pathToGOFile = props.getProperty("pathToGOFile","src/main/resources/go.obo");
