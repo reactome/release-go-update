@@ -5,7 +5,7 @@ import groovy.json.JsonSlurper
 pipeline {
 	agent any
 	
-		environment{
+	environment{
     		// NOTE: this file must be executed in a directory whose name is a numeric sequence, and whose parent is named "Releases".
     		// This is how other Jenkinsfiles in the Release process determine the current release number.
     		RELEASE_VERSION = getReleaseVersion();
