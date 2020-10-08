@@ -2,21 +2,22 @@ import groovy.json.JsonSlurper
 // This Jenkinsfile is used by Jenkins to run the 'GO Update' step of Reactome's release.
 // This step synchronizes Reactome's GO terms with Gene Ontology. 
 // It requires that the 'UniProt Update' step has been run successfully before it can be run.
-def currentRelease
-def previousRelease
 pipeline {
 	agent any
+	
+		environment{
+    		// NOTE: this file must be executed in a directory whose name is a numeric sequence, and whose parent is named "Releases".
+    		// This is how other Jenkinsfiles in the Release process determine the current release number.
+    		RELEASE_VERSION = getReleaseVersion();
+    	}
 
 	stages {
 		// This stage checks that an upstream step, UniProt Update, was run successfully.
 		stage('Check UniProt Update build succeeded'){
 			steps{
 				script{
-					// Get current release number from directory
-					currentRelease = (pwd() =~ /Releases\/(\d+)\//)[0][1];
-					previousRelease = (pwd() =~ /Releases\/(\d+)\//)[0][1].toInteger() - 1;
 					// This queries the Jenkins API to confirm that the most recent build of 'UniProt Update' was successful.
-					def uniprotStatusUrl = httpRequest authentication: 'jenkinsKey', validResponseCodes: "${env.VALID_RESPONSE_CODES}", url: "${env.JENKINS_JOB_URL}/job/${currentRelease}/job/Pre-Slice/job/UniProtUpdate/lastBuild/api/json"
+					def uniprotStatusUrl = httpRequest authentication: 'jenkinsKey', validResponseCodes: "${env.VALID_RESPONSE_CODES}", url: "${env.JENKINS_JOB_URL}/job/${env.RELEASE_VERSION}/job/Pre-Slice/job/UniProtUpdate/lastBuild/api/json"
 					if (uniprotStatusUrl.getStatus() == 404) {
 						error("UniProt Update has not yet been run. Please complete a successful build.")
 					} else {
@@ -32,9 +33,10 @@ pipeline {
 		stage('Setup: Back up gk_central before modifications'){
 			steps{
 				script{
+				    def timestamp = new Date().format("yyyy-MM-dd-HHmmss")
 					withCredentials([usernamePassword(credentialsId: 'mySQLCuratorUsernamePassword', passwordVariable: 'pass', usernameVariable: 'user')]){
-						def central_before_go_update_dump = "${env.GK_CENTRAL}_${currentRelease}_before_go_update.dump"
-						sh "mysqldump -u$user -p$pass -h${env.CURATOR_SERVER} ${env.GK_CENTRAL} > $central_before_go_update_dump"
+						def central_before_go_update_dump = "${env.GK_CENTRAL_DB}_${env.RELEASE_VERSION}_before_go_update_${timestamp}.dump"
+						sh "mysqldump -u$user -p$pass -h${env.CURATOR_SERVER} ${env.GK_CENTRAL_DB} > $central_before_go_update_dump"
 						sh "gzip -f $central_before_go_update_dump"
 					}
 				}
@@ -44,8 +46,8 @@ pipeline {
 		stage('Setup: Download go.obo and ec2go files'){
 			steps{
 				script{
-					sh "wget http://current.geneontology.org/ontology/go.obo"
-					sh "wget http://current.geneontology.org/ontology/external2go/ec2go"
+					sh "wget -q http://current.geneontology.org/ontology/go.obo"
+					sh "wget -q http://current.geneontology.org/ontology/external2go/ec2go"
 					sh "mv go.obo src/main/resources/"
 					sh "mv ec2go src/main/resources/"
 				}
@@ -73,9 +75,10 @@ pipeline {
 		stage('Post: Backup gk_central after modifications'){
 			steps{
 				script{
+				    def timestamp = new Date().format("yyyy-MM-dd-HHmmss")
 					withCredentials([usernamePassword(credentialsId: 'mySQLCuratorUsernamePassword', passwordVariable: 'pass', usernameVariable: 'user')]){
-						def central_after_update_go_update_dump = "${env.GK_CENTRAL}_${currentRelease}_after_go_update.dump"
-						sh "mysqldump -u$user -p$pass -h${env.CURATOR_SERVER} ${env.GK_CENTRAL} > $central_after_update_go_update_dump"
+						def central_after_update_go_update_dump = "${env.GK_CENTRAL_DB}_${env.RELEASE_VERSION}_after_go_update_${timestamp}.dump"
+						sh "mysqldump -u$user -p$pass -h${env.CURATOR_SERVER} ${env.GK_CENTRAL_DB} > $central_after_update_go_update_dump"
 						sh "gzip -f $central_after_update_go_update_dump"
 					}
 				}
@@ -85,13 +88,13 @@ pipeline {
 		stage('Post: Email GO Update Reports'){
 			steps{
 				script{
-					sh "tar zcf go-update-v${currentRelease}-reports.tgz reports/"
+					sh "tar zcf go-update-v${env.RELEASE_VERSION}-reports.tgz reports/"
 					emailext (
-						body: "Hello,\n\nThis is an automated message from Jenkins regarding an update for v${currentRelease}. The GO Update step has completed. Please review the reports attached to this email. If they look correct, these reports need to be uploaded to the Reactome Drive at Reactome>Release>Release QA>V${currentRelease}_QA>V${currentRelease}_QA_GO_Update_Reports. The URL to the new V${currentRelease}_QA_GO_Update_Reports folder also needs to be updated at https://devwiki.reactome.org/index.php/Reports_Archive under 'GO Update Reports'. Please add the current GO report wiki URL to the 'Archived reports' section of the page. If the reports don't look correct, please email the developer running Release. \n\nThanks!",
+						body: "Hello,\n\nThis is an automated message from Jenkins regarding an update for v${env.RELEASE_VERSION}. The GO Update step has completed. Please review the reports attached to this email. If they look correct, these reports need to be uploaded to the Reactome Drive at Reactome>Release>Release QA>V${env.RELEASE_VERSION}_QA>V${env.RELEASE_VERSION}_QA_GO_Update_Reports. The URL to the new V${env.RELEASE_VERSION}_QA_GO_Update_Reports folder also needs to be updated at https://devwiki.reactome.org/index.php/Reports_Archive under 'GO Update Reports'. Please add the current GO report wiki URL to the 'Archived reports' section of the page. If the reports don't look correct, please email the developer running Release. \n\nThanks!",
 						to: '$DEFAULT_RECIPIENTS',
 						from: "${env.JENKINS_RELEASE_EMAIL}",
-						subject: "GO Update Reports for v${currentRelease}",
-						attachmentsPattern: "**/go-update-v${currentRelease}-reports.tgz"
+						subject: "GO Update Reports for v${env.RELEASE_VERSION}",
+						attachmentsPattern: "**/go-update-v${env.RELEASE_VERSION}-reports.tgz"
 					)
 				}
 			}
@@ -101,13 +104,13 @@ pipeline {
 		stage('Post: Archive Outputs'){
 			steps{
 				script{
-					def s3Path = "${env.S3_RELEASE_DIRECTORY_URL}/${currentRelease}/go_update"
+					def s3Path = "${env.S3_RELEASE_DIRECTORY_URL}/${env.RELEASE_VERSION}/go_update"
 					sh "mkdir -p databases/ data/"
-					sh "mv --backup=numbered *_${currentRelease}_*.dump.gz databases/"
+					sh "mv --backup=numbered *_${env.RELEASE_VERSION}_*.dump.gz databases/"
 					sh "mv src/main/resources/go.obo data/"
 					sh "mv src/main/resources/ec2go data/"
 					sh "gzip data/* logs/*"
-					sh "mv go-update-v${currentRelease}-reports.tgz data/"
+					sh "mv go-update-v${env.RELEASE_VERSION}-reports.tgz data/"
 					sh "aws s3 --no-progress --recursive cp databases/ $s3Path/databases/"
 					sh "aws s3 --no-progress --recursive cp logs/ $s3Path/logs/"
 					sh "aws s3 --no-progress --recursive cp data/ $s3Path/data/"
@@ -116,4 +119,10 @@ pipeline {
 			}
 		}						
 	}
+}
+
+// Finds release version (ex: 74) from directory that step is being run from.
+def getReleaseVersion()
+{
+    return (pwd() =~ /Releases\/(\d+)\//)[0][1];
 }
