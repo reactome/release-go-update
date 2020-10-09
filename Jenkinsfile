@@ -109,7 +109,7 @@ pipeline {
 					sh "mv --backup=numbered *_${env.RELEASE_VERSION}_*.dump.gz databases/"
 					sh "mv src/main/resources/go.obo data/"
 					sh "mv src/main/resources/ec2go data/"
-					sh "gzip data/* logs/*"
+					sh "gzip -r data/* logs/*"
 					sh "mv go-update-v${env.RELEASE_VERSION}-reports.tgz data/"
 					sh "aws s3 --no-progress --recursive cp databases/ $s3Path/databases/"
 					sh "aws s3 --no-progress --recursive cp logs/ $s3Path/logs/"
