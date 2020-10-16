@@ -1,44 +1,21 @@
-import groovy.json.JsonSlurper
 // This Jenkinsfile is used by Jenkins to run the 'GO Update' step of Reactome's release.
 // This step synchronizes Reactome's GO terms with Gene Ontology. 
-// It requires that the 'UniProt Update' step has been run successfully before it can be run.
+
+import groovy.json.JsonSlurper
+import org.reactome.release.jenkins.utilities.Utilities
+
+// Shared library maintained at 'release-jenkins-utils' repository.
+def utils = new Utilities()
+
 pipeline {
 	agent any
-	
-	environment{
-    		// NOTE: this file must be executed in a directory whose name is a numeric sequence, and whose parent is named "Releases".
-    		// This is how other Jenkinsfiles in the Release process determine the current release number.
-    		RELEASE_VERSION = getReleaseVersion();
-    	}
 
 	stages {
 		// This stage checks that an upstream step, UniProt Update, was run successfully.
 		stage('Check UniProt Update build succeeded'){
 			steps{
 				script{
-					// This queries the Jenkins API to confirm that the most recent build of 'UniProt Update' was successful.
-					def uniprotStatusUrl = httpRequest authentication: 'jenkinsKey', validResponseCodes: "${env.VALID_RESPONSE_CODES}", url: "${env.JENKINS_JOB_URL}/job/${env.RELEASE_VERSION}/job/Pre-Slice/job/UniProtUpdate/lastBuild/api/json"
-					if (uniprotStatusUrl.getStatus() == 404) {
-						error("UniProt Update has not yet been run. Please complete a successful build.")
-					} else {
-						def uniprotStatusJson = new JsonSlurper().parseText(uniprotStatusUrl.getContent())
-						if (uniprotStatusJson['result'] != "SUCCESS"){
-							error("Most recent UniProt Update build status: " + uniprotStatusJson['result'] + ". Please complete a successful build.")
-						}
-					}
-				}
-			}
-		}
-		// This stage backs up the gk_central database before it is modified.
-		stage('Setup: Back up gk_central before modifications'){
-			steps{
-				script{
-				    def timestamp = new Date().format("yyyy-MM-dd-HHmmss")
-					withCredentials([usernamePassword(credentialsId: 'mySQLCuratorUsernamePassword', passwordVariable: 'pass', usernameVariable: 'user')]){
-						def central_before_go_update_dump = "${env.GK_CENTRAL_DB}_${env.RELEASE_VERSION}_before_go_update_${timestamp}.dump"
-						sh "mysqldump -u$user -p$pass -h${env.CURATOR_SERVER} ${env.GK_CENTRAL_DB} > $central_before_go_update_dump"
-						sh "gzip -f $central_before_go_update_dump"
-					}
+					utils.checkUpstreamBuildsSucceeded("Pre-Slice/job/UniProtUpdate")
 				}
 			}
 		}
@@ -53,11 +30,21 @@ pipeline {
 				}
 			}
 		}
+		// This stage backs up the gk_central database before it is modified.
+		stage('Setup: Back up gk_central before modifications'){
+			steps{
+				script{
+					withCredentials([usernamePassword(credentialsId: 'mySQLCuratorUsernamePassword', passwordVariable: 'pass', usernameVariable: 'user')]){
+						utils.takeDatabaseDumpAndGzip("${env.GK_CENTRAL_DB}", "go_update", "before", "${env.CURATOR_SERVER}")
+					}
+				}
+			}
+		}
 		// This stage builds the jar file using Maven.
 		stage('Setup: Build jar file'){
 			steps{
 				script{
-					sh "mvn clean compile assembly:single"
+					utils.buildJarFile()
 				}
 			}
 		}
@@ -77,9 +64,7 @@ pipeline {
 				script{
 				    def timestamp = new Date().format("yyyy-MM-dd-HHmmss")
 					withCredentials([usernamePassword(credentialsId: 'mySQLCuratorUsernamePassword', passwordVariable: 'pass', usernameVariable: 'user')]){
-						def central_after_update_go_update_dump = "${env.GK_CENTRAL_DB}_${env.RELEASE_VERSION}_after_go_update_${timestamp}.dump"
-						sh "mysqldump -u$user -p$pass -h${env.CURATOR_SERVER} ${env.GK_CENTRAL_DB} > $central_after_update_go_update_dump"
-						sh "gzip -f $central_after_update_go_update_dump"
+						utils.takeDatabaseDumpAndGzip("${env.GK_CENTRAL_DB}", "go_update", "after", "${env.CURATOR_SERVER}")
 					}
 				}
 			}
@@ -88,19 +73,19 @@ pipeline {
 		stage('Post: Email GO Update Reports'){
 			steps{
 				script{
-					sh "tar zcf go-update-v${env.RELEASE_VERSION}-reports.tgz reports/"
-					emailext (
-						body: "Hello,\n\nThis is an automated message from Jenkins regarding an update for v${env.RELEASE_VERSION}. The GO Update step has completed. Please review the reports attached to this email. If they look correct, these reports need to be uploaded to the Reactome Drive at Reactome>Release>Release QA>V${env.RELEASE_VERSION}_QA>V${env.RELEASE_VERSION}_QA_GO_Update_Reports. The URL to the new V${env.RELEASE_VERSION}_QA_GO_Update_Reports folder also needs to be updated at https://devwiki.reactome.org/index.php/Reports_Archive under 'GO Update Reports'. Please add the current GO report wiki URL to the 'Archived reports' section of the page. If the reports don't look correct, please email the developer running Release. \n\nThanks!",
-						to: '$DEFAULT_RECIPIENTS',
-						from: "${env.JENKINS_RELEASE_EMAIL}",
-						subject: "GO Update Reports for v${env.RELEASE_VERSION}",
-						attachmentsPattern: "**/go-update-v${env.RELEASE_VERSION}-reports.tgz"
-					)
+					def goUpdateReportsFile = "go-update-v${env.RELEASE_VERSION}-reports.tgz"
+					sh "tar -zcf ${goUpdateReportsFile} reports/"
+					
+					def releaseVersion = utils.getReleaseVersion()
+					def emailSubject = "GO Update Reports for v${releaseVersion}"
+					def emailBody = "Hello,\n\nThis is an automated message from Jenkins regarding an update for v${releaseVersion}. The GO Update step has completed. Please review the reports attached to this email. If they look correct, these reports need to be uploaded to the Reactome Drive at Reactome>Release>Release QA>V${releaseVersion}_QA>V${releaseVersion}_QA_GO_Update_Reports. The URL to the new V${releaseVersion}_QA_GO_Update_Reports folder also needs to be updated at https://devwiki.reactome.org/index.php/Reports_Archive under 'GO Update Reports'. Please add the current GO report wiki URL to the 'Archived reports' section of the page. If the reports don't look correct, please email the developer running Release. \n\nThanks!"
+					utils.sendEmailWithAttachment("${emailSubject}", "${emailBody}", "${goUpdateReportsFile}")
 				}
 			}
 		}
 		// All databases, logs, and data files generated by this step are compressed before moving them to the Reactome S3 bucket. 
 		// All files are then deleted.
+		/*
 		stage('Post: Archive Outputs'){
 			steps{
 				script{
@@ -117,12 +102,8 @@ pipeline {
 					sh "rm -r databases logs data reports"
 				}
 			}
-		}						
+		}
+		*/
 	}
 }
 
-// Finds release version (ex: 74) from directory that step is being run from.
-def getReleaseVersion()
-{
-    return (pwd() =~ /Releases\/(\d+)\//)[0][1];
-}
