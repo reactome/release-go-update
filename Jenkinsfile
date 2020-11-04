@@ -91,7 +91,8 @@ pipeline {
 					def dataFiles = ["src/main/resources/go.obo", "src/main/resources/ec2go", "go-update-v${releaseVersion}-reports.tgz"]
 					// GO Update log files are already in a folder called 'logs', so an empty list is passed.
 					def logFiles = []
-					utils.cleanUpAndArchiveBuildFiles("go_update", dataFiles, logFiles)
+					def foldersToDelete = []
+					utils.cleanUpAndArchiveBuildFiles("go_update", dataFiles, logFiles, foldersToDelete)
 				}
 			}
 		}
