@@ -25,6 +25,8 @@ import org.reactome.release.common.ReleaseStep;
 
 public class GoUpdateStep extends ReleaseStep
 {
+	private static final String PATH_TO_REPORTS_DIRECTORY = "reports";
+
 	private static final Logger logger = LogManager.getLogger();
 	
 	private CSVPrinter duplicatePrinter ;
@@ -84,13 +86,10 @@ public class GoUpdateStep extends ReleaseStep
 			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
 
 			String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-			if (!Files.exists(Paths.get("reports")))
+			Files.createDirectories(Paths.get(PATH_TO_REPORTS_DIRECTORY));
+			try(BufferedWriter writer = Files.newBufferedWriter(Paths.get(PATH_TO_REPORTS_DIRECTORY,"duplicate_GO_terms_"+dateString+".csv")))
 			{
-				Files.createDirectory(Paths.get("reports"));
-			}
-			try(BufferedWriter writer = Files.newBufferedWriter(Paths.get("reports","duplicate_GO_terms_"+dateString+".csv")))
-			{
-				duplicatePrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "Accession", "GO type", "Before or After GO Update process?", "Number of referrers"));
+				duplicatePrinter = new CSVPrinter(writer, GoTermsUpdater.GO_REPORT_FORMAT.withHeader("DB_ID", "Name", "Accession", "GO type", "Before or After GO Update process?", "Number of referrers"));
 				reportOnDuplicateAccessions(adaptor, "BEFORE GO Update");
 				// Start a transaction. If that fails, the program will exit.
 				try
@@ -151,7 +150,7 @@ public class GoUpdateStep extends ReleaseStep
 				{
 					Long dbId = entry.getKey();
 					GKInstance inst = (GKInstance) adaptor.fetchInstance(dbId);
-					duplicatePrinter.printRecord(dbId, accession, inst.getSchemClass().getName(), when, entry.getValue());
+					duplicatePrinter.printRecord(dbId, inst.getDisplayName(), accession, inst.getSchemClass().getName(), when, entry.getValue());
 				}
 			}
 		}
