@@ -95,7 +95,7 @@ class GoTermsUpdater
 		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
 		this.newGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "GO Term ID", "GO Term Type", "Definition") );
 		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "Category in Database", "Category in file") );
-		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "Primary accession", "Primary Class", "DB_ID (Secondary; to be deleted)", "Secondary accession (to be deleted)", "Secondary Class", "Referrers to be automatcially redirected to Primary accession") );
+		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "Primary accession", "Primary Class", "DB_ID (Secondary; to be deleted)", "Secondary accession (to be deleted)", "Secondary Class", "Referrers to be automatically redirected to Primary accession") );
 	}
 	
 	/**
