@@ -14,7 +14,7 @@ pipeline {
 		stage('Check UniProt Update build succeeded'){
 			steps{
 				script{
-					utils.checkUpstreamBuildsSucceeded("Pre-Slice/job/UniProtUpdate")
+					utils.checkUpstreamBuildsSucceeded("ConfirmReleaseConfigs")
 				}
 			}
 		}
