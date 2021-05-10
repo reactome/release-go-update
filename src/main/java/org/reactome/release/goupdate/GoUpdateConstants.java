@@ -20,7 +20,7 @@ public final class GoUpdateConstants {
 	static final String PART_OF = "part_of";
 	static final String IS_OBSOLETE = "is_obsolete";
 	static final String PENDING_OBSOLETION = "pending_obsoletion";
-	
+
 	static final Pattern LINE_DECODER = Pattern.compile("^(id|alt_id|name|namespace|def|relationship|is_a|consider|replaced_by|synonym|is_obsolete):.*");
 	static final Pattern RELATIONSHIP_DECODER = Pattern.compile("^relationship: (positively_regulates|negatively_regulates|has_part|part_of|regulates) GO:[0-9]+.*");
 	static final Pattern OBSOLETION = Pattern.compile("(pending|scheduled for|slated for) obsoletion");
@@ -37,8 +37,8 @@ public final class GoUpdateConstants {
 	static final Pattern RELATIONSHIP_PART_OF_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+PART_OF+" GO:([0-9]+).*");
 	static final Pattern RELATIONSHIP_HAS_PART_REGEX = Pattern.compile("^"+RELATIONSHIP+": "+HAS_PART+" GO:([0-9]+).*");
 	static final Pattern EC_NUMBER_REGEX = Pattern.compile("^EC:([0-9\\.]+) > GO:.*GO:([0-9]+)");
-	
+
 	// prevent instantiation.
 	private GoUpdateConstants () {}
-	
+
 }
