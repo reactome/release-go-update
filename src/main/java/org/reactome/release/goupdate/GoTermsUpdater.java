@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
+import org.apache.commons.csv.QuoteMode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.gk.model.GKInstance;
@@ -35,43 +36,44 @@ import org.reactome.release.goupdate.GoUpdateInstanceEditUtils.GOUpdateInstEditT
  */
 class GoTermsUpdater
 {
+	static final CSVFormat GO_REPORT_FORMAT = CSVFormat.DEFAULT.withAutoFlush(true).withQuoteMode(QuoteMode.ALL);
 	private static final Logger logger = LogManager.getLogger();
 	private static final Logger obsoleteAccessionLogger = LogManager.getLogger("obsoleteAccessionLog");
 	private static final Logger updatedGOTermLogger = LogManager.getLogger("updatedGOTermsLog");
-	
+
 	private CSVPrinter newMFPrinter;
 	private CSVPrinter obsoleteAccessionPrinter;
 	private CSVPrinter newGOTermsPrinter;
 	private CSVPrinter replacedGOTermsPrinter;
 	private CSVPrinter categoryMismatchPrinter;
-	
+
 	private MySQLAdaptor adaptor;
 	private List<String> goLines;
 	private List<String> ec2GoLines;
 
 	private StringBuffer nameOrDefinitionChangeStringBuilder = new StringBuffer();
 	private StringBuffer deletionStringBuilder = new StringBuffer();
-	
+
 	private StringBuilder mainOutput = new StringBuilder();
 	// this can be static, since there's only one "GO" ReferenceDatabase object in the database.
 	private static GKInstance goRefDB;
-	
+
 	static Predicate<GKInstance> isNotGOEntity = i -> !i.getSchemClass().isa(ReactomeJavaConstants.GO_MolecularFunction)
 																&& !i.getSchemClass().isa(ReactomeJavaConstants.GO_BiologicalProcess)
 																&& !i.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent);
 
-	
+
 	/**
 	 * Creates a new GoTermsUpdater
 	 * @param dba - The adaptor to use.
 	 * @param goLines - The lines from the GO file, probably it was named "gene_ontology_ext.obo". The <em>must</em> be in the same sequences as they were in the original file!!
 	 * @param ec2GoLines - The lines from the EC-to-GO mapping file, probably named "ec2go".
-	 * @throws Exception 
+	 * @throws Exception
 	 */
 	public GoTermsUpdater(MySQLAdaptor dba, List<String> goLines, List<String> ec2GoLines) throws Exception
 	{
 		this.adaptor = dba;
-		
+
 		this.goLines = goLines;
 		this.ec2GoLines = ec2GoLines;
 
@@ -89,13 +91,13 @@ class GoTermsUpdater
 			throw new RuntimeException(message);
 		}
 		String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-		this.newMFPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_molecular_functions_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO ID", "GO Term Name") );
-		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO Type", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
-		this.newGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO Term Name", "GO Term ID", "GO Term Type", "Definition") );
-		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "GO ID", "Category in Database", "Category in file") );
-		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "Primary accession", "Primary Class", "DB_ID (Secondary; to be deleted)", "Secondary accession (to be deleted)", "Secondary Class", "Referrers to be redirected to Primary accession") );
+		this.newMFPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_molecular_functions_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "GO Term Name", "Definition") );
+		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
+		this.newGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "GO Term ID", "GO Term Type", "Definition") );
+		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "Category in Database", "Category in file") );
+		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "Primary accession", "Primary Class", "DB_ID (Secondary; to be deleted)", "Secondary accession (to be deleted)", "Secondary Class", "Referrers to be automatically redirected to Primary accession") );
 	}
-	
+
 	/**
 	 * Executes the GO Terms updates. Returns a StringBuilder, which contains a report about what happened.
 	 * @return
@@ -113,7 +115,7 @@ class GoTermsUpdater
 		// Maps GO IDs to EC Numbers.
 		Map<String,List<String>> goToECNumbers = new HashMap<>();
 		ec2GoLines.stream().filter(line -> !line.startsWith("!")).forEach(line -> processEc2GoLine(line, goToECNumbers));
-		
+
 		int lineCount = 0;
 		int newGoTermCount = 0;
 		int obsoleteCount = 0;
@@ -121,7 +123,7 @@ class GoTermsUpdater
 		int mismatchCount = 0;
 		int goTermCount = 0;
 		int deletedCount = 0;
-		boolean termStarted = false; 
+		boolean termStarted = false;
 		String currentGOID = "";
 		for (String line : this.goLines)
 		{
@@ -142,7 +144,7 @@ class GoTermsUpdater
 				currentGOID = GoLineProcessor.processLine(line, currentGOID, goTermsFromFile);
 			}
 		}
-		
+
 		// Now process all the goTerms.
 		for (String goID : goTermsFromFile.keySet())
 		{
@@ -210,7 +212,7 @@ class GoTermsUpdater
 				}
 			}
 			processAlternates(goTermsFromFile, allGoInstances, goID);
-			
+
 			if (goTermsFromFile.get(goID).containsKey(GoUpdateConstants.PENDING_OBSOLETION) && goTermsFromFile.get(goID).get(GoUpdateConstants.PENDING_OBSOLETION).equals(true))
 			{
 				// If we have this GO term in our database, it must be reported as "pending obsolete".
@@ -231,7 +233,7 @@ class GoTermsUpdater
 				}
 			}
 		}
-		
+
 		logger.info("Preparing to delete flagged instances.");
 		// Now that the full goTerms structure is complete, and the alternate GO IDs are set up, we can delete the obsolete/category-mismatched GO instances from the database.
 		deletedCount = deleteFlaggedInstances(goTermsFromFile, allGoInstances, instancesForDeletion, undeleteble);
@@ -260,7 +262,7 @@ class GoTermsUpdater
 		mainOutput.append(pendingObsoleteCount + " are pending obsolescence (and will probably be deleted at a future date).\n");
 		GoTermsReconciler reconciler = new GoTermsReconciler(this.adaptor);
 		reconciler.reconcile(goTermsFromFile, goToECNumbers);
-		
+
 		this.categoryMismatchPrinter.close();
 		this.newGOTermsPrinter.close();
 		this.newMFPrinter.close();
@@ -289,7 +291,7 @@ class GoTermsUpdater
 				for (GKInstance goInst : goInsts)
 				{
 					GoTermInstanceModifier goModifier = new GoTermInstanceModifier(this.adaptor, goInst);
-					
+
 					if (goInst.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent))
 					{
 						goModifier.updateRelationship(allGoInstances, goProps, GoUpdateConstants.IS_A, ReactomeJavaConstants.instanceOf);
@@ -309,15 +311,15 @@ class GoTermsUpdater
 		}
 	}
 
-	
-	
+
+
 	/**
 	 * Deletes GO instances that have been flagged for deletion.
 	 * @param goTermsFromFile - A map of GO terms from the file.
 	 * @param allGoInstances - A map of ALL GO terms from the database.
 	 * @param instancesForDeletion - A list of instances that must be deleted.
 	 * @param undeleteble - A map of instances that are undeleteable (probably because they have no replacement instance AND they are referred to by other instances). This map will be modified by the method.
-	 * @return The number of instances that were actually deleted. 
+	 * @return The number of instances that were actually deleted.
 	 * @throws Exception
 	 * @throws InvalidAttributeException
 	 */
@@ -328,10 +330,10 @@ class GoTermsUpdater
 		{
 			String goAccession = (String) instance.getAttributeValue(ReactomeJavaConstants.accession);
 			@SuppressWarnings("unchecked")
-			String replacementGOTermAccession = goTermsFromFile.get(goAccession).get(GoUpdateConstants.REPLACED_BY) != null 
+			String replacementGOTermAccession = goTermsFromFile.get(goAccession).get(GoUpdateConstants.REPLACED_BY) != null
 												? ((List<String>) goTermsFromFile.get(goAccession).get(GoUpdateConstants.REPLACED_BY)).get(0)
 												: "N/A" ;
-			
+
 			GoTermInstanceModifier goTermModifier = new GoTermInstanceModifier(this.adaptor, instance);
 			if (GoTermInstanceModifier.isGoTermDeleteable(instance))
 			{
@@ -362,7 +364,7 @@ class GoTermsUpdater
 	/**
 	 * Processes a single GO Term that is obsolete. This involves examining them and flagging them for deletion if possible. If it is not possible to delete the instance
 	 * (usually because there ARE referrers and there is NO suggested replacement) a message will be logged suggesting manual cleanup.
-	 * @param goTermsFromFile - The GO terms from the file. 
+	 * @param goTermsFromFile - The GO terms from the file.
 	 * @param instancesForDeletion - A list of instances for deletion. This list will be modified by this function!
 	 * @param goID - The GO ID of the term to process.
 	 * @param goInstances - A list of GO instances that are identified by goID
@@ -379,9 +381,9 @@ class GoTermsUpdater
 		}
 		else
 		{
-			// ...or, if an obsolete term has no replacement AND also has no referrers, it can be 
+			// ...or, if an obsolete term has no replacement AND also has no referrers, it can be
 			// safely be deleted because nothing will be affected.
-			// 
+			//
 			// (Check that the instance has not already been added to instancesForDeletion by some other path)
 			goInstances.stream().filter(inst -> !instancesForDeletion.contains(inst)).forEach( inst -> {
 				try
@@ -422,7 +424,7 @@ class GoTermsUpdater
 	/**
 	 * Get referrer counts for an instance.
 	 * @param inst - The instance to get counts for.
-	 * @return A map whose key is the attrbite that referrs to <code>inst</code>, and the value is the *number* of 
+	 * @return A map whose key is the attrbite that referrs to <code>inst</code>, and the value is the *number* of
 	 * referrers that refer to <code>inst</code> via that attribute.
 	 * @throws Exception
 	 */
@@ -434,7 +436,7 @@ class GoTermsUpdater
 	/**
 	 * Gets the referrer counts, but excluding Referers that are GO entities
 	 * @param inst - The instance to get counts for.
-	 * @return A map whose key is the attrbite that referrs to <code>inst</code>, and the value is the *number* of 
+	 * @return A map whose key is the attrbite that referrs to <code>inst</code>, and the value is the *number* of
 	 * referrers that refer to <code>inst</code> via that attribute.
 	 * @throws Exception
 	 */
@@ -442,12 +444,12 @@ class GoTermsUpdater
 	{
 		return getReferrerCountsFilteredByClass(inst, isNotGOEntity);
 	}
-	
+
 	/**
 	 * Gets referrer counts, where the Schema Class of the referrers are filtered by a user-supplied predicate.
 	 * @param inst - the Instance to get referrer counts for.
 	 * @param classFilter - A Predicate. This predicate will be used to filter the classes of the referrers.
-	 * @return A map whose key is the attrbite that referrs to <code>inst</code>, and the value is the *number* of 
+	 * @return A map whose key is the attrbite that referrs to <code>inst</code>, and the value is the *number* of
 	 * referrers that refer to <code>inst</code> via that attribute.
 	 * @throws Exception
 	 */
@@ -457,9 +459,9 @@ class GoTermsUpdater
 		for (GKSchemaAttribute attrib : (Collection<GKSchemaAttribute>)inst.getSchemClass().getReferers())
 		{
 			Collection<GKInstance> referrers = (Collection<GKInstance>) inst.getReferers(attrib);
-			
+
 			referrers = referrers.stream().filter(classFilter).collect(Collectors.toList());
-			
+
 			if ( referrers!=null && !referrers.isEmpty())
 			{
 				referrersCount.put(attrib, referrers.size());
@@ -467,16 +469,16 @@ class GoTermsUpdater
 		}
 		return referrersCount;
 	}
-	
+
 	static List<GKInstance> getReferrersFilteredByClass(GKInstance inst, Predicate<? super GKInstance> classFilter) throws Exception
 	{
 		List<GKInstance> referrers= new ArrayList<>();
 		for (GKSchemaAttribute attrib : (Collection<GKSchemaAttribute>)inst.getSchemClass().getReferers())
 		{
 			Collection<GKInstance> attribReferrers = (Collection<GKInstance>) inst.getReferers(attrib);
-			
+
 			attribReferrers = attribReferrers.stream().filter(classFilter).collect(Collectors.toList());
-			
+
 			if ( attribReferrers!=null && !attribReferrers.isEmpty())
 			{
 				referrers.addAll(attribReferrers);
@@ -484,7 +486,7 @@ class GoTermsUpdater
 		}
 		return referrers;
 	}
-	
+
 	/**
 	 * Creates a new GO term.
 	 * @param goTermsFromFile - The go terms from the file.
@@ -502,7 +504,7 @@ class GoTermsUpdater
 		this.newGOTermsPrinter.printRecord(dbID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME), goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE), goTermsFromFile.get(goID).get(GoUpdateConstants.DEF));
 		if ( ((GONamespace)goTermsFromFile.get(goID).get(GoUpdateConstants.NAMESPACE)).getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction) )
 		{
-			this.newMFPrinter.printRecord(dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME));
+			this.newMFPrinter.printRecord(dbID, goID, goTermsFromFile.get(goID).get(GoUpdateConstants.NAME), goTermsFromFile.get(goID).get(GoUpdateConstants.DEF));
 		}
 		return this.adaptor.fetchInstance(dbID);
 	}
@@ -533,7 +535,7 @@ class GoTermsUpdater
 							logger.info("{} is an alternate/secondary ID for {} - {} will be deleted and its referrers will refer to {}.", secondaryAccession, goID, secondaryAccession, goID);
 							try
 							{
-								this.replacedGOTermsPrinter.printRecord(primaryGOTerm.getDBID(), goID, primaryGOTerm.getSchemClass().getName(),
+								this.replacedGOTermsPrinter.printRecord(primaryGOTerm.getDBID(), primaryGOTerm.getDisplayName(), goID, primaryGOTerm.getSchemClass().getName(),
 																		altGoInst.getDBID(), secondaryAccession, altGoInst.getSchemClass().getName(),
 																		getReferrersFilteredByClass(altGoInst, isNotGOEntity).stream().map(inst -> inst.toString()).collect(Collectors.joining("; ")) );
 							}
@@ -573,7 +575,7 @@ class GoTermsUpdater
 		{
 			e.printStackTrace();
 		}
-		
+
 		Map<String, List<GKInstance>> allGoInstances = new HashMap<>();
 		Consumer<? super GKInstance> populateInstMap = inst -> {
 			try
@@ -592,14 +594,14 @@ class GoTermsUpdater
 				e.printStackTrace();
 			}
 		};
-		
+
 		bioProcesses.forEach( populateInstMap);
 		cellComponents.forEach( populateInstMap);
 		molecularFunctions.forEach( populateInstMap);
-		
+
 		return allGoInstances;
 	}
-	
+
 	/**
 	 * Processes a line from the EC-to-GO file.
 	 * @param line - The line.

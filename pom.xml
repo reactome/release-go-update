@@ -110,9 +110,10 @@
 				<version>3.2.0</version>
 				<configuration>
 					<archive>
-						<manifest>
-							<mainClass>org.reactome.release.goupdate.Main</mainClass>
-						</manifest>
+						<manifestEntries>
+							<Multi-Release>true</Multi-Release>
+							<Main-Class>org.reactome.release.goupdate.Main</Main-Class>
+						</manifestEntries>
 					</archive>
 					<descriptorRefs>
 						<descriptorRef>jar-with-dependencies</descriptorRef>
