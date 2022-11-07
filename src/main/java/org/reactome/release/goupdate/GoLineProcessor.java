@@ -40,6 +40,11 @@ class GoLineProcessor
 			if (m.matches())
 			{
 				String lineCode = m.group(1);
+				
+				if ((!lineCode.equals(GoUpdateConstants.ID)) && (currentGOID == "")) {
+                                        return "";
+                                }
+
 				switch (lineCode)
 				{
 					case GoUpdateConstants.ID:
@@ -172,7 +177,7 @@ class GoLineProcessor
 			{
 				// Obsoletion doesn't matche the line decoder regexp, so we need to test it separately.
 				m = GoUpdateConstants.OBSOLETION.matcher(line);
-				if (m.matches())
+				if (m.matches() && currentGOID != "")
 				{
 					goTerms.get(currentGOID).put(GoUpdateConstants.PENDING_OBSOLETION, true);
 				}
