@@ -19,7 +19,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         runs-on: ubuntu-latest
         env:
-            REPO_DIR : /opt/release-go-update
+            REPO_DIR: /opt/release-go-update
         steps:
             - uses: actions/checkout@v4
 
@@ -70,7 +70,7 @@ jobs:
                 echo "SHORT_SHA=${FULL_SHA:0:7}" >> $GITHUB_OUTPUT
             
             - env:
-                AWS_REGION : us-east-1
+                AWS_REGION: us-east-1
               uses: aws-actions/configure-aws-credentials@v4
               with:
                 role-to-assume: ${{ vars.AWS_ROLE }}
