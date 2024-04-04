@@ -22,6 +22,7 @@ import org.gk.model.GKInstance;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.persistence.TransactionsNotSupportedException;
 import org.reactome.release.common.ReleaseStep;
+import org.reactome.util.general.DBUtils;
 
 public class GoUpdateStep extends ReleaseStep
 {
@@ -62,7 +63,7 @@ public class GoUpdateStep extends ReleaseStep
 			// 5) delete the marked-for-deletion instances.
 			// 6) update relationships between remaining instances, based on content of data structure.
 			
-			MySQLAdaptor adaptor = getMySQLAdaptorFromProperties(props);
+			MySQLAdaptor adaptor = DBUtils.getCuratorDbAdaptor(props);
 			this.loadTestModeFromProperties(props);
 			
 			long personID = Long.parseLong(props.getProperty("personId"));
