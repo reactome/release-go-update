@@ -251,11 +251,7 @@ class GoTermsUpdater
 			{
 				GKInstance created = (GKInstance) referrer.getAttributeValue(ReactomeJavaConstants.created);
 				GKInstance author = (GKInstance) created.getAttributeValue(ReactomeJavaConstants.author);
-				if (author == null) {
-                                        System.out.println("ERROR: Referrer has null author: " + referrer);
-				} else {
-				        obsoleteAccessionLogger.info("\t\"{}\", created by {} {} @ {}", referrer.toString(), author.getAttributeValue(ReactomeJavaConstants.firstname), author.getAttributeValue(ReactomeJavaConstants.surname), created.getAttributeValue(ReactomeJavaConstants.dateTime));
-				}
+			        obsoleteAccessionLogger.info("\t\"{}\", created by {} @ {}", referrer.toString(), author != null ? author.displayName(): "author not found", created.getAttributeValue(ReactomeJavaConstants.dateTime));
 			}
 		}
 		mainOutput.append(lineCount + " lines from the file were processed.\n");
