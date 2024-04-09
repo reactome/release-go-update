@@ -251,7 +251,7 @@ class GoTermsUpdater
 			{
 				GKInstance created = (GKInstance) referrer.getAttributeValue(ReactomeJavaConstants.created);
 				GKInstance author = (GKInstance) created.getAttributeValue(ReactomeJavaConstants.author);
-			        obsoleteAccessionLogger.info("\t\"{}\", created by {} @ {}", referrer.toString(), author != null ? author.displayName(): "author not found", created.getAttributeValue(ReactomeJavaConstants.dateTime));
+			        obsoleteAccessionLogger.info("\t\"{}\", created by {} @ {}", referrer.toString(), author != null ? author.getDisplayName(): "author not found", created.getAttributeValue(ReactomeJavaConstants.dateTime));
 			}
 		}
 		mainOutput.append(lineCount + " lines from the file were processed.\n");
