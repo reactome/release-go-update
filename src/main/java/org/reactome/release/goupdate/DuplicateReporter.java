@@ -99,6 +99,7 @@ public class DuplicateReporter
 	 * @return The DB_IDs of the duplicated accession mapping to the number of referrers of each one.
 	 * @throws Exception
 	 */
+	
 	public Map<Long, Integer> getReferrerCountForAccession(String accession, String ... classesToIgnore) throws Exception
 	{
 		Map<Long, Integer> referrerCounts = new HashMap<>();
@@ -106,9 +107,16 @@ public class DuplicateReporter
 		// We'll have to do this for BiologicalProcess, for MolecularFunction, and for CellularComponent
 		for (String reactomeClass : Arrays.asList(ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.GO_CellularComponent))
 		{
+			Collection<GKInstance> instances;
+			if (accession == null)
+			{
+				instances = (Collection<GKInstance>) this.adaptor.fetchInstanceByAttribute(reactomeClass, ReactomeJavaConstants.accession, "IS NULL", accession);
+			}
+			else
+			{
+				instances = (Collection<GKInstance>) this.adaptor.fetchInstanceByAttribute(reactomeClass, ReactomeJavaConstants.accession, "=", accession);
+			}
 
-			@SuppressWarnings("unchecked")
-			Collection<GKInstance> instances = (Collection<GKInstance>) this.adaptor.fetchInstanceByAttribute(reactomeClass, ReactomeJavaConstants.accession, "=", accession);
 			if (instances != null)
 			{
 				for (GKInstance i : instances)

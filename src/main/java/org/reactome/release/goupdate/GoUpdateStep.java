@@ -1,5 +1,7 @@
 package org.reactome.release.goupdate;
 
+import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -9,6 +11,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 
 import org.apache.commons.csv.CSVFormat;
@@ -19,9 +22,12 @@ import org.gk.model.GKInstance;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.persistence.TransactionsNotSupportedException;
 import org.reactome.release.common.ReleaseStep;
+import org.reactome.util.general.DBUtils;
 
 public class GoUpdateStep extends ReleaseStep
 {
+	private static final String PATH_TO_REPORTS_DIRECTORY = "reports";
+
 	private static final Logger logger = LogManager.getLogger();
 
 	private CSVPrinter duplicatePrinter ;
@@ -34,8 +40,8 @@ public class GoUpdateStep extends ReleaseStep
 		{
 			// First part:
 			// 1) Get the GO files:
-			// - http://geneontology.org/ontology/obo_format_1_2/gene_ontology_ext.obo
-			// - http://geneontology.org/external2go/ec2go
+			// - http://current.geneontology.org/ontology/go.obo (replaces outdated URL http://geneontology.org/ontology/obo_format_1_2/gene_ontology_ext.obo)
+			// - http://current.geneontology.org/ontology/external2go/ec2go (replaces outdated URL http://geneontology.org/external2go/ec2go)			
 			// 2) from database, get list of all things where:
 			//    biological_process=GO_BiologicalProcess, molecular_function=GO_MolecularFunction, cellular_component=GO_CellularComponent
 			// 3) Read gene_ontology_ext.obo
@@ -56,51 +62,58 @@ public class GoUpdateStep extends ReleaseStep
 			// 4) use this data structure to create/update/mark-for-deletion instances in database.
 			// 5) delete the marked-for-deletion instances.
 			// 6) update relationships between remaining instances, based on content of data structure.
-
-			// ***UPDATE***
-			// URL to main GO file is now:
-			// http://current.geneontology.org/ontology/go.obo
-			// ...the ec2go file is the same.
-
-			MySQLAdaptor adaptor = getMySQLAdaptorFromProperties(props);
+			
+			MySQLAdaptor adaptor = DBUtils.getCuratorDbAdaptor(props);
 			this.loadTestModeFromProperties(props);
-
-			long personID = Long.valueOf(props.getProperty("person.id")).longValue();
-
+			
+			long personID = Long.parseLong(props.getProperty("personId"));
+			GoUpdateInstanceEditUtils.setAdaptor(adaptor);
+			GoUpdateInstanceEditUtils.setPersonID(personID);
 			String pathToGOFile = props.getProperty("pathToGOFile","src/main/resources/go.obo");
 			String pathToEC2GOFile = props.getProperty("pathToEC2GOFile","src/main/resources/ec2go");
-
+			
+			
+			if (Files.notExists(Paths.get(pathToGOFile)))
+			{
+				throw new FileNotFoundException("Sorry, but the GO file \""+pathToGOFile+"\" could not be found.");
+			}
+			if (Files.notExists(Paths.get(pathToEC2GOFile)))
+			{
+				throw new FileNotFoundException("Sorry, but the EC2GO file \""+pathToEC2GOFile+"\" could not be found.");
+			}
+			
 			// Load the files.
 			List<String> goLines = Files.readAllLines(Paths.get(pathToGOFile));
 			List<String> ec2GoLines = Files.readAllLines(Paths.get(pathToEC2GOFile));
 
 			String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-			if (!Files.exists(Paths.get("reports")))
+			Files.createDirectories(Paths.get(PATH_TO_REPORTS_DIRECTORY));
+			try(BufferedWriter writer = Files.newBufferedWriter(Paths.get(PATH_TO_REPORTS_DIRECTORY,"duplicate_GO_terms_"+dateString+".csv")))
 			{
-				Files.createDirectory(Paths.get("reports"));
-			}
-			duplicatePrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/duplicate_GO_terms_"+dateString+".csv")), CSVFormat.DEFAULT.withAutoFlush(true).withHeader("DB_ID", "Accession", "GO type", "Before or After GO Update process?", "Number of referrers"));
-			reportOnDuplicateAccessions(adaptor, "BEFORE GO Update");
-			// Start a transaction. If that fails, the program will exit.
-			try
-			{
-				adaptor.startTransaction();
-			}
-			catch (TransactionsNotSupportedException e1)
-			{
-				e1.printStackTrace();
-				logger.error("This program should run within a transaction. Exiting.");
-				System.exit(1);
-			}
+				duplicatePrinter = new CSVPrinter(writer, GoTermsUpdater.GO_REPORT_FORMAT.withHeader("DB_ID", "Name", "Accession", "GO type", "Before or After GO Update process?", "Number of referrers"));
+				reportOnDuplicateAccessions(adaptor, "BEFORE GO Update");
+				// Start a transaction. If that fails, the program will exit.
+				try
+				{
+					adaptor.startTransaction();
+				}
+				catch (TransactionsNotSupportedException e1)
+				{
+					e1.printStackTrace();
+					logger.error("This program should run within a transaction. Exiting.");
+					System.exit(1);
+				}
 
-			// Do the updates.
-			GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines, personID);
-			StringBuilder report = goTermsUpdator.updateGoTerms();
-			logger.info(report);
+				// Do the updates.
+				GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goLines, ec2GoLines);
+				StringBuilder report = goTermsUpdator.updateGoTerms();
+				logger.info(report);
 
-			logger.info("Post-GO Update check for duplicated accessions...");
-			reportOnDuplicateAccessions(adaptor, "AFTER GO Update");
-			duplicatePrinter.close();
+				logger.info("Post-GO Update check for duplicated accessions...");
+				reportOnDuplicateAccessions(adaptor, "AFTER GO Update");
+				duplicatePrinter.close();
+			}
+			
 			if (testMode)
 			{
 				adaptor.rollback();
@@ -121,7 +134,7 @@ public class GoUpdateStep extends ReleaseStep
 			throw new RuntimeException(e);
 		}
 		long endTime = System.currentTimeMillis();
-		logger.info("Elapsed time: " + Duration.ofMillis(endTime-startTime).toString());
+		logger.info("Elapsed time: {}", Duration.ofMillis(endTime-startTime).toString());
 	}
 
 	private void reportOnDuplicateAccessions(MySQLAdaptor adaptor, String when) throws Exception
@@ -134,10 +147,11 @@ public class GoUpdateStep extends ReleaseStep
 			for (String accession : duplicatedAccessions.keySet())
 			{
 				Map<Long,Integer> referrerCounts = duplicateReporter.getReferrerCountForAccession(accession);
-				for (Long dbId : referrerCounts.keySet())
+				for (Entry<Long, Integer> entry : referrerCounts.entrySet())
 				{
-					GKInstance inst = adaptor.fetchInstance(dbId);
-					duplicatePrinter.printRecord(dbId, accession, inst.getSchemClass().getName(), when, referrerCounts.get(dbId));
+					Long dbId = entry.getKey();
+					GKInstance inst = (GKInstance) adaptor.fetchInstance(dbId);
+					duplicatePrinter.printRecord(dbId, inst.getDisplayName(), accession, inst.getSchemClass().getName(), when, entry.getValue());
 				}
 			}
 		}
@@ -146,5 +160,4 @@ public class GoUpdateStep extends ReleaseStep
 			logger.info("No duplicated GO accessions were detected.");
 		}
 	}
-
 }

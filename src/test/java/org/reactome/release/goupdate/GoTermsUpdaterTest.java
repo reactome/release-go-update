@@ -243,7 +243,7 @@ public class GoTermsUpdaterTest
 		List<String> ec2GoLines = Arrays.asList(sampleEc2GoText.split("\n"));
 		long personID = 12345L;
 		
-		GoTermsUpdater updater = new GoTermsUpdater(dba, goLines, ec2GoLines, personID);
+		GoTermsUpdater updater = new GoTermsUpdater(dba, goLines, ec2GoLines);
 		
 		GoTermInstanceModifier modifier = mock(GoTermInstanceModifier.class);
 		

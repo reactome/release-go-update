@@ -9,3 +9,15 @@ report
 .clover
 .eclipse-pmd
 reports
+
+target/
+
+# Ignore IntelliJ Files
+.idea/
+go-update.iml
+
+# Ignore eclipse files
+.classpath
+.settings
+.project
+.dbeaver
