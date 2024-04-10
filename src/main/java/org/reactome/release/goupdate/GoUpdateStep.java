@@ -29,9 +29,9 @@ public class GoUpdateStep extends ReleaseStep
 	private static final String PATH_TO_REPORTS_DIRECTORY = "reports";
 
 	private static final Logger logger = LogManager.getLogger();
-	
+
 	private CSVPrinter duplicatePrinter ;
-	
+
 	@Override
 	public void executeStep(Properties props) throws SQLException
 	{
@@ -43,7 +43,7 @@ public class GoUpdateStep extends ReleaseStep
 			// - http://current.geneontology.org/ontology/go.obo (replaces outdated URL http://geneontology.org/ontology/obo_format_1_2/gene_ontology_ext.obo)
 			// - http://current.geneontology.org/ontology/external2go/ec2go (replaces outdated URL http://geneontology.org/external2go/ec2go)			
 			// 2) from database, get list of all things where:
-			//    biological_process=GO_BiologicalProcess, molecular_function=GO_MolecularFunction, cellular_component=GO_CellularComponent 
+			//    biological_process=GO_BiologicalProcess, molecular_function=GO_MolecularFunction, cellular_component=GO_CellularComponent
 			// 3) Read gene_ontology_ext.obo
 			// 4) Update objects from Database based on GO file.
 			// 5) print Wiki output.
@@ -54,7 +54,7 @@ public class GoUpdateStep extends ReleaseStep
 			// 3) Update GO objects in Database.
 			//
 			// ...Of course, we could just do these together in one program: Read both files and populate one data structure containing everything.
-			// 
+			//
 			// New process:
 			// 1) load GO file lines
 			// 2) load ec2go file lines
@@ -122,7 +122,7 @@ public class GoUpdateStep extends ReleaseStep
 			{
 				adaptor.commit();
 			}
-			
+
 		}
 		catch (IOException e)
 		{
@@ -160,5 +160,4 @@ public class GoUpdateStep extends ReleaseStep
 			logger.info("No duplicated GO accessions were detected.");
 		}
 	}
-
 }
