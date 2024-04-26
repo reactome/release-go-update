@@ -9,6 +9,12 @@ def utils = new Utilities()
 pipeline {
 	agent any
 
+	environment {
+		ECR_URL = 'public.ecr.aws/reactome/release-go-update'
+		CONT_NAME = 'go_container'
+		CONT_ROOT = '/opt/release-go-update'
+	}
+
 	stages {
 		// This stage checks that an upstream step, UniProt Update, was run successfully.
 		stage('Check UniProt Update build succeeded'){
@@ -18,17 +24,8 @@ pipeline {
 				}
 			}
 		}
-		// Download go.obo and ec2go files from GO.
-		stage('Setup: Download go.obo and ec2go files'){
-			steps{
-				script{
-					sh "wget -q http://current.geneontology.org/ontology/go.obo"
-					sh "wget -q http://current.geneontology.org/ontology/external2go/ec2go"
-					sh "mv go.obo src/main/resources/"
-					sh "mv ec2go src/main/resources/"
-				}
-			}
-		}
+
+		/*
 		// This stage backs up the gk_central database before it is modified.
 		stage('Setup: Back up gk_central before modifications'){
 			steps{
@@ -38,25 +35,52 @@ pipeline {
 					}
 				}
 			}
-		}
-		// This stage builds the jar file using Maven.
-		stage('Setup: Build jar file'){
+		*/
+		// Download go.obo and ec2go files from GO.
+		stage('Setup: Download go.obo and ec2go files'){
 			steps{
 				script{
-					utils.buildJarFile()
+					sh "mkdir -p go-files"
+					sh "wget -q -P go-files http://current.geneontology.org/ontology/go.obo"
+					sh "wget -q -P go-files http://current.geneontology.org/ontology/external2go/ec2go"
 				}
 			}
 		}
-		// This stage executes the GO Update jar file. 
-		stage('Main: GO Update'){
-			steps {
+		// This stage makes the config/credentials file
+		stage('Setup: Get config/credentials'){
+			steps{
 				script{
 					withCredentials([file(credentialsId: 'Config', variable: 'ConfigFile')]){
-						sh "java -Xmx${env.JAVA_MEM_MAX}m -jar target/go-update-*-jar-with-dependencies.jar $ConfigFile"
+						sh "mkdir -p config"
+						sh "sudo cp $ConfigFile config/auth.properties"
+						sh "sudo chown jenkins:jenkins config/ -R"                    
 					}
 				}
 			}
 		}
+		// This stage pulls the docker image and removes old containers
+		stage('Setup: Pull and clean docker environment'){
+			steps{
+				sh "docker pull ${ECR_URL}:latest"
+				sh """
+					if docker ps -a --format '{{.Names}}' | grep -Eq '${CONT_NAME}'; then
+						docker rm -f ${CONT_NAME}
+					fi
+				"""
+			}
+		}
+
+		// This stage executes the GO Update jar file via docker. 
+		stage('Main: GO Update'){
+			steps{
+				sh """\
+					docker run -v \$(pwd)/config:${CONT_ROOT}/config -v \$(pwd)/go-files:${CONT_ROOT}/go-files --net=host --name ${CONT_NAME} \\
+						${ECR_URL}:latest \\
+						/bin/bash -c 'java -Xmx${env.JAVA_MEM_MAX}m -jar target/go-update-*-jar-with-dependencies.jar config/auth.properties'
+				"""
+			}
+		}
+
 		// This stage backs up the gk_central database after modification.
 		stage('Post: Backup gk_central after modifications'){
 			steps{
@@ -73,6 +97,9 @@ pipeline {
 				script{
 					def releaseVersion = utils.getReleaseVersion()
 					def goUpdateReportsFile = "go-update-v${releaseVersion}-reports.tgz"
+
+					sh "mkdir -p reports"
+					sh "docker cp ${CONT_NAME}:${CONT_ROOT}/reports/. reports/"
 					sh "tar -zcf ${goUpdateReportsFile} reports/"
 					
 					def emailSubject = "GO Update Reports for v${releaseVersion}"
@@ -86,7 +113,7 @@ pipeline {
 			steps{
 				script{
 					def releaseVersion = utils.getReleaseVersion()
-					def dataFiles = ["src/main/resources/go.obo", "src/main/resources/ec2go", "go-update-v${releaseVersion}-reports.tgz"]
+					def dataFiles = ["go-files/go.obo", "go-files/ec2go", "go-update-v${releaseVersion}-reports.tgz"]
 					// GO Update log files are already in a folder called 'logs'.
 					def logFiles = []
 					def foldersToDelete = []
@@ -96,4 +123,3 @@ pipeline {
 		}
 	}
 }
-
