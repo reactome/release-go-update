@@ -373,49 +373,40 @@ class GoTermsUpdater
 	{
 		StringBuilder attemptToDeleteObsoleteMessage = new StringBuilder();
 		Map<GKSchemaAttribute, Integer> referrersCount = new HashMap<>();
-		// Only add instance(s) to deletion list if they have a valid replacement.
-		if (goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY) != null)
-		{
-			instancesForDeletion.addAll(goInstances);
-			attemptToDeleteObsoleteMessage.append(" Replacement Accession: ").append(goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY));
-		}
-		else
-		{
-			// ...or, if an obsolete term has no replacement AND also has no referrers, it can be
-			// safely be deleted because nothing will be affected.
-			//
-			// (Check that the instance has not already been added to instancesForDeletion by some other path)
-			goInstances.stream().filter(inst -> !instancesForDeletion.contains(inst)).forEach( inst -> {
-				try
+		// If an obsolete term has no replacement AND also has no referrers, it can be
+		// safely be deleted because nothing will be affected.
+		//
+		// (Check that the instance has not already been added to instancesForDeletion by some other path)
+		goInstances.stream().filter(inst -> !instancesForDeletion.contains(inst)).forEach( inst -> {
+			try
+			{
+				referrersCount.putAll( GoTermsUpdater.getReferrerCountsExcludingGOEntities(inst) );
+				if (referrersCount.isEmpty())
 				{
-					referrersCount.putAll( GoTermsUpdater.getReferrerCountsExcludingGOEntities(inst) );
-					if (referrersCount.isEmpty())
-					{
-						instancesForDeletion.add(inst);
-					}
-					else // if referrers DO exists, log that, with suggestions about REPLACE_BY/CONSIDER terms.
-					{
-						@SuppressWarnings("unchecked")
-						List<String> replaceByList = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY);
-						@SuppressWarnings("unchecked")
-						List<String> considerList = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER);
-						String replaceBy = "";
-						String consider = "";
-						replaceBy = replaceByList != null && !replaceByList.isEmpty() ? "Replace by: " + String.join(", ", replaceByList) : "";
-						consider = considerList != null && !considerList.isEmpty() ? "Consider: " + String.join(", ", considerList) : "";
-						String replacementTermString = replaceBy + consider;
-						replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
-						obsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
-					}
+					instancesForDeletion.add(inst);
 				}
-				catch (Exception e)
+				else // if referrers DO exist, log that, with suggestions about REPLACE_BY/CONSIDER terms.
 				{
-					e.printStackTrace();
-					obsoleteAccessionLogger.error(e);
-					attemptToDeleteObsoleteMessage.append(" An exception occcured while trying to get the number of referrers - this instance will not be deleted. Manual clean up may be necessary.");
+					@SuppressWarnings("unchecked")
+					List<String> replaceByList = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.REPLACED_BY);
+					@SuppressWarnings("unchecked")
+					List<String> considerList = (List<String>) goTermsFromFile.get(goID).get(GoUpdateConstants.CONSIDER);
+					String replaceBy = "";
+					String consider = "";
+					replaceBy = replaceByList != null && !replaceByList.isEmpty() ? "Replace by: " + String.join(", ", replaceByList) : "";
+					consider = considerList != null && !considerList.isEmpty() ? "Consider: " + String.join(", ", considerList) : "";
+					String replacementTermString = replaceBy + consider;
+					replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
+					obsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
 				}
-			});
-		}
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
+				obsoleteAccessionLogger.error(e);
+				attemptToDeleteObsoleteMessage.append(" An exception occcured while trying to get the number of referrers - this instance will not be deleted. Manual clean up may be necessary.");
+			}
+		});
 
 		logger.warn("GO:{} ({}) marked as OBSOLETE!{}",goID, goInstances.toString(), attemptToDeleteObsoleteMessage);
 	}
