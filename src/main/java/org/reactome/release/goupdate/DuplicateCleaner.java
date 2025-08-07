@@ -21,6 +21,7 @@ import org.gk.persistence.MySQLAdaptor;
 import org.gk.schema.GKSchemaAttribute;
 import org.gk.schema.InvalidAttributeException;
 import org.reactome.release.common.ReleaseStep;
+import org.reactome.util.general.DBUtils;
 
 /**
  * Stand-alone class with main method that can be used to clean up duplicate GO accessions.
@@ -57,7 +58,7 @@ public class DuplicateCleaner extends ReleaseStep
 	@Override
 	public void executeStep(Properties props) throws Exception
 	{
-		this.adaptor = DuplicateCleaner.getMySQLAdaptorFromProperties(props);
+		this.adaptor = DBUtils.getCuratorDbAdaptor(props);
 		int instancesWithSignificantReferrers = 0;
 		
 		DuplicateReporter dupeReporter = new DuplicateReporter(adaptor);
