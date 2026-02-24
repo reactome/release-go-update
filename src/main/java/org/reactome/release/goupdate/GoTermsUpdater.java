@@ -43,6 +43,7 @@ class GoTermsUpdater
 
 	private CSVPrinter newMFPrinter;
 	private CSVPrinter obsoleteAccessionPrinter;
+	private CSVPrinter plantObsoleteAccessionPrinter;
 	private CSVPrinter newGOTermsPrinter;
 	private CSVPrinter replacedGOTermsPrinter;
 	private CSVPrinter categoryMismatchPrinter;
@@ -93,6 +94,7 @@ class GoTermsUpdater
 		String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 		this.newMFPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_molecular_functions_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "GO Term Name", "Definition") );
 		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
+		this.plantObsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/plant_obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
 		this.newGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "GO Term ID", "GO Term Type", "Definition") );
 		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "Category in Database", "Category in file") );
 		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "Primary accession", "Primary Class", "DB_ID (Secondary; to be deleted)", "Secondary accession (to be deleted)", "Secondary Class", "Referrers to be automatically redirected to Primary accession") );
@@ -267,6 +269,7 @@ class GoTermsUpdater
 		this.newGOTermsPrinter.close();
 		this.newMFPrinter.close();
 		this.obsoleteAccessionPrinter.close();
+		this.plantObsoleteAccessionPrinter.close();
 		this.replacedGOTermsPrinter.close();
 
 		return mainOutput;
@@ -401,6 +404,8 @@ class GoTermsUpdater
 
 					if (!isPlantOnlyGOTerm(inst)) {
 						obsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
+					} else {
+						plantObsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
 					}
 				}
 			}
