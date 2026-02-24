@@ -88,8 +88,8 @@ class GoTermsUpdater
 		String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 		this.newMFPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_molecular_functions_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "GO Term Name", "Definition") );
 
-		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete GO Term Name", "Obsolete GO Term Accession", "Suggested action", "New/replacement GO Terms") );
-		this.plantObsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/plant_obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete GO Term Name", "Obsolete GO Term Accession", "Suggested action", "New/replacement GO Terms") );
+		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete GO Term Accession", "Obsolete GO Term Name", "Suggested action", "New/replacement GO Terms") );
+		this.plantObsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/plant_obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete GO Term Accession", "Obsolete GO Term Name", "Suggested action", "New/replacement GO Terms") );
 
 		this.newGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "GO Term ID", "GO Term Type", "Definition") );
 		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "Category in Database", "Category in file") );
