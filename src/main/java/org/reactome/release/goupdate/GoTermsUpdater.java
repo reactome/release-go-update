@@ -87,8 +87,10 @@ class GoTermsUpdater
 		}
 		String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 		this.newMFPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_molecular_functions_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "GO Term Name", "Definition") );
-		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
-		this.plantObsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/plant_obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete Term", "Suggested action", "New/replacement GO Terms") );
+
+		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete GO Term Name", "Obsolete GO Term Accession", "Suggested action", "New/replacement GO Terms") );
+		this.plantObsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/plant_obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete GO Term Name", "Obsolete GO Term Accession", "Suggested action", "New/replacement GO Terms") );
+
 		this.newGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "GO Term ID", "GO Term Type", "Definition") );
 		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "Category in Database", "Category in file") );
 		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "Primary accession", "Primary Class", "DB_ID (Secondary; to be deleted)", "Secondary accession (to be deleted)", "Secondary Class", "Referrers to be automatically redirected to Primary accession") );
@@ -346,7 +348,15 @@ class GoTermsUpdater
 					action = "Automatic Deletion (no referrers)";
 				}
 
-				this.obsoleteAccessionPrinter.printRecord(instance.getDBID(), instance.getSchemClass().getName(), instance.getAttributeValue(ReactomeJavaConstants.accession), action, replacementGOTermAccession);
+				this.obsoleteAccessionPrinter.printRecord(
+					instance.getDBID(),
+					instance.getSchemClass().getName(),
+					"GO:" + instance.getAttributeValue(ReactomeJavaConstants.accession),
+					instance.getDisplayName(),
+					action,
+					replacementGOTermAccession
+				);
+
 				goTermModifier.deleteGoInstance(goTermsFromFile, allGoInstances, this.deletionStringBuilder);
 				deletedCount ++;
 			}
@@ -397,9 +407,23 @@ class GoTermsUpdater
 					replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
 
 					if (!isPlantOnlyGOTerm(inst)) {
-						obsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
+						obsoleteAccessionPrinter.printRecord(
+							inst.getDBID(),
+							inst.getSchemClass().getName(),
+							"GO:" + inst.getAttributeValue(ReactomeJavaConstants.accession),
+							inst.getDisplayName(),
+							"Manual cleanup (referrers exist)",
+							replacementTermString
+						);
 					} else {
-						plantObsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
+						plantObsoleteAccessionPrinter.printRecord(
+							inst.getDBID(),
+							inst.getSchemClass().getName(),
+							"GO:" + inst.getAttributeValue(ReactomeJavaConstants.accession),
+							inst.getDisplayName(),
+							"Manual cleanup (referrers exist)",
+							replacementTermString
+						);
 					}
 				}
 			}
