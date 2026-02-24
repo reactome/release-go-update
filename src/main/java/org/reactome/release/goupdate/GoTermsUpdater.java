@@ -399,7 +399,7 @@ class GoTermsUpdater
 					String replacementTermString = replaceBy + consider;
 					replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
 
-					if (!plantOnlyGOTerm(inst)) {
+					if (!isPlantOnlyGOTerm(inst)) {
 						obsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
 					}
 				}
