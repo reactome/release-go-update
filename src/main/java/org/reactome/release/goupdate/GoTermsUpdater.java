@@ -348,6 +348,7 @@ class GoTermsUpdater
 				{
 					action = "Automatic Deletion (no referrers)";
 				}
+
 				this.obsoleteAccessionPrinter.printRecord(instance.getDBID(), instance.getSchemClass().getName(), instance.getAttributeValue(ReactomeJavaConstants.accession), action, replacementGOTermAccession);
 				goTermModifier.deleteGoInstance(goTermsFromFile, allGoInstances, this.deletionStringBuilder);
 				deletedCount ++;
@@ -397,7 +398,10 @@ class GoTermsUpdater
 					consider = considerList != null && !considerList.isEmpty() ? "Consider: " + String.join(", ", considerList) : "";
 					String replacementTermString = replaceBy + consider;
 					replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
-					obsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
+
+					if (!plantOnlyGOTerm(inst)) {
+						obsoleteAccessionPrinter.printRecord(inst.getDBID(), inst.getSchemClass().getName(), inst.getAttributeValue(ReactomeJavaConstants.accession), "Manual cleanup (referrers exist)", replacementTermString);
+					}
 				}
 			}
 			catch (Exception e)
@@ -616,5 +620,37 @@ class GoTermsUpdater
 				goToECNumbers.put(goNumber, ecNumbers);
 			}
 		}
+	}
+
+	private static boolean isPlantOnlyGOTerm(GKInstance goInstance) throws Exception {
+		List<GKInstance> referrers = getReferrersFilteredByClass(goInstance, isNotGOEntity);
+		return referrers.stream().allMatch(referrer -> isPlantOnlyInstance(referrer));
+	}
+
+	private static boolean isPlantOnlyInstance(GKInstance instance) {
+		if (instance.getSchemClass().isa(ReactomeJavaConstants.CatalystActivity)) {
+			Collection<GKInstance> reactionLikeEvents;
+			try {
+				reactionLikeEvents = instance.getReferers(ReactomeJavaConstants.catalystActivity);
+			} catch (Exception e) {
+				throw new RuntimeException("Unable to get referrers for CatalystActivity " + instance, e);
+			}
+			return reactionLikeEvents.stream().allMatch(reactionLikeEvent -> isPlantOnlyInstance(reactionLikeEvent));
+		}
+
+		List<GKInstance> speciesInstances;
+		try {
+			speciesInstances = instance.getAttributeValuesList(ReactomeJavaConstants.species);
+		} catch (Exception e) {
+			throw new RuntimeException("Unable to get species instances for " + instance, e);
+		}
+		return speciesInstances.stream().allMatch(speciesInstance -> getPlantSpeciesDisplayNames().contains(speciesInstance.getDisplayName()));
+	}
+
+	private static List<String> getPlantSpeciesDisplayNames() {
+		return Arrays.asList(
+			"Arabidopsis thaliana",
+			"Oryza sativa"
+		);
 	}
 }
