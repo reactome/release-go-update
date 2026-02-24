@@ -4,13 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -634,22 +628,38 @@ class GoTermsUpdater
 
 	private static boolean isPlantOnlyInstance(GKInstance instance) {
 		if (instance.getSchemClass().isa(ReactomeJavaConstants.CatalystActivity)) {
-			Collection<GKInstance> reactionLikeEvents;
-			try {
-				reactionLikeEvents = instance.getReferers(ReactomeJavaConstants.catalystActivity);
-			} catch (Exception e) {
-				throw new RuntimeException("Unable to get referrers for CatalystActivity " + instance, e);
-			}
-			return reactionLikeEvents.stream().allMatch(reactionLikeEvent -> isPlantOnlyInstance(reactionLikeEvent));
+			return getReactionLikeEventReferrers(instance).stream().allMatch(reactionLikeEvent -> isPlantOnlyInstance(reactionLikeEvent));
 		}
 
-		List<GKInstance> speciesInstances;
+		return getSpeciesInstances(instance)
+			.stream()
+			.allMatch(speciesInstance -> getPlantSpeciesDisplayNames().contains(speciesInstance.getDisplayName()));
+	}
+
+	private static List<GKInstance> getReactionLikeEventReferrers(GKInstance catalystActivityInstance) {
+		Collection<GKInstance> referrers;
 		try {
-			speciesInstances = instance.getAttributeValuesList(ReactomeJavaConstants.species);
+			referrers = catalystActivityInstance.getReferers(ReactomeJavaConstants.catalystActivity);
+		} catch (Exception e) {
+			throw new RuntimeException("Unable to get referrers for CatalystActivity " + catalystActivityInstance, e);
+		}
+
+		if (referrers == null) {
+			return Collections.emptyList();
+		}
+
+		return referrers
+			.stream()
+			.filter(referrer -> referrer.getSchemClass().isa(ReactomeJavaConstants.ReactionlikeEvent))
+			.collect(Collectors.toList());
+	}
+
+	private static List<GKInstance> getSpeciesInstances(GKInstance instance) {
+		try {
+			return instance.getAttributeValuesList(ReactomeJavaConstants.species);
 		} catch (Exception e) {
 			throw new RuntimeException("Unable to get species instances for " + instance, e);
 		}
-		return speciesInstances.stream().allMatch(speciesInstance -> getPlantSpeciesDisplayNames().contains(speciesInstance.getDisplayName()));
 	}
 
 	private static List<String> getPlantSpeciesDisplayNames() {
