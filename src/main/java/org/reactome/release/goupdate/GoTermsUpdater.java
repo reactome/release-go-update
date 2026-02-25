@@ -4,13 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -43,6 +37,7 @@ class GoTermsUpdater
 
 	private CSVPrinter newMFPrinter;
 	private CSVPrinter obsoleteAccessionPrinter;
+	private CSVPrinter plantObsoleteAccessionPrinter;
 	private CSVPrinter newGOTermsPrinter;
 	private CSVPrinter replacedGOTermsPrinter;
 	private CSVPrinter categoryMismatchPrinter;
@@ -92,7 +87,10 @@ class GoTermsUpdater
 		}
 		String dateString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 		this.newMFPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_molecular_functions_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "GO Term Name", "Definition") );
-		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete GO Accession", "Obsolete GO Term Name", "Suggested action", "New/replacement GO Terms") );
+
+		this.obsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete GO Term Accession", "Obsolete GO Term Name", "Suggested action", "New/replacement GO Terms") );
+		this.plantObsoleteAccessionPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/plant_obsolete_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Type", "Obsolete GO Term Accession", "Obsolete GO Term Name", "Suggested action", "New/replacement GO Terms") );
+
 		this.newGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/new_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "GO Term ID", "GO Term Type", "Definition") );
 		this.categoryMismatchPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/category_mismatch_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO ID", "Category in Database", "Category in file") );
 		this.replacedGOTermsPrinter = new CSVPrinter(Files.newBufferedWriter(Paths.get("reports/replaced_GO_terms_"+dateString+".csv")), GO_REPORT_FORMAT.withHeader("DB_ID", "GO Term Name", "Primary accession", "Primary Class", "DB_ID (Secondary; to be deleted)", "Secondary accession (to be deleted)", "Secondary Class", "Referrers to be automatically redirected to Primary accession") );
@@ -267,6 +265,7 @@ class GoTermsUpdater
 		this.newGOTermsPrinter.close();
 		this.newMFPrinter.close();
 		this.obsoleteAccessionPrinter.close();
+		this.plantObsoleteAccessionPrinter.close();
 		this.replacedGOTermsPrinter.close();
 
 		return mainOutput;
@@ -348,6 +347,7 @@ class GoTermsUpdater
 				{
 					action = "Automatic Deletion (no referrers)";
 				}
+
 				this.obsoleteAccessionPrinter.printRecord(
 					instance.getDBID(),
 					instance.getSchemClass().getName(),
@@ -356,6 +356,7 @@ class GoTermsUpdater
 					action,
 					replacementGOTermAccession
 				);
+
 				goTermModifier.deleteGoInstance(goTermsFromFile, allGoInstances, this.deletionStringBuilder);
 				deletedCount ++;
 			}
@@ -404,14 +405,26 @@ class GoTermsUpdater
 					consider = considerList != null && !considerList.isEmpty() ? "Consider: " + String.join(", ", considerList) : "";
 					String replacementTermString = replaceBy + consider;
 					replacementTermString = replacementTermString.length() == 0 ? "N/A" : replacementTermString;
-					obsoleteAccessionPrinter.printRecord(
-						inst.getDBID(),
-						inst.getSchemClass().getName(),
-						"GO:" + inst.getAttributeValue(ReactomeJavaConstants.accession),
-						inst.getDisplayName(),
-						"Manual cleanup (referrers exist)",
-						replacementTermString
-					);
+
+					if (!isPlantOnlyGOTerm(inst)) {
+						obsoleteAccessionPrinter.printRecord(
+							inst.getDBID(),
+							inst.getSchemClass().getName(),
+							"GO:" + inst.getAttributeValue(ReactomeJavaConstants.accession),
+							inst.getDisplayName(),
+							"Manual cleanup (referrers exist)",
+							replacementTermString
+						);
+					} else {
+						plantObsoleteAccessionPrinter.printRecord(
+							inst.getDBID(),
+							inst.getSchemClass().getName(),
+							"GO:" + inst.getAttributeValue(ReactomeJavaConstants.accession),
+							inst.getDisplayName(),
+							"Manual cleanup (referrers exist)",
+							replacementTermString
+						);
+					}
 				}
 			}
 			catch (Exception e)
@@ -630,5 +643,53 @@ class GoTermsUpdater
 				goToECNumbers.put(goNumber, ecNumbers);
 			}
 		}
+	}
+
+	private static boolean isPlantOnlyGOTerm(GKInstance goInstance) throws Exception {
+		List<GKInstance> referrers = getReferrersFilteredByClass(goInstance, isNotGOEntity);
+		return referrers.stream().allMatch(referrer -> isPlantOnlyInstance(referrer));
+	}
+
+	private static boolean isPlantOnlyInstance(GKInstance instance) {
+		if (instance.getSchemClass().isa(ReactomeJavaConstants.CatalystActivity)) {
+			return getReactionLikeEventReferrers(instance).stream().allMatch(reactionLikeEvent -> isPlantOnlyInstance(reactionLikeEvent));
+		}
+
+		return getSpeciesInstances(instance)
+			.stream()
+			.allMatch(speciesInstance -> getPlantSpeciesDisplayNames().contains(speciesInstance.getDisplayName()));
+	}
+
+	private static List<GKInstance> getReactionLikeEventReferrers(GKInstance catalystActivityInstance) {
+		Collection<GKInstance> referrers;
+		try {
+			referrers = catalystActivityInstance.getReferers(ReactomeJavaConstants.catalystActivity);
+		} catch (Exception e) {
+			throw new RuntimeException("Unable to get referrers for CatalystActivity " + catalystActivityInstance, e);
+		}
+
+		if (referrers == null) {
+			return Collections.emptyList();
+		}
+
+		return referrers
+			.stream()
+			.filter(referrer -> referrer.getSchemClass().isa(ReactomeJavaConstants.ReactionlikeEvent))
+			.collect(Collectors.toList());
+	}
+
+	private static List<GKInstance> getSpeciesInstances(GKInstance instance) {
+		try {
+			return instance.getAttributeValuesList(ReactomeJavaConstants.species);
+		} catch (Exception e) {
+			throw new RuntimeException("Unable to get species instances for " + instance, e);
+		}
+	}
+
+	private static List<String> getPlantSpeciesDisplayNames() {
+		return Arrays.asList(
+			"Arabidopsis thaliana",
+			"Oryza sativa"
+		);
 	}
 }

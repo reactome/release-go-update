@@ -35,7 +35,7 @@ public class DuplicateReporterIT
 	
 	
 	@Test
-	public void testGetDuplicateAccessions() throws SQLException
+	public void testGetDuplicateAccessions() throws Exception
 	{
 		DuplicateReporter dupeReporter = new DuplicateReporter(adaptor);
 		
