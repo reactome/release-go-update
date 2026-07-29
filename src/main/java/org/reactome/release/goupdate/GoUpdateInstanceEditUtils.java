@@ -13,14 +13,14 @@ import org.reactome.release.common.database.InstanceEditUtils;
  * @author sshorser
  *
  */
-class GoUpdateInstanceEditUtils
+public class GoUpdateInstanceEditUtils
 {
 	/**
 	 * Different types of instance edits.
 	 * @author sshorser
 	 *
 	 */
-	enum GOUpdateInstEditType
+	public enum GOUpdateInstEditType
 	{
 		NEW("New GO term was created"),
 		MODIFIED("GO term attributes were modified"),

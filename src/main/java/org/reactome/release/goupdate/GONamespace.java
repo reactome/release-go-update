@@ -7,31 +7,22 @@ import org.gk.model.ReactomeJavaConstants;
  * @author sshorser
  *
  */
-public enum GONamespace
-{
+public enum GONamespace {
 	biological_process, molecular_function, cellular_component;
 	
 	/**
-	 * Provides the Reactome schema class that corresponds to this GO namespace.
-	 * @return
+	 * Provides the Reactome schema class name that corresponds to this GO namespace.
+	 * @return Name of GO class in Reactome schema
 	 */
-	public String getReactomeName()
-	{
-		if (this.name().equals(biological_process.name()))
-		{
+	public String getReactomeName() {
+		if (this.name().equals(biological_process.name())) {
 			return ReactomeJavaConstants.GO_BiologicalProcess;
-		}
-		else if(this.name().equals(molecular_function.name()))
-		{
+		} else if(this.name().equals(molecular_function.name())) {
 			return ReactomeJavaConstants.GO_MolecularFunction;
-		}
-		else if(this.name().equals(cellular_component.name()))
-		{
+		} else if(this.name().equals(cellular_component.name())) {
 			return ReactomeJavaConstants.GO_CellularComponent;
-		}
-		else
-		{
-			return null;
+		} else {
+			throw new RuntimeException("Undefined GO class name: " + this.name());
 		}
 	}
 }

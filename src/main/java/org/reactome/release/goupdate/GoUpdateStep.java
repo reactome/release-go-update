@@ -1,23 +1,20 @@
 package org.reactome.release.goupdate;
 
-import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.gk.model.GKInstance;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.persistence.TransactionsNotSupportedException;
 import org.reactome.release.common.ReleaseStep;
+import org.reactome.release.goupdate.duplicate.DuplicateFinder;
+import org.reactome.release.goupdate.reports.DuplicatesReport;
 import org.reactome.util.general.DBUtils;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -48,13 +45,12 @@ import java.util.Properties;
 // 6) update relationships between remaining instances, based on content of data structure.
 
 public class GoUpdateStep extends ReleaseStep {
-	private static final String PATH_TO_REPORTS_DIRECTORY = "reports";
 	private static final Logger logger = LogManager.getLogger();
-	private CSVPrinter duplicatePrinter;
 	private MySQLAdaptor adaptor;
+	private DuplicatesReport duplicatesReport;
 
 	@Override
-	public void executeStep(Properties props) throws SQLException {
+	public void executeStep(Properties props) {
 		long startTime = System.currentTimeMillis();
 		try {
 			initialize(props);
@@ -73,18 +69,18 @@ public class GoUpdateStep extends ReleaseStep {
 		initializeInstanceEditUtils(props);
 	}
 
-	private void initializeInstanceEditUtils(Properties props) {
-		long personID = Long.parseLong(props.getProperty("personId"));
-		GoUpdateInstanceEditUtils.setAdaptor(adaptor);
-		GoUpdateInstanceEditUtils.setPersonID(personID);
-	}
-
 	private void processGoUpdate(Properties props) throws Exception {
 		GoFiles goFiles = loadGoFiles(props);
 
 		processUpdateWithTransaction(goFiles);
 
 		finalizeTransaction();
+	}
+
+	private void initializeInstanceEditUtils(Properties props) {
+		long personID = Long.parseLong(props.getProperty("personId"));
+		GoUpdateInstanceEditUtils.setAdaptor(adaptor);
+		GoUpdateInstanceEditUtils.setPersonID(personID);
 	}
 
 	private GoFiles loadGoFiles(Properties props) throws IOException {
@@ -94,9 +90,19 @@ public class GoUpdateStep extends ReleaseStep {
 		validateFilesExist(pathToGOFile, pathToEC2GOFile);
 
 		return new GoFiles(
-				Files.readAllLines(Paths.get(pathToGOFile)),
-				Files.readAllLines(Paths.get(pathToEC2GOFile))
+			Files.readAllLines(Paths.get(pathToGOFile)),
+			Files.readAllLines(Paths.get(pathToEC2GOFile))
 		);
+	}
+
+	private void processUpdateWithTransaction(GoFiles goFiles) throws Exception {
+		startDatabaseTransaction();
+
+		this.duplicatesReport = new DuplicatesReport();
+
+		reportOnDuplicateAccessions("BEFORE GO Update");
+		performUpdate(goFiles);
+		reportOnDuplicateAccessions("AFTER GO Update");
 	}
 
 	private void validateFilesExist(String pathToGOFile, String pathToEC2GOFile) throws IOException {
@@ -108,36 +114,6 @@ public class GoUpdateStep extends ReleaseStep {
 		}
 	}
 
-	private String createReportFileName() {
-		return String.format("duplicate_GO_terms_%s.csv",
-				LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")));
-	}
-
-	private Path createReportsDirectory() throws IOException {
-		Path reportsDir = Paths.get(PATH_TO_REPORTS_DIRECTORY);
-		Files.createDirectories(reportsDir);
-		return reportsDir;
-	}
-
-	private void processUpdateWithTransaction(GoFiles goFiles) throws Exception {
-		startDatabaseTransaction();
-
-		String reportFileName = createReportFileName();
-		Path reportsDir = createReportsDirectory();
-		setupDuplicatePrinter(reportsDir, reportFileName);
-
-		reportOnDuplicateAccessions("BEFORE GO Update");
-		performUpdate(goFiles);
-		reportOnDuplicateAccessions("AFTER GO Update");
-	}
-
-	private void setupDuplicatePrinter(Path reportsDir, String reportFileName) throws Exception {
-		try (BufferedWriter writer = Files.newBufferedWriter(reportsDir.resolve(reportFileName))) {
-			duplicatePrinter = new CSVPrinter(writer, GoTermsUpdater.GO_REPORT_FORMAT.withHeader(
-					"DB_ID", "Name", "Accession", "GO type",
-					"Before or After GO Update process?", "Number of referrers"));
-		}
-	}
 
 	private void startDatabaseTransaction() throws Exception {
 		try {
@@ -150,12 +126,11 @@ public class GoUpdateStep extends ReleaseStep {
 
 	private void performUpdate(GoFiles goFiles) throws Exception {
 		GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goFiles.goLines, goFiles.ec2GoLines);
-		StringBuilder report = goTermsUpdator.updateGoTerms();
-		logger.info(report);
+		goTermsUpdator.updateGoTerms();
 	}
 
 	private void reportOnDuplicateAccessions(String when) throws Exception {
-		DuplicateReporter duplicateReporter = new DuplicateReporter(adaptor);
+		DuplicateFinder duplicateReporter = new DuplicateFinder(adaptor);
 		Map<String, Integer> duplicatedAccessions = duplicateReporter.getDuplicateAccessions();
 
 		if (duplicatedAccessions == null || duplicatedAccessions.isEmpty()) {
@@ -167,15 +142,15 @@ public class GoUpdateStep extends ReleaseStep {
 		recordDuplicateAccessions(duplicateReporter, duplicatedAccessions, when);
 	}
 
-	private void recordDuplicateAccessions(DuplicateReporter reporter, Map<String, Integer> duplicatedAccessions,
-										   String when) throws Exception {
+	private void recordDuplicateAccessions(DuplicateFinder duplicateFinder, Map<String, Integer> duplicatedAccessions,
+	                                       String when) throws Exception {
 		for (String accession : duplicatedAccessions.keySet()) {
-			Map<Long, Integer> referrerCounts = reporter.getReferrerCountForAccession(accession);
+			Map<Long, Integer> referrerCounts = duplicateFinder.getReferrerCountForAccession(accession);
 			for (Map.Entry<Long, Integer> entry : referrerCounts.entrySet()) {
 				GKInstance inst = adaptor.fetchInstance(entry.getKey());
-				duplicatePrinter.printRecord(
-						entry.getKey(), inst.getDisplayName(), accession,
-						inst.getSchemClass().getName(), when, entry.getValue()
+				this.duplicatesReport.printDuplicateRecord(
+					entry.getKey(), inst.getDisplayName(), accession,
+					inst.getSchemClass().getName(), when, entry.getValue()
 				);
 			}
 		}

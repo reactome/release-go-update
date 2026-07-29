@@ -1,4 +1,4 @@
-package org.reactome.release.goupdate;
+package org.reactome.release.goupdate.duplicate;
 
 import java.io.FileInputStream;
 import java.time.LocalDateTime;
@@ -61,7 +61,7 @@ public class DuplicateCleaner extends ReleaseStep
 		this.adaptor = DBUtils.getCuratorDbAdaptor(props);
 		int instancesWithSignificantReferrers = 0;
 		
-		DuplicateReporter dupeReporter = new DuplicateReporter(adaptor);
+		DuplicateFinder dupeReporter = new DuplicateFinder(adaptor);
 		Set<Long> dbIDsToDelete = new HashSet<>();
 
 		Map<String, Integer> duplicates = dupeReporter.getDuplicateAccessions();
