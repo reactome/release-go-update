@@ -40,6 +40,7 @@ public class GOInstanceCreator {
             GoUpdateInstanceEditUtils.GOUpdateInstEditType.NEW, this.getClass());
         newGOInstance.setAttributeValue(ReactomeJavaConstants.created, instEd);
         newGOInstance.setDbAdaptor(this.adaptor);
+        this.adaptor.storeInstance(newGOInstance);
 
         return newGOInstance;
     }
