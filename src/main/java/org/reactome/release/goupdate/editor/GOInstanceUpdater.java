@@ -20,77 +20,28 @@ public class GOInstanceUpdater {
 
     private final MySQLAdaptor adaptor;
 
-
     public GOInstanceUpdater(MySQLAdaptor adaptor) {
         this.adaptor = adaptor;
     }
 
     public void updateGOInstance(GKInstance existingGOInstance, GoTerm goTerm) throws Exception {
-        String currentGOID = (String) existingGOInstance.getAttributeValue(ReactomeJavaConstants.accession);
+        boolean nameUpdated = updateNameIfChanged(existingGOInstance, goTerm.getName());
+        boolean definitionUpdated = updateDefinitionIfChanged(existingGOInstance, goTerm.getDef());
+        boolean ecNumbersUpdated = updateECNumbers(existingGOInstance, goTerm.getEcNumbers());
 
-        if (currentGOID == null) {
-            throw new RuntimeException("Unable to get accession from existing GO instance: " + existingGOInstance);
-        }
-        String newDefinition = goTerm.getDef();
-        String newName = goTerm.getName();
-
-        String oldDefinition = (String) existingGOInstance.getAttributeValue(ReactomeJavaConstants.definition);
-        String oldName = (String) existingGOInstance.getAttributeValue(ReactomeJavaConstants.name);
-        boolean modified = false;
-        // according to the logic in the Perl code, if the existing name does not
-        // match the name in the file or if the existing definition does not match
-        // the one in the file, we update with the new name and def'n, and then set
-        // InstanceOf and ComponentOf to NULL, and those get updated later, from whatever's in the GO file.
-        if ((newName != null && !newName.equals(oldName)) ||
-            (newDefinition != null && !newDefinition.equals(oldDefinition))) {
-            // Changes for name
-            if (newName != null && !newName.equals(oldName)) {
-                String nameUpdate = "\n\tNew name:\t\""+newName+"\"\n\told name:\t\""+
-                    existingGOInstance.getAttributeValue(ReactomeJavaConstants.name)+"\"";
-
-                existingGOInstance.setAttributeValue(ReactomeJavaConstants.name, newName);
-                this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.name);
-            }
-            // Changes for definition
-            if (newDefinition != null && !newDefinition.equals(oldDefinition)) {
-                String defnUpdate = "\n\tNew def'n:\t\""+newDefinition+"\"\n\told def'n:\t\""+
-                    existingGOInstance.getAttributeValue(ReactomeJavaConstants.definition)+"\"";
-
-                existingGOInstance.setAttributeValue(ReactomeJavaConstants.definition, newDefinition);
-                this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.definition);
-            }
-            // Now, instanceOf and componentOf are *ONLY* valid for GO_CellularComponent
-            // instanceOf and componentOf get set to NULL and will be corrected later in the process.
-            if (existingGOInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent)) {
-                existingGOInstance.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
-                this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.instanceOf);
-                existingGOInstance.setAttributeValue(ReactomeJavaConstants.componentOf, null);
-                this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.componentOf);
-            }
-            modified = true;
-        }
-
-        if (existingGOInstance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction)) {
-            List<String> ecNumbers = goTerm.getEcNumbers();
-            if (ecNumbers != null) {
-                // Clear out any old EC Numbers - only want to keep the freshest ones from the file.
-                existingGOInstance.setAttributeValue(ReactomeJavaConstants.ecNumber, null);
-                existingGOInstance.addAttributeValue(ReactomeJavaConstants.ecNumber, ecNumbers);
-
-                modified = true;
-                this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.ecNumber);
+        if (nameUpdated || definitionUpdated) {
+            if (isCellularComponent(existingGOInstance)) {
+                setInstanceOfAndComponentOfToNull(existingGOInstance);
             }
         }
-        if (modified) {
-            GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
-                GoUpdateInstanceEditUtils.GOUpdateInstEditType.MODIFIED, this.getClass());
-            existingGOInstance.getAttributeValuesList(ReactomeJavaConstants.modified);
-            existingGOInstance.addAttributeValue(ReactomeJavaConstants.modified, instEd);
-            InstanceDisplayNameGenerator.setDisplayName(existingGOInstance);
-            this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants._displayName);
+
+        if (nameUpdated || definitionUpdated || ecNumbersUpdated) {
+            addModifiedInstanceEditForExistingGOInstance(existingGOInstance);
+            updateDisplayName(existingGOInstance);
+
             // Referrers might need to be updated, if their DisplayName depends on the GO_* entity which
             // they refer to.
-            updateReferrersDisplayNames(existingGOInstance);
+            updateReferrerDisplayNames(existingGOInstance);
         }
     }
 
@@ -118,7 +69,7 @@ public class GOInstanceUpdater {
                 goInstanceForGOTerm.addAttributeValue(ReactomeJavaConstants.modified, instEd);
                 this.adaptor.updateInstanceAttribute(goInstanceForGOTerm, ReactomeJavaConstants.modified);
                 // Now, update the displayName of other instances that refer to this GO Term instance.
-                updateReferrersDisplayNames(goInstanceForGOTerm);
+                updateReferrerDisplayNames(goInstanceForGOTerm);
             }
         }
     }
@@ -148,7 +99,7 @@ public class GOInstanceUpdater {
 
             for (String relationshipID : relationshipIds) {
                 // This is tricky - allGoInstances could contain duplicated GO accessions, because the database
-                // could contains multiple GO terms with the same GO accession.
+                // could contain multiple GO terms with the same GO accession.
                 List<GKInstance> otherInsts = allGoInstances.get(relationshipID);
                 if (otherInsts != null && !otherInsts.isEmpty()) {
                     // Only use the first item, so we don't end up attaching multiple GO Terms with the same
@@ -198,33 +149,103 @@ public class GOInstanceUpdater {
      * Update the Instances that refer to the instance being modified by *this* GoTermInstanceModifier.
      * @throws Exception
      */
-    private void updateReferrersDisplayNames(GKInstance goInstance) throws Exception {
-        @SuppressWarnings("unchecked")
-        Set<GKSchemaAttribute> referringAttributes =
-            (Set<GKSchemaAttribute>) goInstance.getSchemClass().getReferers();
+    private void updateReferrerDisplayNames(GKInstance goInstance) throws Exception {
+        for(GKSchemaAttribute referringAttribute : getReferringAttributes(goInstance)) {
+            for (GKInstance referrer : getReferrers(goInstance, referringAttribute)) {
+                addModifiedInstanceEditForReferrer(referrer);
+                updateDisplayName(referrer);
+            }
+        }
+    }
+
+    private boolean updateNameIfChanged(GKInstance existingGOInstance, String newName) throws Exception {
+        String oldName = (String) existingGOInstance.getAttributeValue(ReactomeJavaConstants.name);
+
+        if (newName != null && !newName.equals(oldName)) {
+            existingGOInstance.setAttributeValue(ReactomeJavaConstants.name, newName);
+            this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.name);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean updateDefinitionIfChanged(GKInstance existingGOInstance, String newDefinition) throws Exception {
+        String oldDefinition = (String) existingGOInstance.getAttributeValue(ReactomeJavaConstants.definition);
+
+        if (newDefinition != null && !newDefinition.equals(oldDefinition)) {
+            existingGOInstance.setAttributeValue(ReactomeJavaConstants.definition, newDefinition);
+            this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.definition);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean updateECNumbers(GKInstance existingGOInstance, List<String> ecNumbers) throws Exception {
+        if (isMolecularFunction(existingGOInstance)) {
+            if (ecNumbers != null && !ecNumbers.isEmpty()) {
+                existingGOInstance.setAttributeValue(ReactomeJavaConstants.ecNumber, ecNumbers);
+                this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.ecNumber);
+
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isCellularComponent(GKInstance existingGOInstance) {
+        return existingGOInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent);
+    }
+
+    private boolean isMolecularFunction(GKInstance existingGOInstance) {
+        return existingGOInstance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction);
+    }
+
+    private void setInstanceOfAndComponentOfToNull(GKInstance existingGOInstance) throws Exception {
+        existingGOInstance.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
+        this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.instanceOf);
+        existingGOInstance.setAttributeValue(ReactomeJavaConstants.componentOf, null);
+        this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.componentOf);
+    }
+
+    private void addModifiedInstanceEditForExistingGOInstance(GKInstance existingGOInstance) throws Exception {
+        GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
+            GoUpdateInstanceEditUtils.GOUpdateInstEditType.MODIFIED, this.getClass());
+        existingGOInstance.getAttributeValuesList(ReactomeJavaConstants.modified);
+        existingGOInstance.addAttributeValue(ReactomeJavaConstants.modified, instEd);
+    }
+
+    private void addModifiedInstanceEditForReferrer(GKInstance referrer) throws Exception {
+        GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
+            GoUpdateInstanceEditUtils.GOUpdateInstEditType.DISPLAY_NAME, this.getClass());
+        referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
+        referrer.addAttributeValue(ReactomeJavaConstants.modified, instEd);
+        this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
+    }
+
+    private void updateDisplayName(GKInstance instance) throws Exception {
+        InstanceDisplayNameGenerator.setDisplayName(instance);
+        this.adaptor.updateInstanceAttribute(instance, ReactomeJavaConstants._displayName);
+    }
+
+    private List<GKSchemaAttribute> getReferringAttributes(GKInstance goInstance) {
         // The old Perl code only updated PhysicalEntities and CatalystActivities that referred to GO Terms.
         // Events that referred to GO terms via goBiologicalProcess were *not* updated in the old code. So I'm trying
         // to keep this code consistent with that implementation.
-        for(GKSchemaAttribute attribute :
-            referringAttributes.stream().filter(
-                a -> a.getName().equals(ReactomeJavaConstants.activity) ||
-                    a.getName().equals(ReactomeJavaConstants.goCellularComponent)
-            ).collect(Collectors.toList())) {
 
-            @SuppressWarnings("unchecked")
-            Collection<GKInstance> referrers =
-                (Collection<GKInstance>) goInstance.getReferers(attribute.getName());
-            if (referrers != null) {
-                for (GKInstance referrer : referrers) {
-                    InstanceDisplayNameGenerator.setDisplayName(referrer);
-                    GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
-                        GoUpdateInstanceEditUtils.GOUpdateInstEditType.DISPLAY_NAME, this.getClass());
-                    referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
-                    referrer.addAttributeValue(ReactomeJavaConstants.modified, instEd);
-                    this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants._displayName);
-                    this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
-                }
-            }
-        }
+        @SuppressWarnings("unchecked")
+        Set<GKSchemaAttribute> referringAttributes = (Set<GKSchemaAttribute>) goInstance.getSchemClass().getReferers();
+        return referringAttributes.stream().filter(
+            a -> a.getName().equals(ReactomeJavaConstants.activity) ||
+                a.getName().equals(ReactomeJavaConstants.goCellularComponent)
+        ).collect(Collectors.toList());
+    }
+
+    private List<GKInstance> getReferrers(GKInstance goInstance, GKSchemaAttribute referringAttribute)
+        throws Exception {
+        @SuppressWarnings("unchecked")
+        Collection<GKInstance> referrers =
+            (Collection<GKInstance>) goInstance.getReferers(referringAttribute.getName());
+
+        return referrers != null ? new ArrayList<>(referrers) : Collections.emptyList();
     }
 }
