@@ -5,10 +5,7 @@ import org.reactome.release.goupdate.model.GoTerm;
 import org.reactome.release.goupdate.model.ObsoleteGoTerm;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -25,7 +22,6 @@ public class GoTermParser {
     public Iterator<? extends GoTerm> getGoTermIterator() throws IOException {
         return new Iterator<>() {
             final Iterator<String> fileLineIterator = getGoTermsFileLines().iterator();
-            GoTerm currentGoTerm;
             GoTerm nextGoTerm = readNextGoTerm();
 
             @Override
@@ -35,9 +31,13 @@ public class GoTermParser {
 
             @Override
             public GoTerm next() {
-                this.currentGoTerm = this.nextGoTerm;
-                this.nextGoTerm = readNextGoTerm();
-                return this.currentGoTerm;
+                if (nextGoTerm == null) {
+                    throw new NoSuchElementException();
+                }
+
+                GoTerm result = nextGoTerm;
+                nextGoTerm = readNextGoTerm();
+                return result;
             }
 
             private GoTerm readNextGoTerm() {
@@ -45,19 +45,30 @@ public class GoTermParser {
 
                 boolean termStarted = false;
                 String currentLine;
-                do {
+
+                while (true) {
                     currentLine = fileLineIterator.hasNext() ? fileLineIterator.next() : null;
 
-                    if (currentLine != null && currentLine.contains("[Term]")) {
-                        termStarted = true;
+                    if (currentLine == null) {
+                        break;
                     }
 
-                    if (termStarted) {
-                        entryLines.add(currentLine);
+                    if (!termStarted) {
+                        if (currentLine.equals("[Term]")) {
+                            termStarted = true;
+                            entryLines.add(currentLine);
+                        }
+                        continue;
                     }
-                } while (currentLine != null && !currentLine.replace("\r\n","\n").equals("\n"));
 
-                return parseGoTerm(entryLines);
+                    if (currentLine.isBlank()) {
+                        break;
+                    }
+
+                    entryLines.add(currentLine);
+                }
+
+                return termStarted ? parseGoTerm(entryLines) : null;
             }
         };
     }
