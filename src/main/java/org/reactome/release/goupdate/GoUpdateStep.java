@@ -19,31 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-// First part:
-// 1) Get the GO files:
-// - http://current.geneontology.org/ontology/go.obo (replaces outdated URL http://geneontology.org/ontology/obo_format_1_2/gene_ontology_ext.obo)
-// - http://current.geneontology.org/ontology/external2go/ec2go (replaces outdated URL http://geneontology.org/external2go/ec2go)
-// 2) from database, get list of all things where:
-//    biological_process=GO_BiologicalProcess, molecular_function=GO_MolecularFunction, cellular_component=GO_CellularComponent
-// 3) Read gene_ontology_ext.obo
-// 4) Update objects from Database based on GO file.
-// 5) print Wiki output.
-//
-// Second part:
-// 1) Read ec2go file
-// 2) extact EC to GO mapping.
-// 3) Update GO objects in Database.
-//
-// ...Of course, we could just do these together in one program: Read both files and populate one data structure containing everything.
-//
-// New process:
-// 1) load GO file lines
-// 2) load ec2go file lines
-// 3) use these to sets of data to build in-memory data structure of all GO terms from the files
-// 4) use this data structure to create/update/mark-for-deletion instances in database.
-// 5) delete the marked-for-deletion instances.
-// 6) update relationships between remaining instances, based on content of data structure.
-
 public class GoUpdateStep extends ReleaseStep {
 	private static final Logger logger = LogManager.getLogger();
 	private MySQLAdaptor adaptor;
@@ -170,6 +145,8 @@ public class GoUpdateStep extends ReleaseStep {
 		logger.info("Elapsed time: {}", duration);
 	}
 
+	// - http://current.geneontology.org/ontology/go.obo (replaces outdated URL http://geneontology.org/ontology/obo_format_1_2/gene_ontology_ext.obo)
+	// - http://current.geneontology.org/ontology/external2go/ec2go (replaces outdated URL http://geneontology.org/external2go/ec2go)
 	private static class GoFiles {
 		final List<String> goLines;
 		final List<String> ec2GoLines;
