@@ -223,8 +223,7 @@ public class GoTermParser {
             .filter(line -> line.contains(attributePrefix))
             .map(line -> line.replace(attributePrefix,""))
             .findFirst()
-            .orElseThrow(() ->
-                new RuntimeException("Unable to parse value for " + attributePrefix + "from " + entryLines));
+            .orElse("");
     }
 
     private List<String> removeGOPrefixes(List<String> goAccessions) {
