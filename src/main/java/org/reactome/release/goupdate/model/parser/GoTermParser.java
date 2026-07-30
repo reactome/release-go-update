@@ -120,7 +120,7 @@ public class GoTermParser {
     }
 
     private String parseId(List<String> entryLines) {
-        return parseGenericStringValue("id: ", entryLines);
+        return removeGOPrefix(parseGenericStringValue("id: ", entryLines));
     }
 
     private String parseName(List<String>  entryLines) {
