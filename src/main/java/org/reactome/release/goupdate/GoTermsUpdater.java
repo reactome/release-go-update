@@ -77,6 +77,7 @@ class GoTermsUpdater {
 		GoTermParser goTermParser = new GoTermParser(this.goLines, goToECNumbers);
 		processGOTerms(goTermParser, allGoInstances);
 
+		logger.info("Reconciling GO database instances with go obo file...");
 		GoTermsReconciler reconciler = new GoTermsReconciler(this.adaptor);
 		reconciler.reconcile(goTermParser);
 
@@ -103,6 +104,8 @@ class GoTermsUpdater {
 	}
 
 	private void processGOTerm(GoTerm goTerm, Map<String, List<GKInstance>> allGoInstances) throws Exception {
+		logger.debug("Processing GO Term " + goTerm.getId());
+
 		GOInstanceCreator goInstanceCreator = new GOInstanceCreator(adaptor);
 		GOInstanceDeleter goInstanceDeleter = new GOInstanceDeleter(adaptor, obsoleteAccessionReport);
 		GOInstanceUpdater goInstanceUpdater = new GOInstanceUpdater(adaptor);
@@ -133,8 +136,6 @@ class GoTermsUpdater {
 		if (isObsolete(goTerm) && existingGOInstances != null) {
 			List<GKInstance> instancesForDeletion = processObsoleteGOTerm((ObsoleteGoTerm) goTerm, existingGOInstances);
 
-			logger.info("Preparing to delete flagged instances.");
-
 			Map<GKInstance, Collection<GKInstance>> undeletableInstanceToReferrers =
 				goInstanceDeleter.deleteFlaggedInstances(
 					instancesForDeletion,
@@ -146,8 +147,6 @@ class GoTermsUpdater {
 
 		}
 
-		logger.info("Updating relationships of GO Instances.");
-		// Now that the main loop has run, update relationships between GO terms.
 		goInstanceUpdater.updateRelationships(goTerm, allGoInstances);
 	}
 

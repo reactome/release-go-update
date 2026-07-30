@@ -23,6 +23,7 @@ public class GoTermsReconciler {
 	private static final String HAS_PART = "has_part";
 	private static final String PART_OF = "part_of";
 
+	private static final Logger logger = LogManager.getLogger();
 	private static final Logger reconciliationLogger = LogManager.getLogger("reconciliationLog");
 	private MySQLAdaptor adaptor;
 	
@@ -58,6 +59,7 @@ public class GoTermsReconciler {
 					"It should probably only appear once.", goTerm.getId(), goInstances.size());
 			}
 
+			logger.debug("Reconciling GO Term {}...", goTerm.getId());
 			for (GKInstance goInstance : goInstances) {
 				this.adaptor.fastLoadInstanceAttributeValues(goInstance);
 				// We'll just grab all relationships in advance.
@@ -153,7 +155,7 @@ public class GoTermsReconciler {
 	 *                            associated by some relationship.
 	 * @throws Exception
 	 */
-	private static void reconcileRelationship(
+	private void reconcileRelationship(
 		String goAccession,
 		List<String> goTermRelationAccessions,
 		Collection<GKInstance> relationInstances,
@@ -186,7 +188,7 @@ public class GoTermsReconciler {
 	 * @param goTerm  - goTerm to compare
 	 * @throws Exception
 	 */
-	private static void reconcileECNumbers(GKInstance instance, GoTerm goTerm) throws Exception {
+	private void reconcileECNumbers(GKInstance instance, GoTerm goTerm) throws Exception {
 		if (instance.getSchemClass().isValidAttribute(ReactomeJavaConstants.ecNumber)) {
 			@SuppressWarnings("unchecked")
 			Set<String> ecNumbersFromDB = new HashSet<>(instance.getAttributeValuesList(ReactomeJavaConstants.ecNumber));
