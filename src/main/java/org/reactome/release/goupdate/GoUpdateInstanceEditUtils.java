@@ -13,15 +13,13 @@ import org.reactome.release.common.database.InstanceEditUtils;
  * @author sshorser
  *
  */
-public class GoUpdateInstanceEditUtils
-{
+public class GoUpdateInstanceEditUtils {
 	/**
 	 * Different types of instance edits.
 	 * @author sshorser
 	 *
 	 */
-	public enum GOUpdateInstEditType
-	{
+	public enum GOUpdateInstEditType {
 		NEW("New GO term was created"),
 		MODIFIED("GO term attributes were modified"),
 		REF_CLEARED("Attribute referring to a GO term has been cleared"),
@@ -77,26 +75,21 @@ public class GoUpdateInstanceEditUtils
 	 * @return A GKInstance that is an InstanceEdit.
 	 * @throws Exception
 	 */
-	public static GKInstance getInstanceEditForClass(GOUpdateInstEditType instanceEditType, Class<?> classUsingInstanceEdit) throws Exception
-	{
+	public static GKInstance getInstanceEditForClass(
+		GOUpdateInstEditType instanceEditType, Class<?> classUsingInstanceEdit) throws Exception {
+
 		GKInstance instanceEdit = null;
-		if (GoUpdateInstanceEditUtils.availableInstanceEdits.containsKey(instanceEditType))
-		{
+		if (GoUpdateInstanceEditUtils.availableInstanceEdits.containsKey(instanceEditType)) {
 			instanceEdit = availableInstanceEdits.get(instanceEditType).get(classUsingInstanceEdit);
 		}
 		// If there is no InstanceEdit for the class in question, we need to create one.
-		if (instanceEdit == null)
-		{
+		if (instanceEdit == null) {
 			instanceEdit = InstanceEditUtils.createDefaultIE(adaptor, personID, true, instanceEditType.getNote() + "\nCreated by: " + classUsingInstanceEdit.getName());
 			Map<Class<?>, GKInstance> existingInstEds = availableInstanceEdits.computeIfAbsent(instanceEditType, x -> new HashMap<>());
 			existingInstEds.put(classUsingInstanceEdit, instanceEdit);
 			availableInstanceEdits.put(instanceEditType, existingInstEds);
 		}
-		// If there is STILL no InstanceEdit, something's gone wrong, abort execution.
-		if (instanceEdit == null)
-		{
-			throw new RuntimeException("Unable to get an InstanceEdit; this program cannot continue without an InstanceEdit. Terminating execution.");
-		}
+
 		return instanceEdit;
 	}
 }
