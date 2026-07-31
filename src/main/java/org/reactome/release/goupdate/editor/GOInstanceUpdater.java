@@ -7,7 +7,6 @@ import org.gk.model.InstanceDisplayNameGenerator;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.schema.GKSchemaAttribute;
-import org.gk.schema.InvalidAttributeValueException;
 import org.reactome.release.goupdate.GoUpdateInstanceEditUtils;
 import org.reactome.release.goupdate.model.GoTerm;
 
@@ -54,7 +53,7 @@ public class GOInstanceUpdater {
     public void updateRelationships(GoTerm goTerm, Map<String, List<GKInstance>> allGoInstances) throws Exception {
         List<GKInstance> goInstancesForGOTerm = allGoInstances.computeIfAbsent(goTerm.getId(), k -> new ArrayList<>());
         for (GKInstance goInstanceForGOTerm : goInstancesForGOTerm) {
-            if (goInstanceForGOTerm.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent)) {
+            if (isCellularComponent(goInstanceForGOTerm)) {
                 updateRelationship(
                     goInstanceForGOTerm, allGoInstances, goTerm.getIsA(), ReactomeJavaConstants.instanceOf);
                 updateRelationship(
@@ -63,11 +62,7 @@ public class GOInstanceUpdater {
                     goInstanceForGOTerm, allGoInstances, goTerm.getPartOf(), ReactomeJavaConstants.componentOf);
 
                 // Update the instance's "modified".
-                goInstanceForGOTerm.getAttributeValuesList(ReactomeJavaConstants.modified);
-                GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
-                    GoUpdateInstanceEditUtils.GOUpdateInstEditType.UPDATE_RELATIONSHIP, this.getClass());
-                goInstanceForGOTerm.addAttributeValue(ReactomeJavaConstants.modified, instEd);
-                this.adaptor.updateInstanceAttribute(goInstanceForGOTerm, ReactomeJavaConstants.modified);
+                addModifiedInstanceEditForGOInstanceForGOTerm(goInstanceForGOTerm);
                 // Now, update the displayName of other instances that refer to this GO Term instance.
                 updateReferrerDisplayNames(goInstanceForGOTerm);
             }
@@ -78,71 +73,60 @@ public class GOInstanceUpdater {
      * Updates the relationships between GO terms in the database.
      * @param goInstance - The GO instance for which to update the relationship
      * @param allGoInstances - Map of all GO instances in the database.
-     * @param relationshipIds - The GO accessions for the relationship
+     * @param relationshipAccessions - The GO accessions for the relationship
      * @param reactomeRelationshipName - The name of the relationship can be one of "is_a", "has_part", "part_of",
      *                                   "component_of", "regulates", "positively_regulates", "negatively_regulates".
      */
     public void updateRelationship(
         GKInstance goInstance,
         Map<String, List<GKInstance>> allGoInstances,
-        List<String> relationshipIds,
+        List<String> relationshipAccessions,
         String reactomeRelationshipName
     ) {
-        if (relationshipIds.isEmpty()) {
+        if (relationshipAccessions.isEmpty()) {
             return;
         }
 
         try {
-            // Clear the values that are currently set.
-            goInstance.setAttributeValue(reactomeRelationshipName, null);
-            this.adaptor.updateInstanceAttribute(goInstance, reactomeRelationshipName);
+            setRelationshipToNull(goInstance, reactomeRelationshipName);
 
-            for (String relationshipID : relationshipIds) {
-                // This is tricky - allGoInstances could contain duplicated GO accessions, because the database
-                // could contain multiple GO terms with the same GO accession.
-                List<GKInstance> otherInsts = allGoInstances.get(relationshipID);
-                if (otherInsts != null && !otherInsts.isEmpty()) {
-                    // Only use the first item, so we don't end up attaching multiple GO Terms with the same
-                    // accession to this object via "reactomeRelationshipName".
-                    // I think this is what the Perl code does when it encounters duplicates. Not ideal, but seems
-                    // to work OK.
-                    if (otherInsts.size() > 1) {
-                        otherInsts = otherInsts.subList(0, 1);
-                    }
-                    // Add the new value from otherInsts
-                    goInstance.addAttributeValue(reactomeRelationshipName, otherInsts);
-                    this.adaptor.updateInstanceAttribute(goInstance, reactomeRelationshipName);
-                    updatedGOTermLogger.info("GO:{} ({}) now has relationship \"{}\" referring to {}",
-                        goInstance.getAttributeValue(ReactomeJavaConstants.accession),
-                        goInstance.toString(),
-                        reactomeRelationshipName,
-                        otherInsts.stream().map(i -> {
-                            try {
-                                return "GO:" +
-                                    i.getAttributeValue(ReactomeJavaConstants.accession).toString() +
-                                    " (" + i + ")";
-                            } catch (Exception e1) {
-                                e1.printStackTrace();
-                                return "";
-                            }
-                        } ).reduce("", (a,b) -> { return a + ", " + b; }));
-                } else {
+            for (String relationshipAccession : relationshipAccessions) {
+                List<GKInstance> relationshipGOInstances =
+                    getRelationshipGOInstances(allGoInstances, relationshipAccession);
+
+                if (relationshipGOInstances.isEmpty()) {
                     updatedGOTermLogger.warn("Trying to set {} on GO:{} ({}) but could not find instance " +
                             "with GO ID = {}. Relationship update could not be completed.",
                         reactomeRelationshipName,
                         goInstance.getAttributeValue(ReactomeJavaConstants.accession),
                         goInstance.toString(),
-                        relationshipID
+                        relationshipAccession
                     );
+                    continue;
                 }
+
+                goInstance.addAttributeValue(reactomeRelationshipName, relationshipGOInstances);
+                this.adaptor.updateInstanceAttribute(goInstance, reactomeRelationshipName);
+
+                logRelationship(goInstance, reactomeRelationshipName, relationshipGOInstances);
             }
-        } catch (InvalidAttributeValueException e) {
-            logger.error(e.getMessage());
-            logger.error("Tried to set the '{}' attribute of \"{}\", but this attribute is not valid for this" +
-                " object.", reactomeRelationshipName, goInstance.toString());
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Unable to update relationship {} for {}", reactomeRelationshipName, goInstance, e);
         }
+    }
+
+    private List<GKInstance> getRelationshipGOInstances(Map<String, List<GKInstance>> allGoInstances, String relationshipAccession) {
+        List<GKInstance> otherInsts = allGoInstances.get(relationshipAccession);
+        if (otherInsts != null && !otherInsts.isEmpty()) {
+            // Only use the first item, so we don't end up attaching multiple GO Terms with the same
+            // accession to this object via "reactomeRelationshipName".
+            // I think this is what the Perl code does when it encounters duplicates. Not ideal, but seems
+            // to work OK.
+            if (otherInsts.size() > 1) {
+                otherInsts = otherInsts.subList(0, 1);
+            }
+        }
+        return otherInsts != null ? otherInsts : new ArrayList<>();
     }
 
     /**
@@ -152,7 +136,7 @@ public class GOInstanceUpdater {
     private void updateReferrerDisplayNames(GKInstance goInstance) throws Exception {
         for(GKSchemaAttribute referringAttribute : getReferringAttributes(goInstance)) {
             for (GKInstance referrer : getReferrers(goInstance, referringAttribute)) {
-                addModifiedInstanceEditForReferrer(referrer);
+                addModifiedInstanceEdit(referrer);
                 updateDisplayName(referrer);
             }
         }
@@ -201,25 +185,34 @@ public class GOInstanceUpdater {
     }
 
     private void setInstanceOfAndComponentOfToNull(GKInstance existingGOInstance) throws Exception {
-        existingGOInstance.setAttributeValue(ReactomeJavaConstants.instanceOf, null);
-        this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.instanceOf);
-        existingGOInstance.setAttributeValue(ReactomeJavaConstants.componentOf, null);
-        this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.componentOf);
+        setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.instanceOf);
+        setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.componentOf);
+    }
+
+    private void setRelationshipToNull(GKInstance goInstance, String reactomeRelationshipName) throws Exception {
+        goInstance.setAttributeValue(reactomeRelationshipName, null);
+        this.adaptor.updateInstanceAttribute(goInstance, reactomeRelationshipName);
+    }
+
+    private void addModifiedInstanceEditForGOInstanceForGOTerm(GKInstance goInstance) throws Exception {
+        addModifiedInstanceEdit(goInstance, GoUpdateInstanceEditUtils.GOUpdateInstEditType.UPDATE_RELATIONSHIP);
     }
 
     private void addModifiedInstanceEditForExistingGOInstance(GKInstance existingGOInstance) throws Exception {
-        GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
-            GoUpdateInstanceEditUtils.GOUpdateInstEditType.MODIFIED, this.getClass());
-        existingGOInstance.getAttributeValuesList(ReactomeJavaConstants.modified);
-        existingGOInstance.addAttributeValue(ReactomeJavaConstants.modified, instEd);
+        addModifiedInstanceEdit(existingGOInstance, GoUpdateInstanceEditUtils.GOUpdateInstEditType.MODIFIED);
     }
 
-    private void addModifiedInstanceEditForReferrer(GKInstance referrer) throws Exception {
-        GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
-            GoUpdateInstanceEditUtils.GOUpdateInstEditType.DISPLAY_NAME, this.getClass());
-        referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
-        referrer.addAttributeValue(ReactomeJavaConstants.modified, instEd);
-        this.adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
+    private void addModifiedInstanceEdit(GKInstance referrer) throws Exception {
+        addModifiedInstanceEdit(referrer,  GoUpdateInstanceEditUtils.GOUpdateInstEditType.DISPLAY_NAME);
+    }
+
+    private void addModifiedInstanceEdit(GKInstance instance, GoUpdateInstanceEditUtils.GOUpdateInstEditType editType)
+        throws Exception {
+
+        instance.getAttributeValuesList(ReactomeJavaConstants.modified);
+        GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(editType, this.getClass());
+        instance.addAttributeValue(ReactomeJavaConstants.modified, instEd);
+        this.adaptor.updateInstanceAttribute(instance, ReactomeJavaConstants.modified);
     }
 
     private void updateDisplayName(GKInstance instance) throws Exception {
@@ -247,5 +240,38 @@ public class GOInstanceUpdater {
             (Collection<GKInstance>) goInstance.getReferers(referringAttribute.getName());
 
         return referrers != null ? new ArrayList<>(referrers) : Collections.emptyList();
+    }
+
+    private void logRelationship(
+        GKInstance goInstance,
+        String reactomeRelationshipName,
+        List<GKInstance> relationshipGOInstances
+    ) throws Exception {
+        updatedGOTermLogger.info("GO:{} ({}) now has relationship \"{}\" referring to {}",
+            getAccession(goInstance),
+            goInstance.toString(),
+            reactomeRelationshipName,
+            getRelationshipGOInstancesAsString(relationshipGOInstances)
+        );
+    }
+
+    private String getRelationshipGOInstancesAsString(List<GKInstance> relationshipGOInstances) {
+        return relationshipGOInstances
+            .stream()
+            .map(this::getRelationshipGOInstanceAsString)
+            .collect(Collectors.joining(", "));
+    }
+
+    private String getRelationshipGOInstanceAsString(GKInstance relationshipGOInstance) {
+        return "GO:" + getAccession(relationshipGOInstance) + " (" + relationshipGOInstance + ")";
+    }
+
+    private String getAccession(GKInstance relationshipGOInstance) {
+        try {
+            return relationshipGOInstance.getAttributeValue(ReactomeJavaConstants.accession).toString();
+        } catch (Exception e) {
+            logger.warn("Unable to get accession for {}", relationshipGOInstance, e);
+            return "";
+        }
     }
 }
