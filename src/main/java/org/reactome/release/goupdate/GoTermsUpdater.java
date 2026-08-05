@@ -127,7 +127,7 @@ class GoTermsUpdater {
 			}
 		} else {
 			for (SimpleInstance existingGOInstance : existingGOInstances) {
-				if (categoryIsOkay(existingGOInstance, goTerm)) {
+				if (hasClassForNamespace(existingGOInstance, goTerm.getNamespace())) {
 					goInstanceUpdater.updateGOInstance(existingGOInstance, goTerm);
 				} else {
 					categoryMismatchReport.printCategoryMismatchRecord(existingGOInstance, goTerm);
@@ -163,21 +163,6 @@ class GoTermsUpdater {
 		if (isMolecularFunction(goTerm)) {
 			this.newMolecularFunctionReport.printNewMFRecord(dbId, goTerm);
 		}
-	}
-
-	private boolean categoryIsOkay(SimpleInstance existingGOInstance, GoTerm goTerm) {
-		GONamespace currentCategory = goTerm.getNamespace();
-
-		boolean isCellularComponentOrSubclass =
-			(existingGOInstance.getSchemaClassName().equals(ReactomeJavaConstants.Compartment) ||
-			existingGOInstance.getSchemaClassName().equals(ReactomeJavaConstants.EntityCompartment)) &&
-			currentCategory.getReactomeName().equals(ReactomeJavaConstants.GO_CellularComponent);
-
-		// The category is "OK" (i.e., NOT a mismatch) if it matches the Reactome name,
-		// OR if it doesn't match exactly, but the current category is CellularComponent
-		// and the instance itself is (Entity)Compartment.
-		return existingGOInstance.getSchemaClassName().equals(currentCategory.getReactomeName()) ||
-			isCellularComponentOrSubclass;
 	}
 
 	/**

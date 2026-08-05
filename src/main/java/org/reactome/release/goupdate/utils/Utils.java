@@ -1,10 +1,9 @@
 package org.reactome.release.goupdate.utils;
 
-import org.gk.model.GKInstance;
 import org.gk.model.ReactomeJavaConstants;
-import org.gk.schema.GKSchemaAttribute;
 import org.reactome.curation.model.NamedReferrerList;
 import org.reactome.curation.model.SimpleInstance;
+import org.reactome.release.goupdate.GONamespace;
 
 import java.util.*;
 import java.util.function.Predicate;
@@ -49,6 +48,29 @@ public class Utils {
             || schemaClassName.equals(ReactomeJavaConstants.GO_CellularComponent)
             || schemaClassName.equals(ReactomeJavaConstants.Compartment)
             || schemaClassName.equals(ReactomeJavaConstants.EntityCompartment);
+    }
+
+    /**
+     * Returns true if the instance's schema class is the class that a GO namespace maps to, or a subclass of it.
+     * Compartment and EntityCompartment are subclasses of GO_CellularComponent, so an instance of either is a
+     * match for a cellular_component term; the other two namespaces have no subclasses to allow for.
+     *
+     * @param goInstance - the instance whose schema class to check.
+     * @param namespace - the namespace from the GO file.
+     * @return true if <code>goInstance</code> has a schema class that <code>namespace</code> allows, false
+     *         otherwise.
+     */
+    public static boolean hasClassForNamespace(SimpleInstance goInstance, GONamespace namespace) {
+        String schemaClassName = goInstance.getSchemaClassName();
+        String namespaceClassName = namespace.getReactomeName();
+
+        if (schemaClassName.equals(namespaceClassName)) {
+            return true;
+        }
+
+        return namespaceClassName.equals(ReactomeJavaConstants.GO_CellularComponent)
+            && (schemaClassName.equals(ReactomeJavaConstants.Compartment)
+                || schemaClassName.equals(ReactomeJavaConstants.EntityCompartment));
     }
 
     public static String getAccession(SimpleInstance goInstance) {

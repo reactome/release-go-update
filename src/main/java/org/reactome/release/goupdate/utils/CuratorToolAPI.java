@@ -210,37 +210,6 @@ public class CuratorToolAPI {
         return goShellInstances.parallelStream().map(this::inflate).collect(Collectors.toList());
     }
 
-    public List<SimpleInstance> fetchGOInstancesForClassByAccession(String className, String goAccession) {
-        List<SimpleInstance> instances = new ArrayList<>();
-
-        int pageSize = 500;
-        int skip = 0;
-        Integer total = null;
-
-        do {
-            // GO accession lives in the "identifier" attribute in the graph model (paired with a "GO"
-            // referenceDatabase); the schema has no "accession" attribute for GO classes.
-            InstanceList page = controller.searchInstances(
-                className,
-                skip,
-                pageSize,
-                Optional.of(ReactomeJavaConstants.identifier),
-                Optional.of("equal"),
-                Optional.of(goAccession)
-            );
-
-            if (total == null) {
-                total = page.getTotalCount() != null ? page.getTotalCount() : 0;   // set once from the first page
-            }
-            if (page.getInstances() != null) {
-                instances.addAll(page.getInstances());
-            }
-            skip += pageSize;
-        } while (skip < total);
-
-        return instances.parallelStream().map(this::inflate).collect(Collectors.toList());
-    }
-
     public SimpleInstance findByDbId(long dbId) {
         DatabaseObject databaseObject = controller.findByDdId(dbId);
         if (databaseObject == null) {
