@@ -106,3 +106,25 @@ $ java -jar target/go-update-0.0.1-SNAPSHOT-jar-with-dependencies.jar ./go-updat
 ```
 
 Note: You will need to release-common-lib to build this project. The best way to get this is to compile it from the source [here](../release-common-lib).
+
+## Database indexes (run this before the first update)
+
+`scripts/create-dbid-indexes.sh` creates a `dbId` index for each node label in the graph database. Run
+it once against the database the update will write to:
+
+```
+$ scripts/create-dbid-indexes.sh              # dry run: print the DDL it would apply
+$ scripts/create-dbid-indexes.sh --apply      # create the indexes
+```
+
+curator-tool-ws looks an instance up under its *concrete* schema class when it writes it — e.g.
+`MATCH (n:GO_MolecularFunction {dbId: $dbId})` — but the only `dbId` index it creates itself is on
+`:DatabaseObject`. Neo4j cannot use that index to resolve a match on a subclass label, so without the
+per-label indexes every one of those lookups is a full label scan, and a single commit performs roughly
+twenty of them. On a gk_central copy this is the difference between 433,966 database hits and 2 for one
+lookup, which dominates the update's runtime.
+
+Connection settings come from `NEO4J_ADDRESS`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` and `NEO4J_DATABASE`
+(cypher-shell's own environment variables). `--profile` shows the query plan for a `dbId` lookup so you
+can confirm the indexes are being used, `--list` shows which ones exist, and `--drop` removes the ones
+the script created. It is safe to re-run; existing indexes are left alone.
