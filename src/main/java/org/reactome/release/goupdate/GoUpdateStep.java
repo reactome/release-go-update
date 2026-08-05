@@ -2,13 +2,11 @@ package org.reactome.release.goupdate;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.gk.model.GKInstance;
-import org.gk.persistence.MySQLAdaptor;
-import org.gk.persistence.TransactionsNotSupportedException;
+import org.reactome.curation.model.SimpleInstance;
 import org.reactome.release.common.ReleaseStep;
 import org.reactome.release.goupdate.duplicate.DuplicateFinder;
 import org.reactome.release.goupdate.reports.DuplicatesReport;
-import org.reactome.util.general.DBUtils;
+import org.reactome.release.goupdate.utils.CuratorToolAPI;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -21,7 +19,7 @@ import java.util.Properties;
 
 public class GoUpdateStep extends ReleaseStep {
 	private static final Logger logger = LogManager.getLogger();
-	private MySQLAdaptor adaptor;
+	private CuratorToolAPI curatorToolAPI;
 	private DuplicatesReport duplicatesReport;
 
 	@Override
@@ -32,31 +30,33 @@ public class GoUpdateStep extends ReleaseStep {
 			processGoUpdate(props);
 		} catch (Exception e) {
 			logger.error("Error during GO update", e);
-			throw new RuntimeException("GO update failed", e);
 		} finally {
 			logExecutionTime(startTime);
 		}
 	}
 
 	private void initialize(Properties props) throws SQLException {
-		adaptor = DBUtils.getCuratorDbAdaptor(props);
-		loadTestModeFromProperties(props);
-		initializeInstanceEditUtils(props);
+		long personId = Long.parseLong(props.getProperty("personId"));
+
+		curatorToolAPI = new CuratorToolAPI(personId);
+		//loadTestModeFromProperties(props);
+		//initializeInstanceEditUtils(props);
 	}
 
 	private void processGoUpdate(Properties props) throws Exception {
 		GoFiles goFiles = loadGoFiles(props);
 
-		processUpdateWithTransaction(goFiles);
+		processUpdate(goFiles);
 
-		finalizeTransaction();
+		curatorToolAPI.close();
+		//finalizeTransaction();
 	}
 
-	private void initializeInstanceEditUtils(Properties props) {
-		long personID = Long.parseLong(props.getProperty("personId"));
-		GoUpdateInstanceEditUtils.setAdaptor(adaptor);
-		GoUpdateInstanceEditUtils.setPersonID(personID);
-	}
+//	private void initializeInstanceEditUtils(Properties props) {
+//		long personID = Long.parseLong(props.getProperty("personId"));
+//		GoUpdateInstanceEditUtils.setAdaptor(adaptor);
+//		GoUpdateInstanceEditUtils.setPersonID(personID);
+//	}
 
 	private GoFiles loadGoFiles(Properties props) throws IOException {
 		String pathToGOFile = props.getProperty("pathToGOFile", "src/main/resources/go.obo");
@@ -70,8 +70,8 @@ public class GoUpdateStep extends ReleaseStep {
 		);
 	}
 
-	private void processUpdateWithTransaction(GoFiles goFiles) throws Exception {
-		startDatabaseTransaction();
+	private void processUpdate(GoFiles goFiles) throws Exception {
+		//startDatabaseTransaction();
 
 		this.duplicatesReport = new DuplicatesReport();
 
@@ -90,22 +90,22 @@ public class GoUpdateStep extends ReleaseStep {
 	}
 
 
-	private void startDatabaseTransaction() throws Exception {
-		try {
-			adaptor.startTransaction();
-		} catch (TransactionsNotSupportedException e) {
-			logger.error("Transactions not supported", e);
-			throw new Exception("This program requires transaction support", e);
-		}
-	}
+//	private void startDatabaseTransaction() throws Exception {
+//		try {
+//			adaptor.startTransaction();
+//		} catch (TransactionsNotSupportedException e) {
+//			logger.error("Transactions not supported", e);
+//			throw new Exception("This program requires transaction support", e);
+//		}
+//	}
 
 	private void performUpdate(GoFiles goFiles) throws Exception {
-		GoTermsUpdater goTermsUpdator = new GoTermsUpdater(adaptor, goFiles.goLines, goFiles.ec2GoLines);
+		GoTermsUpdater goTermsUpdator = new GoTermsUpdater(curatorToolAPI, goFiles.goLines, goFiles.ec2GoLines);
 		goTermsUpdator.updateGoTerms();
 	}
 
 	private void reportOnDuplicateAccessions(String when) throws Exception {
-		DuplicateFinder duplicateReporter = new DuplicateFinder(adaptor);
+		DuplicateFinder duplicateReporter = new DuplicateFinder(curatorToolAPI);
 		Map<String, Integer> duplicatedAccessions = duplicateReporter.getDuplicateAccessions();
 
 		if (duplicatedAccessions == null || duplicatedAccessions.isEmpty()) {
@@ -122,22 +122,22 @@ public class GoUpdateStep extends ReleaseStep {
 		for (String accession : duplicatedAccessions.keySet()) {
 			Map<Long, Integer> referrerCounts = duplicateFinder.getReferrerCountForAccession(accession);
 			for (Map.Entry<Long, Integer> entry : referrerCounts.entrySet()) {
-				GKInstance inst = adaptor.fetchInstance(entry.getKey());
+				SimpleInstance inst = curatorToolAPI.findByDbId(entry.getKey());
 				this.duplicatesReport.printDuplicateRecord(
 					entry.getKey(), inst.getDisplayName(), accession,
-					inst.getSchemClass().getName(), when, entry.getValue()
+					inst.getSchemaClassName(), when, entry.getValue()
 				);
 			}
 		}
 	}
 
-	private void finalizeTransaction() throws Exception {
-		if (testMode) {
-			adaptor.rollback();
-		} else {
-			adaptor.commit();
-		}
-	}
+//	private void finalizeTransaction() throws Exception {
+//		if (testMode) {
+//			adaptor.rollback();
+//		} else {
+//			adaptor.commit();
+//		}
+//	}
 
 	private void logExecutionTime(long startTime) {
 		long endTime = System.currentTimeMillis();

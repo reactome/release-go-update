@@ -3,39 +3,36 @@ package org.reactome.release.goupdate.editor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.gk.model.GKInstance;
-import org.gk.model.InstanceDisplayNameGenerator;
 import org.gk.model.ReactomeJavaConstants;
-import org.gk.persistence.MySQLAdaptor;
-import org.gk.schema.GKSchemaAttribute;
-import org.gk.schema.InvalidAttributeException;
-import org.gk.schema.SchemaClass;
-import org.reactome.release.goupdate.GoUpdateInstanceEditUtils;
+import org.reactome.curation.model.NamedReferrerList;
+import org.reactome.curation.model.SimpleInstance;
 import org.reactome.release.goupdate.model.ObsoleteGoTerm;
 import org.reactome.release.goupdate.reports.ObsoleteAccessionReport;
+import org.reactome.release.goupdate.utils.CuratorToolAPI;
+import org.reactome.release.goupdate.utils.ReferrerDisplayNameGenerator;
+import org.reactome.server.graph.domain.model.InstanceEdit;
 
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static org.reactome.release.goupdate.utils.ReferrerDisplayNameGenerator.generateDisplayName;
+import static org.reactome.release.goupdate.utils.ReferrerDisplayNameGenerator.hasGeneratedDisplayName;
 import static org.reactome.release.goupdate.utils.Utils.*;
-import static org.reactome.release.goupdate.utils.Utils.isNotGOEntity;
 
 public class GOInstanceDeleter {
     private static final Logger logger = LogManager.getLogger();
     private static final Logger obsoleteAccessionLogger = LogManager.getLogger("obsoleteAccessionLog");
 
-    private MySQLAdaptor adaptor;
+    private CuratorToolAPI curatorToolAPI;
     private ObsoleteAccessionReport obsoleteAccessionReport;
 
-    public GOInstanceDeleter(MySQLAdaptor adaptor, ObsoleteAccessionReport obsoleteAccessionReport) {
-        this.adaptor = adaptor;
+    public GOInstanceDeleter(CuratorToolAPI curatorToolAPI, ObsoleteAccessionReport obsoleteAccessionReport) {
+        this.curatorToolAPI = curatorToolAPI;
         this.obsoleteAccessionReport = obsoleteAccessionReport;
     }
 
-    public void deleteGOInstance(GKInstance existingGOInstance) throws Exception {
-        adaptor.deleteByDBID(existingGOInstance.getDBID());
+    public void deleteGOInstance(SimpleInstance existingGOInstance) {
+        getCuratorToolAPI().deleteInstance(existingGOInstance);
     }
 
     /**
@@ -45,19 +42,19 @@ public class GOInstanceDeleter {
      * @param replacementGoInstance Replacement GO GKInstance
      * @Exception
      */
-    public void deleteGoInstance(GKInstance goInstance, ObsoleteGoTerm obsoleteGoTerm, GKInstance replacementGoInstance)
+    public void deleteGoInstance(SimpleInstance goInstance, ObsoleteGoTerm obsoleteGoTerm, SimpleInstance replacementGoInstance)
         throws Exception {
         if (obsoleteGoTerm.hasReplacedBy()) {
             if (replacementGoInstance != null) {
                 pointAllReferrersToOtherInstance(goInstance, replacementGoInstance);
             }
 
-            adaptor.deleteInstance(goInstance);
-        } else if (!hasNonGoReferrers(goInstance)) {
+            deleteGOInstance(goInstance);
+        } else if (!hasNonGoReferrers(goInstance, getCuratorToolAPI())) {
             // But... we still need to clear GO Entity *references* to this.goInstance before deleting THIS
             // instance.
             this.clearAttributesFromReferringGOEntities(goInstance);
-            adaptor.deleteInstance(goInstance);
+            deleteGOInstance(goInstance);
         } else {
             logger.info("GO:{} ({}) is marked as obsolete but there is no replacement value specified! " +
                     "Instance will *NOT* be deleted, as manual clean-up may be necessary.",
@@ -66,11 +63,11 @@ public class GOInstanceDeleter {
     }
 
 
-    public void deleteSecondaryGOInstance(GKInstance altGoInst, GKInstance primaryGOTerm) {
+    public void deleteSecondaryGOInstance(SimpleInstance altGoInst, SimpleInstance primaryGOTerm) {
         try {
             pointAllReferrersToOtherInstance(altGoInst, primaryGOTerm);
 
-            adaptor.deleteInstance(altGoInst);
+            deleteGOInstance(altGoInst);
         } catch (Exception e) {
             logger.error("Error occurred while trying to delete instance: " + altGoInst, e);
         }
@@ -83,14 +80,14 @@ public class GOInstanceDeleter {
      * @return The map of undeletable instances.
      * @throws Exception
      */
-    public Map<GKInstance, Collection<GKInstance>> deleteFlaggedInstances(
-        List<GKInstance> instancesForDeletion,
+    public Map<SimpleInstance, Collection<SimpleInstance>> deleteFlaggedInstances(
+        List<SimpleInstance> instancesForDeletion,
         ObsoleteGoTerm obsoleteGoTerm,
-        GKInstance replacementGoInstance
+        SimpleInstance replacementGoInstance
     ) throws Exception {
-        Map<GKInstance, Collection<GKInstance>> undeletable = new HashMap<>();
+        Map<SimpleInstance, Collection<SimpleInstance>> undeletable = new HashMap<>();
 
-        for (GKInstance instanceForDeletion : instancesForDeletion) {
+        for (SimpleInstance instanceForDeletion : instancesForDeletion) {
             if (!isGoTermDeleteable(instanceForDeletion)) {
                 undeletable.put(instanceForDeletion, getReferrersForGoTerm(instanceForDeletion) );
                 continue;
@@ -107,105 +104,67 @@ public class GOInstanceDeleter {
         return undeletable;
     }
 
-    public void logUndeletableInstances(Map<GKInstance, Collection<GKInstance>> undeletableInstanceToReferrers) throws Exception {
-        for (GKInstance instance : undeletableInstanceToReferrers.keySet()) {
+    public void logUndeletableInstances(Map<SimpleInstance, Collection<SimpleInstance>> undeletableInstanceToReferrers) {
+        for (SimpleInstance instance : undeletableInstanceToReferrers.keySet()) {
             obsoleteAccessionLogger.info("GO:{} ({}) could not be deleted because it had {} referrers: ",
-                instance.getAttributeValue(ReactomeJavaConstants.accession),
-                instance.toString(),
+                instance.getAttribute(ReactomeJavaConstants.identifier),
+                instance.getDisplayName(),
                 undeletableInstanceToReferrers.get(instance).size()
             );
-            for (GKInstance referrer : undeletableInstanceToReferrers.get(instance)) {
-                GKInstance created = (GKInstance) referrer.getAttributeValue(ReactomeJavaConstants.created);
-                GKInstance author = (GKInstance) created.getAttributeValue(ReactomeJavaConstants.author);
+            for (SimpleInstance referrer : undeletableInstanceToReferrers.get(instance)) {
+                InstanceEdit created = referrer.getCreated();
                 obsoleteAccessionLogger.info("\t\"{}\", created by {} @ {}",
                     referrer.toString(),
-                    author != null ? author.getDisplayName(): "author not found",
-                    created.getAttributeValue(ReactomeJavaConstants.dateTime)
+                    created != null ? created.getAuthor().get(0).getDisplayName(): "author not found",
+                    created != null ? created.getDateTime() : "unknown datetime"
                 );
             }
         }
     }
 
-    private void pointAllReferrersToOtherInstance(GKInstance originalGOInstance, GKInstance replacementGOInstance) throws Exception {
-        @SuppressWarnings("unchecked")
-        Collection<GKSchemaAttribute> attributes =
-            (Collection<GKSchemaAttribute>) originalGOInstance.getSchemClass().getReferers();
-        for (GKSchemaAttribute attribute : attributes) {
-            GKInstance currentReferrer = null;
-            String attributeName = attribute.getName();
-            try {
-                @SuppressWarnings("unchecked")
-                Set<GKInstance> referrers = (Set<GKInstance>) originalGOInstance.getReferers(attribute);
-                if (referrers != null) {
-                    for (GKInstance referrer : referrers) {
-                        currentReferrer = referrer;
-                        // the referrer could refer to many things via the attribute.
-                        // we should ONLY remove *this* GO instance that will probably be deleted
-                        // and add the replacement GO term. All other values should be left alone.
-                        if (referrer.getSchemClass().isValidAttribute(attributeName)) {
-                            @SuppressWarnings("unchecked")
-                            List<GKInstance> referrerAttributeValues =
-                                (List<GKInstance>) referrer.getAttributeValuesList(attributeName);
-                            // remove *this* goInstance from the referrer
-                            referrerAttributeValues = referrerAttributeValues.parallelStream()
-                                .filter(v -> !v.getDBID().equals(originalGOInstance.getDBID()))
-                                .collect(Collectors.toList());
-                            // add the replacement to the referrer
-                            if (attribute.isMultiple()) {
-                                referrerAttributeValues.add(replacementGOInstance);
-                                referrer.setAttributeValue(attributeName, referrerAttributeValues);
-                            } else {
-                                referrer.setAttributeValue(attributeName, replacementGOInstance);
-                            }
-                            // The old Perl code would update referrers' displayNames if they were
-                            // PhysicalEntities or CatalystActivities.
-                            if (referrer.getSchemClass().isa(ReactomeJavaConstants.PhysicalEntity) ||
-                                referrer.getSchemClass().isa(ReactomeJavaConstants.CatalystActivity)) {
-                                String newReferrerDisplayName =
-                                    InstanceDisplayNameGenerator.generateDisplayName(referrer);
-                                referrer.setAttributeValue(ReactomeJavaConstants._displayName, newReferrerDisplayName);
-                                adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants._displayName);
-                            }
-                            GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
-                                GoUpdateInstanceEditUtils.GOUpdateInstEditType.REF_ATTRIB_UPDATE, this.getClass());
-                            referrer.getAttributeValuesList(ReactomeJavaConstants.modified);
-                            referrer.addAttributeValue(ReactomeJavaConstants.modified, instEd);
-                            // update in db.
-                            adaptor.updateInstanceAttribute(referrer, attributeName);
-                            adaptor.updateInstanceAttribute(referrer, ReactomeJavaConstants.modified);
-                            logger.debug("\"{}\" now refers to \"{}\" via {}, instead of referring to \"{}\"",
-                                referrer.toString(),
-                                replacementGOInstance.toString(),
-                                attributeName,
-                                originalGOInstance.toString()
-                            );
-                        } else {
-                            logger.error("Sorry, but the attribute \"{}\" is not valid for the referrer \"{}\". " +
-                                    "This happened while trying to make \"{}\" refer to \"{}\", instead of currently " +
-                                    "referring to \"GO ID: {}; {}\"",
-                                attributeName,
-                                abbreviate(referrer.toString()),
-                                abbreviate(referrer.toString()),
-                                abbreviate(replacementGOInstance.toString()),
-                                originalGOInstance.getAttributeValue(ReactomeJavaConstants.accession),
-                                abbreviate(originalGOInstance.toString())
-                            );
-                        }
-                    }
+    private void pointAllReferrersToOtherInstance(SimpleInstance originalGOInstance, SimpleInstance replacementGOInstance)
+        throws Exception {
+        for (NamedReferrerList referrerList : getCuratorToolAPI().getReferrers(originalGOInstance)) {
+            String attributeName = referrerList.getAttributeName();
+
+            for (SimpleInstance referrer : referrerList.getReferrers()) {
+                // The referrer could refer to many things via the attribute. We should ONLY remove *this* GO
+                // instance (which will probably be deleted) and add the replacement GO term. All other values
+                // should be left alone.
+                SimpleInstance inflatedReferrer = getCuratorToolAPI().inflate(referrer);
+                redirectReferrerAttribute(inflatedReferrer, attributeName, originalGOInstance, replacementGOInstance);
+
+                // PhysicalEntity and CatalystActivity referrers have displayNames derived from the GO term they
+                // refer to, so they must be regenerated now that the reference has changed.
+                if (hasGeneratedDisplayName(inflatedReferrer)) {
+                    inflatedReferrer.setDisplayName(generateDisplayName(inflatedReferrer));
                 }
-            } catch (InvalidAttributeException e) {
-                logger.error("Invalid Attribute Error: {}; Attribute was: \"{}\"; GO instance being processed was: " +
-                        "\"{}\"; Referrer was: \"{}\"",
-                    e.getMessage(),
-                    attribute.toString(),
-                    originalGOInstance.toString(),
-                    currentReferrer != null ? currentReferrer.toString() : "NULL"
-                );
-                OutputStream out = new ByteArrayOutputStream();
-                PrintStream s = new PrintStream(out);
-                e.printStackTrace(s);
-                logger.error(out.toString());
+
+                getCuratorToolAPI().commit(inflatedReferrer);
             }
+        }
+    }
+
+    private void redirectReferrerAttribute(
+        SimpleInstance referrer,
+        String attributeName,
+        SimpleInstance originalGOInstance,
+        SimpleInstance replacementGOInstance
+    ) {
+        Object currentValue = referrer.getAttribute(attributeName);
+
+        // A multi-valued attribute holds a List; drop *this* GO instance but keep the other values, then add the
+        // replacement. A single-valued attribute is simply replaced.
+        if (currentValue instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<SimpleInstance> referrerAttributeValues = ((List<SimpleInstance>) currentValue)
+                .stream()
+                .filter(attributeValue -> !attributeValue.getDbId().equals(originalGOInstance.getDbId()))
+                .collect(Collectors.toList());
+            referrerAttributeValues.add(replacementGOInstance);
+            referrer.setAttribute(attributeName, referrerAttributeValues);
+        } else {
+            referrer.setAttribute(attributeName, replacementGOInstance);
         }
     }
 
@@ -222,9 +181,9 @@ public class GOInstanceDeleter {
      * @return true or false, if <code>instance</code> is deleteable, as per the above rules.
      * @throws Exception
      */
-    private boolean isGoTermDeleteable(GKInstance instance) throws Exception {
+    private boolean isGoTermDeleteable(SimpleInstance instance) throws Exception {
 
-        Collection<GKInstance> referrers = getReferrersForGoTerm(instance);
+        Collection<SimpleInstance> referrers = getReferrersForGoTerm(instance);
 
         return referrers == null || referrers.isEmpty();
     }
@@ -233,64 +192,62 @@ public class GOInstanceDeleter {
      * Clears reference attributes that point TO *this* goInstance FROM other GO entities. To be used when an
      * instance is being deleted.
      */
-    private void clearAttributesFromReferringGOEntities(GKInstance originalGOInstance) throws Exception {
-        Map<GKSchemaAttribute, Integer> goReferrerCounts =
-            getReferrerCountsFilteredByClass(originalGOInstance, isNotGOEntity.negate());
-        for (GKSchemaAttribute attrib : goReferrerCounts.keySet()) {
-            // set the referring attributes to NULL so that we don't end up with "dangling pointers" in the database.
-            Collection<GKInstance> attribReferrers = (Collection<GKInstance>) originalGOInstance.getReferers(attrib);
-            for (GKInstance attribReferrer : attribReferrers) {
-                // From a few tests, it seems that 55 is a good target length to abbreviate to.
-                final int abbrevLength = 55;
+    private void clearAttributesFromReferringGOEntities(SimpleInstance originalGOInstance) throws Exception {
+        // From a few tests, it seems that 55 is a good target length to abbreviate to.
+        final int abbrevLength = 55;
+
+        for (NamedReferrerList referrerList : getCuratorToolAPI().getReferrers(originalGOInstance)) {
+            String attributeName = referrerList.getAttributeName();
+
+            for (SimpleInstance referrer : referrerList.getReferrers()) {
+                SimpleInstance inflatedReferrer = getCuratorToolAPI().inflate(referrer);
+
+                // Only clear references that come FROM other GO entities, so we don't end up with "dangling
+                // pointers" in the database.
+                if (!isGOEntity(inflatedReferrer)) {
+                    continue;
+                }
+
                 try {
                     logger.info("CLEARING the attribute {} on \"{}\" because it refers to" +
                             " \"{}\", which is flagged for deletion.",
-                        attrib.getName(),
-                        abbreviate(attribReferrer.toString(), abbrevLength),
+                        attributeName,
+                        abbreviate(inflatedReferrer.toString(), abbrevLength),
                         abbreviate(originalGOInstance.toString(), abbrevLength)
                     );
-                    // if the attribute is multi-valued, we need to be a little more careful and remove *this*
-                    // instance from the list, but not affect other items in the list.
-                    if (attrib.isMultiple()) {
-                        List<GKInstance> refVals = attribReferrer.getAttributeValuesList(attrib.getName());
-                        int i = 0;
-                        boolean done = false;
-                        while (!done && i < refVals.size()) {
-                            GKInstance refVal = refVals.get(i);
-                            // Using DB_ID match for equality test. There is a compare method in InstanceUtilities,
-                            // but it looks much deeper into the objects than I think is necessary in this case.
-                            // I can't think of a situation where two objects are different despite having the same
-                            // DB_ID!
-                            if (refVal.getDBID().equals(originalGOInstance.getDBID())) {
-                                refVals.remove(refVal);
-                                done = true;
-                            }
-                            i++;
-                        }
-                        // SET the attribute to the list, which has had the offending object removed from it.
-                        attribReferrer.setAttributeValue(attrib.getName(), refVals);
-                        this.adaptor.updateInstanceAttribute(attribReferrer, attrib.getName());
-                    } else {
-                        attribReferrer.setAttributeValue(attrib.getName(), null);
-                        this.adaptor.updateInstanceAttribute(attribReferrer, attrib.getName());
-                    }
-                    // now that the references to *this* GO Instance have been removed, record this operation by
-                    // adding a "modified" InstanceEdit.
-                    GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
-                        GoUpdateInstanceEditUtils.GOUpdateInstEditType.REF_CLEARED, this.getClass());
-                    attribReferrer.getAttributeValuesList(ReactomeJavaConstants.modified);
-                    attribReferrer.addAttributeValue(ReactomeJavaConstants.modified, instEd);
-                    this.adaptor.updateInstanceAttribute(attribReferrer, ReactomeJavaConstants.modified);
-                } catch (Exception  e) {
+                    clearReferrerAttribute(inflatedReferrer, attributeName, originalGOInstance);
+                    getCuratorToolAPI().commit(inflatedReferrer);
+                } catch (Exception e) {
                     logger.error("Error trying to clear {} attribute on \"{}\", referring to \"{}\" " +
                             "(which is to be deleted).",
-                        attrib.getName(),
-                        abbreviate(attribReferrer.toString(), abbrevLength),
-                        abbreviate(originalGOInstance.toString(), abbrevLength)
+                        attributeName,
+                        abbreviate(inflatedReferrer.toString(), abbrevLength),
+                        abbreviate(originalGOInstance.toString(), abbrevLength),
+                        e
                     );
-                    e.printStackTrace();
                 }
             }
+        }
+    }
+
+    private void clearReferrerAttribute(
+        SimpleInstance referrer,
+        String attributeName,
+        SimpleInstance originalGOInstance
+    ) {
+        Object currentValue = referrer.getAttribute(attributeName);
+
+        // A multi-valued attribute holds a List; remove *this* instance from the list but leave the other values
+        // alone. A single-valued attribute is cleared entirely.
+        if (currentValue instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<SimpleInstance> refVals = ((List<SimpleInstance>) currentValue)
+                .stream()
+                .filter(refVal -> !refVal.getDbId().equals(originalGOInstance.getDbId()))
+                .collect(Collectors.toList());
+            referrer.setAttribute(attributeName, refVals);
+        } else {
+            clearAttribute(referrer, attributeName);
         }
     }
 
@@ -306,26 +263,28 @@ public class GOInstanceDeleter {
      * NULL will be returned if there are no referrers.
      * @throws Exception
      */
-    private Collection<GKInstance> getReferrersForGoTerm(GKInstance instance) throws Exception {
-        Collection<GKInstance> referrers = null;
+    private List<SimpleInstance> getReferrersForGoTerm(SimpleInstance instance) throws Exception {
+        Map<String, String> schemaClassToReferrerAttribute = Map.of(
+            ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.goBiologicalProcess,
+            ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.compartment,
+            ReactomeJavaConstants.GO_MolecularFunction, ReactomeJavaConstants.activity
+        );
 
-        SchemaClass instanceSchemaClass = instance.getSchemClass();
-        if (instanceSchemaClass.isa(ReactomeJavaConstants.GO_BiologicalProcess)) {
-            referrers = (Collection<GKInstance>) instance.getReferers(ReactomeJavaConstants.goBiologicalProcess);
-
-        } else if (instanceSchemaClass.isa(ReactomeJavaConstants.GO_CellularComponent)) {
-            referrers = (Collection<GKInstance>) instance.getReferers(ReactomeJavaConstants.compartment);
-
-        } else if (instanceSchemaClass.isa(ReactomeJavaConstants.GO_MolecularFunction)) {
-            referrers = (Collection<GKInstance>) instance.getReferers(ReactomeJavaConstants.activity);
+        String referrerAttribute = schemaClassToReferrerAttribute.get(instance.getSchemaClassName());
+        if (referrerAttribute == null) {
+            throw new RuntimeException("Unable to get referrer attribute for " + instance.getSchemaClassName());
         }
 
-        return referrers;
+        return getCuratorToolAPI().getReferrers(instance, referrerAttribute);
     }
 
-    private String getAction(GKInstance instance) throws Exception {
-        return hasNonGoReferrers(instance) ?
+    private String getAction(SimpleInstance instance) throws Exception {
+        return hasNonGoReferrers(instance, getCuratorToolAPI()) ?
             "Automatic Deletion (referrers will be redirected)" :
             "Automatic Deletion (no referrers)";
+    }
+
+    private CuratorToolAPI getCuratorToolAPI() {
+        return this.curatorToolAPI;
     }
 }

@@ -2,31 +2,39 @@ package org.reactome.release.goupdate.editor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.gk.model.GKInstance;
-import org.gk.model.InstanceDisplayNameGenerator;
 import org.gk.model.ReactomeJavaConstants;
-import org.gk.persistence.MySQLAdaptor;
-import org.gk.schema.GKSchemaAttribute;
-import org.reactome.release.goupdate.GoUpdateInstanceEditUtils;
+
+import org.reactome.curation.model.SimpleInstance;
 import org.reactome.release.goupdate.model.GoTerm;
+import org.reactome.release.goupdate.utils.CuratorToolAPI;
+import org.reactome.release.goupdate.utils.ReferrerDisplayNameGenerator;
 
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static org.reactome.release.goupdate.utils.ReferrerDisplayNameGenerator.hasGeneratedDisplayName;
+import static org.reactome.release.goupdate.utils.Utils.clearAttribute;
+import static org.reactome.release.goupdate.utils.Utils.getAccession;
+import static org.reactome.release.goupdate.utils.Utils.refreshInstances;
 
 public class GOInstanceUpdater {
     private static final Logger logger = LogManager.getLogger();
     private static final Logger updatedGOTermLogger = LogManager.getLogger("updatedGOTermsLog");
 
-    private final MySQLAdaptor adaptor;
+    private CuratorToolAPI curatorToolAPI;
 
-    public GOInstanceUpdater(MySQLAdaptor adaptor) {
-        this.adaptor = adaptor;
+    public GOInstanceUpdater(CuratorToolAPI curatorToolAPI) {
+        this.curatorToolAPI = curatorToolAPI;
     }
 
-    public void updateGOInstance(GKInstance existingGOInstance, GoTerm goTerm) throws Exception {
-        boolean nameUpdated = updateNameIfChanged(existingGOInstance, goTerm.getName());
-        boolean definitionUpdated = updateDefinitionIfChanged(existingGOInstance, goTerm.getDef());
-        boolean ecNumbersUpdated = updateECNumbers(existingGOInstance, goTerm.getEcNumbers());
+    public void updateGOInstance(SimpleInstance existingGOInstance, GoTerm goTerm) throws Exception {
+        boolean nameUpdated = stageNameUpdateIfChanged(existingGOInstance, goTerm.getName());
+        boolean definitionUpdated = stageDefinitionUpdateIfChanged(existingGOInstance, goTerm.getDef());
+        boolean ecNumbersUpdated = stageECNumbersUpdateIfMolecularFunction(existingGOInstance, goTerm.getEcNumbers());
+
+        if (nameUpdated) {
+            existingGOInstance.setDisplayName(goTerm.getName());
+        }
 
         if (nameUpdated || definitionUpdated) {
             if (isCellularComponent(existingGOInstance)) {
@@ -35,8 +43,7 @@ public class GOInstanceUpdater {
         }
 
         if (nameUpdated || definitionUpdated || ecNumbersUpdated) {
-            addModifiedInstanceEditForExistingGOInstance(existingGOInstance);
-            updateDisplayName(existingGOInstance);
+            getCuratorToolAPI().commit(existingGOInstance);
 
             // Referrers might need to be updated, if their DisplayName depends on the GO_* entity which
             // they refer to.
@@ -50,19 +57,30 @@ public class GOInstanceUpdater {
      * @param allGoInstances - a map of ALL GO instances from the database.
      * @throws Exception
      */
-    public void updateRelationships(GoTerm goTerm, Map<String, List<GKInstance>> allGoInstances) throws Exception {
-        List<GKInstance> goInstancesForGOTerm = allGoInstances.computeIfAbsent(goTerm.getId(), k -> new ArrayList<>());
-        for (GKInstance goInstanceForGOTerm : goInstancesForGOTerm) {
+    public void updateRelationships(GoTerm goTerm, Map<String, List<SimpleInstance>> allGoInstances) throws Exception {
+        List<SimpleInstance> goInstancesForGOTerm = allGoInstances.computeIfAbsent(goTerm.getId(), k -> new ArrayList<>());
+
+        // These instances were read before the update began. Any that have since been committed (by
+        // updateGOInstance above, for example) must be re-read before they are changed again, or this commit is
+        // rejected as a conflicting change; any that have since been deleted must be dropped, or this commit
+        // would re-create them.
+        refreshInstances(goInstancesForGOTerm, getCuratorToolAPI());
+
+        for (SimpleInstance goInstanceForGOTerm : goInstancesForGOTerm) {
             if (isCellularComponent(goInstanceForGOTerm)) {
-                updateRelationship(
+                boolean instanceOfUpdated = updateRelationship(
                     goInstanceForGOTerm, allGoInstances, goTerm.getIsA(), ReactomeJavaConstants.instanceOf);
-                updateRelationship(
+                boolean hasPartUpdated = updateRelationship(
                     goInstanceForGOTerm, allGoInstances, goTerm.getHasPart(), "hasPart");
-                updateRelationship(
+                boolean componentOfUpdated = updateRelationship(
                     goInstanceForGOTerm, allGoInstances, goTerm.getPartOf(), ReactomeJavaConstants.componentOf);
 
-                // Update the instance's "modified".
-                addModifiedInstanceEditForGOInstanceForGOTerm(goInstanceForGOTerm);
+                if (!instanceOfUpdated && !hasPartUpdated && !componentOfUpdated) {
+                    continue;
+                }
+
+                getCuratorToolAPI().commit(goInstanceForGOTerm);
+
                 // Now, update the displayName of other instances that refer to this GO Term instance.
                 updateReferrerDisplayNames(goInstanceForGOTerm);
             }
@@ -76,47 +94,68 @@ public class GOInstanceUpdater {
      * @param relationshipAccessions - The GO accessions for the relationship
      * @param reactomeRelationshipName - The name of the relationship can be one of "is_a", "has_part", "part_of",
      *                                   "component_of", "regulates", "positively_regulates", "negatively_regulates".
+     * @return true if the relationship's value in the database needs to change, false otherwise.
      */
-    public void updateRelationship(
-        GKInstance goInstance,
-        Map<String, List<GKInstance>> allGoInstances,
+    private boolean updateRelationship(
+        SimpleInstance goInstance,
+        Map<String, List<SimpleInstance>> allGoInstances,
         List<String> relationshipAccessions,
         String reactomeRelationshipName
     ) {
         if (relationshipAccessions.isEmpty()) {
-            return;
+            return false;
         }
 
-        try {
-            setRelationshipToNull(goInstance, reactomeRelationshipName);
+        Set<Long> originalRelationshipDbIds = getRelationshipDbIds(goInstance, reactomeRelationshipName);
 
-            for (String relationshipAccession : relationshipAccessions) {
-                List<GKInstance> relationshipGOInstances =
-                    getRelationshipGOInstances(allGoInstances, relationshipAccession);
+        setRelationshipToNull(goInstance, reactomeRelationshipName);
 
-                if (relationshipGOInstances.isEmpty()) {
-                    updatedGOTermLogger.warn("Trying to set {} on GO:{} ({}) but could not find instance " +
-                            "with GO ID = {}. Relationship update could not be completed.",
-                        reactomeRelationshipName,
-                        goInstance.getAttributeValue(ReactomeJavaConstants.accession),
-                        goInstance.toString(),
-                        relationshipAccession
-                    );
-                    continue;
-                }
+        List<SimpleInstance> allRelationshipGOInstances = new ArrayList<>();
+        for (String relationshipAccession : relationshipAccessions) {
+            List<SimpleInstance> relationshipGOInstances =
+                getRelationshipGOInstances(allGoInstances, relationshipAccession);
 
-                goInstance.addAttributeValue(reactomeRelationshipName, relationshipGOInstances);
-                this.adaptor.updateInstanceAttribute(goInstance, reactomeRelationshipName);
-
-                logRelationship(goInstance, reactomeRelationshipName, relationshipGOInstances);
+            if (relationshipGOInstances.isEmpty()) {
+                updatedGOTermLogger.warn("Trying to set {} on GO:{} ({}) but could not find instance " +
+                        "with GO ID = {}. Relationship update could not be completed.",
+                    reactomeRelationshipName,
+                    goInstance.getAttribute(ReactomeJavaConstants.identifier),
+                    goInstance.toString(),
+                    relationshipAccession
+                );
+                continue;
             }
-        } catch (Exception e) {
-            logger.error("Unable to update relationship {} for {}", reactomeRelationshipName, goInstance, e);
+
+            allRelationshipGOInstances.addAll(relationshipGOInstances);
         }
+
+        goInstance.setAttribute(reactomeRelationshipName, allRelationshipGOInstances);
+
+        // Committing an unchanged instance would add an InstanceEdit to its "modified" slot for a change that
+        // never happened, so the relationship is only reported as updated when its value actually differs.
+        if (originalRelationshipDbIds.equals(getRelationshipDbIds(goInstance, reactomeRelationshipName))) {
+            return false;
+        }
+
+        logRelationship(goInstance, reactomeRelationshipName, allRelationshipGOInstances);
+        return true;
     }
 
-    private List<GKInstance> getRelationshipGOInstances(Map<String, List<GKInstance>> allGoInstances, String relationshipAccession) {
-        List<GKInstance> otherInsts = allGoInstances.get(relationshipAccession);
+    private Set<Long> getRelationshipDbIds(SimpleInstance goInstance, String reactomeRelationshipName) {
+        Object relationshipValue = goInstance.getAttribute(reactomeRelationshipName);
+        if (relationshipValue == null) {
+            return new HashSet<>();
+        }
+
+        List<SimpleInstance> relationshipInstances = relationshipValue instanceof List ?
+            (List<SimpleInstance>) relationshipValue :
+            Collections.singletonList((SimpleInstance) relationshipValue);
+
+        return relationshipInstances.stream().map(SimpleInstance::getDbId).collect(Collectors.toSet());
+    }
+
+    private List<SimpleInstance> getRelationshipGOInstances(Map<String, List<SimpleInstance>> allGoInstances, String relationshipAccession) {
+        List<SimpleInstance> otherInsts = allGoInstances.get(relationshipAccession);
         if (otherInsts != null && !otherInsts.isEmpty()) {
             // Only use the first item, so we don't end up attaching multiple GO Terms with the same
             // accession to this object via "reactomeRelationshipName".
@@ -133,42 +172,51 @@ public class GOInstanceUpdater {
      * Update the Instances that refer to the instance being modified by *this* GoTermInstanceModifier.
      * @throws Exception
      */
-    private void updateReferrerDisplayNames(GKInstance goInstance) throws Exception {
-        for(GKSchemaAttribute referringAttribute : getReferringAttributes(goInstance)) {
-            for (GKInstance referrer : getReferrers(goInstance, referringAttribute)) {
-                addModifiedInstanceEdit(referrer);
-                updateDisplayName(referrer);
+    private void updateReferrerDisplayNames(SimpleInstance goInstance) throws Exception {
+        for(String referringAttribute : getReferringAttributes(goInstance)) {
+            for (SimpleInstance referrer : getReferrers(goInstance, referringAttribute)) {
+                if (hasGeneratedDisplayName(referrer)) {
+                    updateReferrerDisplayName(referrer);
+                }
             }
         }
     }
 
-    private boolean updateNameIfChanged(GKInstance existingGOInstance, String newName) throws Exception {
-        String oldName = (String) existingGOInstance.getAttributeValue(ReactomeJavaConstants.name);
+    private void updateReferrerDisplayName(SimpleInstance referrer) {
+        referrer.setDisplayName(ReferrerDisplayNameGenerator.generateDisplayName(referrer));
+        getCuratorToolAPI().commit(referrer);
+    }
 
+    private boolean stageNameUpdateIfChanged(SimpleInstance existingGOInstance, String newName) {
+        List<String> oldNames = (List<String>) existingGOInstance.getAttribute(ReactomeJavaConstants.name);
+
+        String oldName = oldNames != null && !oldNames.isEmpty() ? oldNames.get(0) : "";
         if (newName != null && !newName.equals(oldName)) {
-            existingGOInstance.setAttributeValue(ReactomeJavaConstants.name, newName);
-            this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.name);
+            // "name" is multi-valued in the data model (ExternalOntology.setName takes a List<String>).
+            // curator-tool-ws matches the model's set method by the value's own type, so a bare String is not
+            // written at all -- and because a commit clears the instance's attributes before re-storing them,
+            // passing a String would remove the name from the instance rather than update it.
+            existingGOInstance.setAttribute(ReactomeJavaConstants.name, Collections.singletonList(newName));
             return true;
         }
         return false;
     }
 
-    private boolean updateDefinitionIfChanged(GKInstance existingGOInstance, String newDefinition) throws Exception {
-        String oldDefinition = (String) existingGOInstance.getAttributeValue(ReactomeJavaConstants.definition);
+    private boolean stageDefinitionUpdateIfChanged(SimpleInstance existingGOInstance, String newDefinition) {
+        String oldDefinition = (String) existingGOInstance.getAttribute(ReactomeJavaConstants.definition);
 
         if (newDefinition != null && !newDefinition.equals(oldDefinition)) {
-            existingGOInstance.setAttributeValue(ReactomeJavaConstants.definition, newDefinition);
-            this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.definition);
+            existingGOInstance.setAttribute(ReactomeJavaConstants.definition, newDefinition);
             return true;
         }
         return false;
     }
 
-    private boolean updateECNumbers(GKInstance existingGOInstance, List<String> ecNumbers) throws Exception {
+    private boolean stageECNumbersUpdateIfMolecularFunction(SimpleInstance existingGOInstance, List<String> ecNumbers) {
+
         if (isMolecularFunction(existingGOInstance)) {
-            if (ecNumbers != null && !ecNumbers.isEmpty()) {
-                existingGOInstance.setAttributeValue(ReactomeJavaConstants.ecNumber, ecNumbers);
-                this.adaptor.updateInstanceAttribute(existingGOInstance, ReactomeJavaConstants.ecNumber);
+            if (ecNumbers != null && !ecNumbers.isEmpty() && !ecNumbers.equals(getECNumbers(existingGOInstance))) {
+                existingGOInstance.setAttribute(ReactomeJavaConstants.ecNumber, ecNumbers);
 
                 return true;
             }
@@ -176,77 +224,64 @@ public class GOInstanceUpdater {
         return false;
     }
 
-    private boolean isCellularComponent(GKInstance existingGOInstance) {
-        return existingGOInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent);
+    private List<String> getECNumbers(SimpleInstance existingGOInstance) {
+        Object ecNumberValue = existingGOInstance.getAttribute(ReactomeJavaConstants.ecNumber);
+        if (ecNumberValue == null) {
+            return Collections.emptyList();
+        }
+
+        // "ecNumber" is multi-valued in the data model, but an instance stored while the graph model still
+        // declared it single-valued comes back as a lone String.
+        return ecNumberValue instanceof List ?
+            (List<String>) ecNumberValue :
+            Collections.singletonList((String) ecNumberValue);
     }
 
-    private boolean isMolecularFunction(GKInstance existingGOInstance) {
-        return existingGOInstance.getSchemClass().getName().equals(ReactomeJavaConstants.GO_MolecularFunction);
+    private boolean isCellularComponent(SimpleInstance existingGOInstance) {
+        return existingGOInstance.getSchemaClassName().equals(ReactomeJavaConstants.GO_CellularComponent) ||
+            existingGOInstance.getSchemaClassName().equals(ReactomeJavaConstants.Compartment);
     }
 
-    private void setInstanceOfAndComponentOfToNull(GKInstance existingGOInstance) throws Exception {
+    private boolean isMolecularFunction(SimpleInstance existingGOInstance) {
+        return existingGOInstance.getSchemaClassName().equals(ReactomeJavaConstants.GO_MolecularFunction);
+    }
+
+    private void setInstanceOfAndComponentOfToNull(SimpleInstance existingGOInstance) throws Exception {
         setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.instanceOf);
         setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.componentOf);
     }
 
-    private void setRelationshipToNull(GKInstance goInstance, String reactomeRelationshipName) throws Exception {
-        goInstance.setAttributeValue(reactomeRelationshipName, null);
-        this.adaptor.updateInstanceAttribute(goInstance, reactomeRelationshipName);
+    private void setRelationshipToNull(SimpleInstance goInstance, String reactomeRelationshipName) {
+        clearAttribute(goInstance, reactomeRelationshipName);
     }
 
-    private void addModifiedInstanceEditForGOInstanceForGOTerm(GKInstance goInstance) throws Exception {
-        addModifiedInstanceEdit(goInstance, GoUpdateInstanceEditUtils.GOUpdateInstEditType.UPDATE_RELATIONSHIP);
-    }
-
-    private void addModifiedInstanceEditForExistingGOInstance(GKInstance existingGOInstance) throws Exception {
-        addModifiedInstanceEdit(existingGOInstance, GoUpdateInstanceEditUtils.GOUpdateInstEditType.MODIFIED);
-    }
-
-    private void addModifiedInstanceEdit(GKInstance referrer) throws Exception {
-        addModifiedInstanceEdit(referrer,  GoUpdateInstanceEditUtils.GOUpdateInstEditType.DISPLAY_NAME);
-    }
-
-    private void addModifiedInstanceEdit(GKInstance instance, GoUpdateInstanceEditUtils.GOUpdateInstEditType editType)
-        throws Exception {
-
-        instance.getAttributeValuesList(ReactomeJavaConstants.modified);
-        GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(editType, this.getClass());
-        instance.addAttributeValue(ReactomeJavaConstants.modified, instEd);
-        this.adaptor.updateInstanceAttribute(instance, ReactomeJavaConstants.modified);
-    }
-
-    private void updateDisplayName(GKInstance instance) throws Exception {
-        InstanceDisplayNameGenerator.setDisplayName(instance);
-        this.adaptor.updateInstanceAttribute(instance, ReactomeJavaConstants._displayName);
-    }
-
-    private List<GKSchemaAttribute> getReferringAttributes(GKInstance goInstance) {
+    private List<String> getReferringAttributes(SimpleInstance goInstance) {
         // The old Perl code only updated PhysicalEntities and CatalystActivities that referred to GO Terms.
         // Events that referred to GO terms via goBiologicalProcess were *not* updated in the old code. So I'm trying
         // to keep this code consistent with that implementation.
-
-        @SuppressWarnings("unchecked")
-        Set<GKSchemaAttribute> referringAttributes = (Set<GKSchemaAttribute>) goInstance.getSchemClass().getReferers();
-        return referringAttributes.stream().filter(
-            a -> a.getName().equals(ReactomeJavaConstants.activity) ||
-                a.getName().equals(ReactomeJavaConstants.goCellularComponent)
-        ).collect(Collectors.toList());
+        if (goInstance.getSchemaClassName().equals(ReactomeJavaConstants.GO_MolecularFunction)) {
+            return Collections.singletonList(ReactomeJavaConstants.activity);
+        } else if (goInstance.getSchemaClassName().equals(ReactomeJavaConstants.GO_CellularComponent)) {
+            return Collections.singletonList(ReactomeJavaConstants.goCellularComponent);
+        } else {
+            return new ArrayList<>();
+        }
     }
 
-    private List<GKInstance> getReferrers(GKInstance goInstance, GKSchemaAttribute referringAttribute)
+    private List<SimpleInstance> getReferrers(SimpleInstance goInstance, String referringAttributeName)
         throws Exception {
-        @SuppressWarnings("unchecked")
-        Collection<GKInstance> referrers =
-            (Collection<GKInstance>) goInstance.getReferers(referringAttribute.getName());
 
-        return referrers != null ? new ArrayList<>(referrers) : Collections.emptyList();
+        return getCuratorToolAPI().getReferrers(goInstance, referringAttributeName)
+            .stream()
+            .map(referrer -> getCuratorToolAPI().inflate(referrer))
+            .collect(Collectors.toList());
     }
 
     private void logRelationship(
-        GKInstance goInstance,
+        SimpleInstance goInstance,
         String reactomeRelationshipName,
-        List<GKInstance> relationshipGOInstances
-    ) throws Exception {
+        List<SimpleInstance> relationshipGOInstances
+    ) {
         updatedGOTermLogger.info("GO:{} ({}) now has relationship \"{}\" referring to {}",
             getAccession(goInstance),
             goInstance.toString(),
@@ -255,23 +290,18 @@ public class GOInstanceUpdater {
         );
     }
 
-    private String getRelationshipGOInstancesAsString(List<GKInstance> relationshipGOInstances) {
+    private String getRelationshipGOInstancesAsString(List<SimpleInstance> relationshipGOInstances) {
         return relationshipGOInstances
             .stream()
             .map(this::getRelationshipGOInstanceAsString)
             .collect(Collectors.joining(", "));
     }
 
-    private String getRelationshipGOInstanceAsString(GKInstance relationshipGOInstance) {
-        return "GO:" + getAccession(relationshipGOInstance) + " (" + relationshipGOInstance + ")";
+    private String getRelationshipGOInstanceAsString(SimpleInstance relationshipGOInstance) {
+        return "GO:" + getAccession(relationshipGOInstance) + " (" + relationshipGOInstance.getDisplayName() + ")";
     }
 
-    private String getAccession(GKInstance relationshipGOInstance) {
-        try {
-            return relationshipGOInstance.getAttributeValue(ReactomeJavaConstants.accession).toString();
-        } catch (Exception e) {
-            logger.warn("Unable to get accession for {}", relationshipGOInstance, e);
-            return "";
-        }
+    private CuratorToolAPI getCuratorToolAPI() {
+        return this.curatorToolAPI;
     }
 }

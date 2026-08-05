@@ -52,6 +52,13 @@
 			<AppenderRef ref="updatedGOTermsLogFile"/>
 		</Logger>
 
+		<!-- Third-party libraries routed through log4j2 are chatty at DEBUG; keep
+		     them at WARN so only GO Update's own output reaches the console. -->
+		<Logger name="org.reactome.curation" level="warn"/>
+		<Logger name="org.springframework" level="warn"/>
+		<Logger name="org.neo4j" level="warn"/>
+		<Logger name="org.hibernate" level="warn"/>
+
 		<Root level="debug">
 			<AppenderRef ref="Console" level="debug"/>
 			<AppenderRef ref="LogFile" level="info"/>

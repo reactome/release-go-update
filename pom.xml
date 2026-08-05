@@ -43,12 +43,40 @@
 	</scm>
 
 	<properties>
+		<maven.compiler.source>11</maven.compiler.source>
+		<maven.compiler.target>11</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
 		<jdk.version>11</jdk.version>
+
+		<byte-buddy.version>1.12.18</byte-buddy.version>
+		<curator-tool-ws.version>0.0.1-SNAPSHOT</curator-tool-ws.version>
+		<graph-core.version>3.0.3.CT</graph-core.version>
+		<httpclient.version>4.5.14</httpclient.version>
 		<mockito.version>2.18.3</mockito.version>
 		<powermock.version>2.0.0</powermock.version>
 	</properties>
 
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>com.fasterxml.jackson</groupId>
+				<artifactId>jackson-bom</artifactId>
+				<version>2.21.0</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<!-- mockito-core 2.18.3 drags in byte-buddy 1.8.5, which Maven mediation promotes over the
+			     1.12.x that hibernate-core 5.6.15 (via curator-tool-ws's JPA) needs. The old byte-buddy is
+			     missing TypeDescription$ForLoadedType.of(Class), so Hibernate's SessionFactory fails to build
+			     at startup. Pin byte-buddy to the version hibernate-core 5.6.15 expects. -->
+			<dependency>
+				<groupId>net.bytebuddy</groupId>
+				<artifactId>byte-buddy</artifactId>
+				<version>${byte-buddy.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
 		<!-- Main dependencies -->
 		<dependency>
@@ -60,6 +88,74 @@
 			<groupId>org.reactome.release</groupId>
 			<artifactId>release-common-lib</artifactId>
 			<version>2.0.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.reactome</groupId>
+			<artifactId>curator-tool-ws</artifactId>
+			<version>${curator-tool-ws.version}</version>
+			<classifier>plain</classifier>
+			<exclusions>
+				<!-- Drop Logback (and the log4j->slf4j bridge) so SLF4J routes to log4j2,
+                     letting log4j2.xml govern all logging (incl. curator-tool-ws). -->
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-logging</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<dependency>
+			<groupId>org.reactome.server.graph</groupId>
+			<artifactId>graph-core</artifactId>
+			<version>${graph-core.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+			<version>${httpclient.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>33.3.1-jre</version>
+		</dependency>
+
+		<dependency>
+			<groupId>javax.xml.bind</groupId>
+			<artifactId>jaxb-api</artifactId>
+			<version>2.3.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jaxb</groupId>
+			<artifactId>jaxb-runtime</artifactId>
+			<version>2.3.1</version>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Route SLF4J (curator-tool-ws, graph-core, Spring, Neo4j) into log4j2 so a single
+             backend, configured by log4j2.xml, controls all logging. Matches slf4j-api 1.7.x. -->
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-slf4j-impl</artifactId>
+			<version>2.17.1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-annotations</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-core</artifactId>
 		</dependency>
 
 		<!-- Test dependencies -->

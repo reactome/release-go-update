@@ -1,51 +1,50 @@
 package org.reactome.release.goupdate.editor;
 
-import org.gk.model.GKInstance;
-import org.gk.model.InstanceDisplayNameGenerator;
 import org.gk.model.ReactomeJavaConstants;
-import org.gk.persistence.MySQLAdaptor;
-import org.gk.schema.SchemaClass;
-import org.reactome.release.goupdate.GoUpdateInstanceEditUtils;
+import org.reactome.curation.model.SimpleInstance;
 import org.reactome.release.goupdate.model.GoTerm;
-import org.reactome.release.goupdate.model.ObsoleteGoTerm;
+import org.reactome.release.goupdate.utils.CuratorToolAPI;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static org.reactome.release.goupdate.model.ObsoleteGoTerm.isObsolete;
 
 public class GOInstanceCreator {
-    private final MySQLAdaptor adaptor;
+    private final CuratorToolAPI curatorToolAPI;
 
-    public GOInstanceCreator(MySQLAdaptor adaptor) {
-        this.adaptor = adaptor;
+    private static SimpleInstance goReferenceDatabase;
+
+    public GOInstanceCreator(CuratorToolAPI curatorToolAPI) {
+        this.curatorToolAPI = curatorToolAPI;
     }
 
-    public GKInstance createNewGOInstance(GoTerm goTerm) throws Exception {
-        SchemaClass schemaClass = adaptor.getSchema().getClassByName(goTerm.getNamespace().getReactomeName());
-        GKInstance newGOInstance = new GKInstance(schemaClass);
+    public SimpleInstance createNewGOInstance(GoTerm goTerm) {
+        SimpleInstance newGOInstance = new SimpleInstance();
 
-        newGOInstance.setAttributeValue(ReactomeJavaConstants.accession, goTerm.getId());
-        newGOInstance.setAttributeValue(ReactomeJavaConstants.name, goTerm.getName());
-        newGOInstance.setAttributeValue(ReactomeJavaConstants.definition, goTerm.getDef());
-        newGOInstance.setAttributeValue(ReactomeJavaConstants.referenceDatabase, getGOReferenceDatabaseOrThrow());
-        if (schemaClass.getName().equals(ReactomeJavaConstants.GO_MolecularFunction)) {
+        String schemaClassName = goTerm.getNamespace().getReactomeName();
+        newGOInstance.setSchemaClassName(schemaClassName);
+        newGOInstance.setDefaultPersonId(getPersonId());
+        newGOInstance.setAttribute(ReactomeJavaConstants.identifier, goTerm.getId());
+        // "name" is multi-valued in the data model, and curator-tool-ws matches the model's set method by the
+        // value's own type, so a bare String would be dropped instead of stored.
+        newGOInstance.setAttribute(ReactomeJavaConstants.name, Collections.singletonList(goTerm.getName()));
+        newGOInstance.setAttribute(ReactomeJavaConstants.definition, goTerm.getDef());
+        newGOInstance.setAttribute(ReactomeJavaConstants.referenceDatabase, getGOReferenceDatabase());
+        if (schemaClassName.equals(ReactomeJavaConstants.GO_MolecularFunction)) {
             List<String> ecNumbers = goTerm.getEcNumbers();
             if (ecNumbers != null) {
-                newGOInstance.setAttributeValue(ReactomeJavaConstants.ecNumber, ecNumbers);
+                newGOInstance.setAttribute(ReactomeJavaConstants.ecNumber, ecNumbers);
             }
         }
-        InstanceDisplayNameGenerator.setDisplayName(newGOInstance);
-        GKInstance instEd = GoUpdateInstanceEditUtils.getInstanceEditForClass(
-            GoUpdateInstanceEditUtils.GOUpdateInstEditType.NEW, this.getClass());
-        newGOInstance.setAttributeValue(ReactomeJavaConstants.created, instEd);
-        newGOInstance.setDbAdaptor(this.adaptor);
-        this.adaptor.storeInstance(newGOInstance);
+        newGOInstance.setDisplayName(goTerm.getName());
+
+        getCuratorToolAPI().commit(newGOInstance);
 
         return newGOInstance;
     }
 
-    public GKInstance createNewGOInstanceIfNotObsolete(GoTerm goTerm) throws Exception {
+    public SimpleInstance createNewGOInstanceIfNotObsolete(GoTerm goTerm)  {
         if (isObsolete(goTerm)) {
             return null;
         }
@@ -53,9 +52,18 @@ public class GOInstanceCreator {
         return createNewGOInstance(goTerm);
     }
 
-    private GKInstance getGOReferenceDatabaseOrThrow() throws Exception {
-        return ((Set<GKInstance>) adaptor.fetchInstanceByAttribute(
-            ReactomeJavaConstants.ReferenceDatabase, ReactomeJavaConstants.name, "=","GO")
-        ).stream().findFirst().get();
+    private SimpleInstance getGOReferenceDatabase() {
+        if (goReferenceDatabase == null) {
+            goReferenceDatabase = getCuratorToolAPI().fetchGOReferenceDatabase();
+        }
+        return goReferenceDatabase;
+    }
+
+    private long getPersonId() {
+        return getCuratorToolAPI().getPersonId();
+    }
+
+    private CuratorToolAPI getCuratorToolAPI() {
+        return this.curatorToolAPI;
     }
 }

@@ -7,9 +7,11 @@ import org.apache.logging.log4j.Logger;
 import org.gk.model.GKInstance;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
+import org.reactome.curation.model.SimpleInstance;
 import org.reactome.release.goupdate.GONamespace;
 import org.reactome.release.goupdate.model.GoTerm;
 import org.reactome.release.goupdate.model.parser.GoTermParser;
+import org.reactome.release.goupdate.utils.CuratorToolAPI;
 
 import static org.reactome.release.goupdate.model.ObsoleteGoTerm.isObsolete;
 
@@ -25,10 +27,11 @@ public class GoTermsReconciler {
 
 	private static final Logger logger = LogManager.getLogger();
 	private static final Logger reconciliationLogger = LogManager.getLogger("reconciliationLog");
-	private MySQLAdaptor adaptor;
+
+	private CuratorToolAPI curatorToolAPI;
 	
-	public GoTermsReconciler(MySQLAdaptor adaptor) {
-		this.adaptor = adaptor;
+	public GoTermsReconciler(CuratorToolAPI curatorToolAPI) {
+		this.curatorToolAPI = curatorToolAPI;
 	}
 	
 	/**
@@ -42,7 +45,7 @@ public class GoTermsReconciler {
 		while (goTermIterator.hasNext()) {
 			GoTerm goTerm = goTermIterator.next();
 			@SuppressWarnings("unchecked")
-			Collection<GKInstance> goInstances = getInstancesForGoTerm(goTerm);
+			Collection<SimpleInstance> goInstances = getInstancesForGoTerm(goTerm);
 			if (goInstances == null) {
 				// It should be reported if there were no instances returned, but the term is not obsolete.
 				if (!isObsolete(goTerm)) {
@@ -60,18 +63,7 @@ public class GoTermsReconciler {
 			}
 
 			logger.debug("Reconciling GO Term {}...", goTerm.getId());
-			for (GKInstance goInstance : goInstances) {
-				this.adaptor.fastLoadInstanceAttributeValues(goInstance);
-				// We'll just grab all relationships in advance.
-//				Collection<GKInstance> instancesOfs = new ArrayList<>();
-//				Collection<GKInstance> partOfs = new ArrayList<>();
-//				Collection<GKInstance> hasParts = new ArrayList<>();
-//				if (goInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent)) {
-//					instancesOfs = (Collection<GKInstance>) goInstance.getAttributeValuesList(ReactomeJavaConstants.instanceOf);
-//					partOfs = (Collection<GKInstance>) goInstance.getAttributeValuesList(ReactomeJavaConstants.componentOf);
-//					hasParts = (Collection<GKInstance>) goInstance.getAttributeValuesList("hasPart");
-//				}
-
+			for (SimpleInstance goInstance : goInstances) {
 				reconcileDefinition(goInstance, goTerm);
 				reconcileName(goInstance, goTerm);
 				reconcileNamespace(goInstance, goTerm);
@@ -83,8 +75,8 @@ public class GoTermsReconciler {
 		}
 	}
 
-	private void reconcileDefinition(GKInstance goInstance, GoTerm goTerm) throws Exception {
-		String goInstanceDefinition = (String) goInstance.getAttributeValue(ReactomeJavaConstants.definition);
+	private void reconcileDefinition(SimpleInstance goInstance, GoTerm goTerm) {
+		String goInstanceDefinition = (String) goInstance.getAttribute(ReactomeJavaConstants.definition);
 		if (!goTerm.getDef().equals(goInstanceDefinition)) {
 			reconciliationLogger.error(
 				"Reconciliation error: GO:{}; Attribute: 'definition';\n" +
@@ -95,8 +87,8 @@ public class GoTermsReconciler {
 		}
 	}
 
-	private void reconcileName(GKInstance goInstance, GoTerm goTerm) throws Exception {
-		String goInstanceName = (String) goInstance.getAttributeValue(ReactomeJavaConstants.name);
+	private void reconcileName(SimpleInstance goInstance, GoTerm goTerm) {
+		String goInstanceName = (String) goInstance.getAttribute(ReactomeJavaConstants.name);
 		if (!goTerm.getName().equals(goInstanceName)) {
 			reconciliationLogger.error(
 				"Reconciliation error: GO:{}; Attribute: 'name';\n" +
@@ -107,8 +99,8 @@ public class GoTermsReconciler {
 		}
 	}
 
-	private void reconcileNamespace(GKInstance goInstance, GoTerm goTerm) {
-		String dbNameSpace = goInstance.getSchemClass().getName();
+	private void reconcileNamespace(SimpleInstance goInstance, GoTerm goTerm) {
+		String dbNameSpace = goInstance.getSchemaClassName();
 		String fileNameSpace = goTerm.getNamespace().getReactomeName();
 		if (!(dbNameSpace.equals(fileNameSpace)
 			|| ((dbNameSpace.equals(ReactomeJavaConstants.Compartment) || dbNameSpace.equals(ReactomeJavaConstants.EntityCompartment))
@@ -123,26 +115,26 @@ public class GoTermsReconciler {
 		}
 	}
 
-	private void reconcileIsA(GKInstance goInstance, GoTerm goTerm) throws Exception {
-		if (goInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent)) {
-			Collection<GKInstance> instancesOf =
-				(Collection<GKInstance>) goInstance.getAttributeValuesList(ReactomeJavaConstants.instanceOf);
+	private void reconcileIsA(SimpleInstance goInstance, GoTerm goTerm) {
+		if (goInstance.getSchemaClassName().equals(ReactomeJavaConstants.GO_CellularComponent)) {
+			List<SimpleInstance> instancesOf =
+				(List<SimpleInstance>) goInstance.getAttribute(ReactomeJavaConstants.instanceOf);
 			reconcileRelationship(goTerm.getId(), goTerm.getIsA(), instancesOf, IS_A);
 		}
 	}
 
-	private void reconcilePartOf(GKInstance goInstance, GoTerm goTerm) throws Exception {
-		if (goInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent)) {
-			Collection<GKInstance> partsOf =
-				(Collection<GKInstance>) goInstance.getAttributeValuesList(ReactomeJavaConstants.componentOf);
+	private void reconcilePartOf(SimpleInstance goInstance, GoTerm goTerm) {
+		if (goInstance.getSchemaClassName().equals(ReactomeJavaConstants.GO_CellularComponent)) {
+			List<SimpleInstance> partsOf =
+				(List<SimpleInstance>) goInstance.getAttribute(ReactomeJavaConstants.componentOf);
 			reconcileRelationship(goTerm.getId(), goTerm.getPartOf(), partsOf, PART_OF);
 		}
 	}
 
-	private void reconcileHasPart(GKInstance goInstance, GoTerm goTerm) throws Exception {
-		if (goInstance.getSchemClass().isa(ReactomeJavaConstants.GO_CellularComponent)) {
-			Collection<GKInstance> hasParts =
-				(Collection<GKInstance>) goInstance.getAttributeValuesList(ReactomeJavaConstants.hasPart);
+	private void reconcileHasPart(SimpleInstance goInstance, GoTerm goTerm) {
+		if (goInstance.getSchemaClassName().equals(ReactomeJavaConstants.GO_CellularComponent)) {
+			List<SimpleInstance> hasParts =
+				(List<SimpleInstance>) goInstance.getAttribute(ReactomeJavaConstants.hasPart);
 			reconcileRelationship(goTerm.getId(), goTerm.getHasPart(), hasParts, HAS_PART);
 		}
 	}
@@ -158,13 +150,14 @@ public class GoTermsReconciler {
 	private void reconcileRelationship(
 		String goAccession,
 		List<String> goTermRelationAccessions,
-		Collection<GKInstance> relationInstances,
+		List<SimpleInstance> relationInstances,
 		String relationship
-	) throws Exception {
+	) {
 		boolean found = false;
 		for (String goTermRelationAccession: goTermRelationAccessions) {
-			for (GKInstance relationInstance : relationInstances) {
-				String accessionFromDB = (String) relationInstance.getAttributeValue(ReactomeJavaConstants.accession);
+			for (SimpleInstance relationInstance : relationInstances) {
+				relationInstance = getCuratorToolAPI().inflate(relationInstance);
+				String accessionFromDB = (String) relationInstance.getAttribute(ReactomeJavaConstants.identifier);
 				if (accessionFromDB.equals(goTermRelationAccession)) {
 					found = true;
 					// exit the loop early, since a match for accession was found.
@@ -188,29 +181,33 @@ public class GoTermsReconciler {
 	 * @param goTerm  - goTerm to compare
 	 * @throws Exception
 	 */
-	private void reconcileECNumbers(GKInstance instance, GoTerm goTerm) throws Exception {
-		if (instance.getSchemClass().isValidAttribute(ReactomeJavaConstants.ecNumber)) {
+	private void reconcileECNumbers(SimpleInstance instance, GoTerm goTerm) throws Exception {
+		if (goTerm.getNamespace().getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction)) {
 			@SuppressWarnings("unchecked")
-			Set<String> ecNumbersFromDB = new HashSet<>(instance.getAttributeValuesList(ReactomeJavaConstants.ecNumber));
+			List<String> ecNumberValues =
+				(List<String>) instance.getAttribute(ReactomeJavaConstants.ecNumber);
+			// An instance with no EC number at all has no value for the attribute.
+			Set<String> ecNumbersFromDB =
+				ecNumberValues != null ? new HashSet<>(ecNumberValues) : new HashSet<>();
 			List<String> ecNumbersFromTerm = goTerm.getEcNumbers();
 			for (String ecNumberFromTerm : ecNumbersFromTerm) {
 				if (!ecNumbersFromDB.contains(ecNumberFromTerm)) {
 					reconciliationLogger.error(
 						"EC Number {} is in the file for GO Accession {} but is not in the db for that accession.",
-						ecNumberFromTerm, instance.getAttributeValue(ReactomeJavaConstants.accession)
+						ecNumberFromTerm, instance.getAttribute(ReactomeJavaConstants.identifier)
 					);
 				}
 			}
 		}
 	}
 
-	@SuppressWarnings("unchecked")
-	private Collection<GKInstance> getInstancesForGoTerm(GoTerm goTerm) throws Exception {
-		return this.adaptor.fetchInstanceByAttribute(
-			goTerm.getNamespace().getReactomeName(),
-			ReactomeJavaConstants.accession,
-			"=",
-			goTerm.getId()
+	private List<SimpleInstance> getInstancesForGoTerm(GoTerm goTerm) throws Exception {
+		return getCuratorToolAPI().fetchGOInstancesForClassByAccession(
+			goTerm.getNamespace().getReactomeName(), goTerm.getId()
 		);
+	}
+
+	private CuratorToolAPI getCuratorToolAPI() {
+		return this.curatorToolAPI;
 	}
 }
