@@ -38,7 +38,7 @@ public class GOInstanceUpdater {
 
         if (nameUpdated || definitionUpdated) {
             if (isCellularComponent(existingGOInstance)) {
-                setInstanceOfAndComponentOfToNull(existingGOInstance);
+                clearRelationshipsAbsentFromGOFile(existingGOInstance, goTerm);
             }
         }
 
@@ -46,8 +46,11 @@ public class GOInstanceUpdater {
             getCuratorToolAPI().commit(existingGOInstance);
 
             // Referrers might need to be updated, if their DisplayName depends on the GO_* entity which
-            // they refer to.
-            updateReferrerDisplayNames(existingGOInstance);
+            // they refer to. A referrer's displayName is built from the displayName of the GO term it refers
+            // to, so only a change of name can affect it -- a new definition or EC number cannot.
+            if (nameUpdated) {
+                updateReferrerDisplayNames(existingGOInstance);
+            }
         }
     }
 
@@ -79,10 +82,9 @@ public class GOInstanceUpdater {
                     continue;
                 }
 
+                // The displayNames of instances referring to this GO Term instance are not updated here: they
+                // are built from this instance's displayName, which a relationship change does not alter.
                 getCuratorToolAPI().commit(goInstanceForGOTerm);
-
-                // Now, update the displayName of other instances that refer to this GO Term instance.
-                updateReferrerDisplayNames(goInstanceForGOTerm);
             }
         }
     }
@@ -174,16 +176,29 @@ public class GOInstanceUpdater {
      */
     private void updateReferrerDisplayNames(SimpleInstance goInstance) throws Exception {
         for(String referringAttribute : getReferringAttributes(goInstance)) {
-            for (SimpleInstance referrer : getReferrers(goInstance, referringAttribute)) {
+            for (SimpleInstance referrer : getCuratorToolAPI().getReferrers(goInstance, referringAttribute)) {
+                // hasGeneratedDisplayName only needs the referrer's schema class, which the shell instance
+                // returned by getReferrers already carries, so the read that inflates a referrer is only paid
+                // for the referrers whose displayName can actually need regenerating.
                 if (hasGeneratedDisplayName(referrer)) {
-                    updateReferrerDisplayName(referrer);
+                    updateReferrerDisplayName(getCuratorToolAPI().inflate(referrer));
                 }
             }
         }
     }
 
     private void updateReferrerDisplayName(SimpleInstance referrer) {
-        referrer.setDisplayName(ReferrerDisplayNameGenerator.generateDisplayName(referrer));
+        String newDisplayName = ReferrerDisplayNameGenerator.generateDisplayName(referrer);
+
+        // The referrer is read back after the GO term it refers to has been committed, so its regenerated
+        // displayName already reflects the new name of that GO term. Committing it when the name works out the
+        // same as the stored one would rewrite the instance -- and add an InstanceEdit to its "modified" slot
+        // -- for a change that did not happen.
+        if (newDisplayName.equals(referrer.getDisplayName())) {
+            return;
+        }
+
+        referrer.setDisplayName(newDisplayName);
         getCuratorToolAPI().commit(referrer);
     }
 
@@ -214,14 +229,19 @@ public class GOInstanceUpdater {
 
     private boolean stageECNumbersUpdateIfMolecularFunction(SimpleInstance existingGOInstance, List<String> ecNumbers) {
 
-        if (isMolecularFunction(existingGOInstance)) {
-            if (ecNumbers != null && !ecNumbers.isEmpty() && !ecNumbers.equals(getECNumbers(existingGOInstance))) {
-                existingGOInstance.setAttribute(ReactomeJavaConstants.ecNumber, ecNumbers);
-
-                return true;
-            }
+        if (!isMolecularFunction(existingGOInstance) || ecNumbers == null || ecNumbers.isEmpty()) {
+            return false;
         }
-        return false;
+
+        // Compared as sets: the stored order is whichever order an earlier run happened to write, so comparing
+        // the lists would report a term whose EC numbers differ only in order as changed on every run -- and
+        // commit that term, and every referrer of it, each time.
+        if (new HashSet<>(ecNumbers).equals(new HashSet<>(getECNumbers(existingGOInstance)))) {
+            return false;
+        }
+
+        existingGOInstance.setAttribute(ReactomeJavaConstants.ecNumber, ecNumbers);
+        return true;
     }
 
     private List<String> getECNumbers(SimpleInstance existingGOInstance) {
@@ -246,9 +266,25 @@ public class GOInstanceUpdater {
         return existingGOInstance.getSchemaClassName().equals(ReactomeJavaConstants.GO_MolecularFunction);
     }
 
-    private void setInstanceOfAndComponentOfToNull(SimpleInstance existingGOInstance) throws Exception {
-        setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.instanceOf);
-        setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.componentOf);
+    /**
+     * Clears the relationships that the GO file gives no value for, so that a value stored by a previous release
+     * does not stay in the database once the file has stopped listing it.
+     *
+     * The relationships the file *does* give a value for are deliberately left alone: updateRelationships sets
+     * those from the file later in this run, so clearing them here would only make both this commit and that one
+     * write the attribute -- committing the instance twice -- even when the file's value has not changed at all.
+     *
+     * @param existingGOInstance - the GO instance to clear the relationships on.
+     * @param goTerm - the GO term from the file, whose relationships decide what is cleared.
+     */
+    private void clearRelationshipsAbsentFromGOFile(SimpleInstance existingGOInstance, GoTerm goTerm) {
+        if (goTerm.getIsA().isEmpty()) {
+            setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.instanceOf);
+        }
+
+        if (goTerm.getPartOf().isEmpty()) {
+            setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.componentOf);
+        }
     }
 
     private void setRelationshipToNull(SimpleInstance goInstance, String reactomeRelationshipName) {
@@ -266,15 +302,6 @@ public class GOInstanceUpdater {
         } else {
             return new ArrayList<>();
         }
-    }
-
-    private List<SimpleInstance> getReferrers(SimpleInstance goInstance, String referringAttributeName)
-        throws Exception {
-
-        return getCuratorToolAPI().getReferrers(goInstance, referringAttributeName)
-            .stream()
-            .map(referrer -> getCuratorToolAPI().inflate(referrer))
-            .collect(Collectors.toList());
     }
 
     private void logRelationship(
