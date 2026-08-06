@@ -1,5 +1,8 @@
 package org.reactome.release.goupdate;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.FileInputStream;
 import java.util.Properties;
 
@@ -8,6 +11,8 @@ import java.util.Properties;
  *
  */
 public class Main {
+	private static final Logger logger = LogManager.getLogger();
+
 	/**
 	 * @param args
 	 */
@@ -21,7 +26,10 @@ public class Main {
 
 			step.executeStep(props);
 		} catch (Exception e) {
-			e.printStackTrace();
+			// Release steps run unattended under Jenkins, which decides whether the step passed from the exit
+			// code alone, so a failure must not leave the JVM exiting 0.
+			logger.error("Error during GO update", e);
+			System.exit(1);
 		}
 	}
 }

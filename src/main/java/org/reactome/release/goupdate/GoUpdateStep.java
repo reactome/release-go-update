@@ -23,14 +23,17 @@ public class GoUpdateStep extends ReleaseStep {
 	private DuplicatesReport duplicatesReport;
 
 	@Override
-	public void executeStep(Properties props) {
+	public void executeStep(Properties props) throws Exception {
 		long startTime = System.currentTimeMillis();
 		try {
 			initialize(props);
 			processGoUpdate(props);
-		} catch (Exception e) {
-			logger.error("Error during GO update", e);
 		} finally {
+			// The Spring context holds the H2 connection pool open, so it must be closed even when the update
+			// fails part way through; otherwise the JVM lingers and the next run finds the database file locked.
+			if (curatorToolAPI != null) {
+				curatorToolAPI.close();
+			}
 			logExecutionTime(startTime);
 		}
 	}
@@ -48,7 +51,6 @@ public class GoUpdateStep extends ReleaseStep {
 
 		processUpdate(goFiles);
 
-		curatorToolAPI.close();
 		//finalizeTransaction();
 	}
 
