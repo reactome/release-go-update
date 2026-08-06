@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.reactome.release.goupdate.model.ObsoleteGoTerm.isObsolete;
+import static org.reactome.release.goupdate.utils.Utils.toShell;
 
 public class GOInstanceCreator {
     private final CuratorToolAPI curatorToolAPI;
@@ -30,7 +31,7 @@ public class GOInstanceCreator {
         // value's own type, so a bare String would be dropped instead of stored.
         newGOInstance.setAttribute(ReactomeJavaConstants.name, Collections.singletonList(goTerm.getName()));
         newGOInstance.setAttribute(ReactomeJavaConstants.definition, goTerm.getDef());
-        newGOInstance.setAttribute(ReactomeJavaConstants.referenceDatabase, getGOReferenceDatabase());
+        newGOInstance.setAttribute(ReactomeJavaConstants.referenceDatabase, toShell(getGOReferenceDatabase()));
         if (schemaClassName.equals(ReactomeJavaConstants.GO_MolecularFunction)) {
             List<String> ecNumbers = goTerm.getEcNumbers();
             if (ecNumbers != null) {
