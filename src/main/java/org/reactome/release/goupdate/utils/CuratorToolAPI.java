@@ -67,17 +67,18 @@ public class CuratorToolAPI {
     // The following code is copied directly from the slicing tool project.
     private CurationController initController() {
         try {
-            // curator-tool-ws's bundled application.properties forces DEBUG for these loggers.
-            // System properties outrank a classpath application.properties in Spring Boot's
-            // precedence order, so this quiets them for the batch run without editing
-            // curator-tool-ws. (SpringApplicationBuilder.properties(...) are default/lowest
-            // precedence and would NOT override application.properties.)
+            // curator-tool-ws's bundled application.properties forces DEBUG for these loggers and binds the
+            // HTTP connector to 9090. System properties outrank a classpath application.properties in Spring
+            // Boot's precedence order, so these settings take hold for the batch run without editing
+            // curator-tool-ws. (SpringApplicationBuilder.properties(...) are default/lowest precedence and
+            // would NOT override application.properties.)
             System.setProperty("logging.level.org.springframework.data.neo4j", "WARN");
             System.setProperty("logging.level.org.springframework.security", "WARN");
+            // Disable the HTTP server; the full servlet context is kept for correct AspectJ wiring.
+            System.setProperty("server.port", "-1");
 
             applicationContext = new SpringApplicationBuilder(CuratorToolWsApplication.class)
                 .web(WebApplicationType.SERVLET)
-                .properties("server.port=-1")  // disable HTTP server; keep full servlet context for correct AspectJ wiring
                 .run();
             return applicationContext.getBean(CurationController.class);
         }
