@@ -16,7 +16,25 @@ public class Utils {
             && !i.getSchemaClassName().equals(ReactomeJavaConstants.GO_CellularComponent);
 
     public static boolean hasNonGoReferrers(SimpleInstance goInstance, CuratorToolAPI curatorToolAPI) throws Exception {
-        return !getReferrerCountsExcludingGOEntities(goInstance, curatorToolAPI).isEmpty();
+        return hasNonGoReferrers(curatorToolAPI.getReferrers(goInstance));
+    }
+
+    /**
+     * Returns true if any of the referrers is something other than a GO entity.
+     *
+     * This takes the referrer lists rather than reading them, so that a caller which needs them for more than
+     * one decision about the same instance can read them once and ask this more than once.
+     *
+     * @param referrerLists - the referrers of an instance, by the attribute they refer to it through.
+     * @return true if at least one referrer is not a GO entity, false otherwise.
+     */
+    public static boolean hasNonGoReferrers(Collection<NamedReferrerList> referrerLists) {
+        // Short-circuits on the first non-GO referrer instead of collecting all of them to ask whether any
+        // were found.
+        return referrerLists
+            .stream()
+            .flatMap(namedReferrerList -> namedReferrerList.getReferrers().stream())
+            .anyMatch(isNotGOEntity);
     }
 
     public static List<SimpleInstance> getReferrersFilteredByClass(
