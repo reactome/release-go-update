@@ -16,6 +16,7 @@ import static org.reactome.release.goupdate.utils.ReferrerDisplayNameGenerator.h
 import static org.reactome.release.goupdate.utils.Utils.clearAttribute;
 import static org.reactome.release.goupdate.utils.Utils.getAccession;
 import static org.reactome.release.goupdate.utils.Utils.refreshInstances;
+import static org.reactome.release.goupdate.utils.Utils.toShells;
 
 public class GOInstanceUpdater {
     private static final Logger logger = LogManager.getLogger();
@@ -131,7 +132,10 @@ public class GOInstanceUpdater {
             allRelationshipGOInstances.addAll(relationshipGOInstances);
         }
 
-        goInstance.setAttribute(reactomeRelationshipName, allRelationshipGOInstances);
+        // Shells, not the instances themselves: the instances come from the map of all GO instances, whose
+        // entries refer to each other, and a cycle among them makes the commit's search for new instances to
+        // store recurse until the stack runs out.
+        goInstance.setAttribute(reactomeRelationshipName, toShells(allRelationshipGOInstances));
 
         // Committing an unchanged instance would add an InstanceEdit to its "modified" slot for a change that
         // never happened, so the relationship is only reported as updated when its value actually differs.
