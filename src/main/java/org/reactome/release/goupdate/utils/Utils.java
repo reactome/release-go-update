@@ -139,12 +139,50 @@ public class Utils {
         }
     }
 
-    public static String abbreviate(String s, int maxLength) {
-        return s.substring(0,Math.min(s.length(), maxLength)) + ( s.length() > maxLength ? "..." : "" );
+    /**
+     * Returns a copy of an instance carrying only what a commit needs in order to refer to it: its dbId, schema
+     * class and displayName.
+     *
+     * An instance-valued attribute must be given one of these rather than the instance itself whenever the value
+     * is already in the database. curator-tool-ws walks the whole object graph of the instance being committed
+     * looking for new instances to store (DatabaseObjectInstanceConverter.grepNewInstanceDbIds), and that walk
+     * only marks an instance as visited *after* recursing into it, so a cycle in the graph makes it recurse until
+     * the stack runs out. The GO relationships are cyclic: twelve pairs of cellular_component terms name each
+     * other through part_of/has_part, which becomes a cycle between two in-memory instances as soon as both
+     * terms have had their relationships set from the file. Storing the relationship uses nothing but the dbId
+     * of an already-stored value, so dropping the rest costs nothing.
+     *
+     * An instance that is not in the database yet -- no dbId, or the negative placeholder one -- is returned
+     * unchanged: the commit has to store it, and for that it needs its attributes.
+     *
+     * @param instance - the instance to make a shell of.
+     * @return a shell of the instance, or the instance itself if it is not in the database yet.
+     */
+    public static SimpleInstance toShell(SimpleInstance instance) {
+        Long dbId = instance.getDbId();
+        if (dbId == null || dbId < 0) {
+            return instance;
+        }
+
+        SimpleInstance shellInstance = new SimpleInstance();
+        shellInstance.setDbId(dbId);
+        shellInstance.setSchemaClassName(instance.getSchemaClassName());
+        shellInstance.setDisplayName(instance.getDisplayName());
+        return shellInstance;
     }
 
-    private static List<SimpleInstance> getReferrerCountsExcludingGOEntities(
-        SimpleInstance inst, CuratorToolAPI curatorToolAPI) throws Exception {
-        return getReferrersFilteredByClass(inst, curatorToolAPI, isNotGOEntity);
+    /**
+     * Returns shells of a list of instances, in the same order.
+     *
+     * @param instances - the instances to make shells of.
+     * @return the shells of the instances.
+     * @see #toShell(SimpleInstance)
+     */
+    public static List<SimpleInstance> toShells(List<SimpleInstance> instances) {
+        return instances.stream().map(Utils::toShell).collect(Collectors.toList());
+    }
+
+    public static String abbreviate(String s, int maxLength) {
+        return s.substring(0,Math.min(s.length(), maxLength)) + ( s.length() > maxLength ? "..." : "" );
     }
 }
