@@ -40,20 +40,25 @@ public class GOInstanceDeleter {
      * @param goInstance Original GO GKInstance
      * @param obsoleteGoTerm Obsolete GO Term
      * @param replacementGoInstance Replacement GO GKInstance
+     * @param referrerLists The referrers of <code>goInstance</code>, by the attribute they refer to it through.
      * @Exception
      */
-    public void deleteGoInstance(SimpleInstance goInstance, ObsoleteGoTerm obsoleteGoTerm, SimpleInstance replacementGoInstance)
-        throws Exception {
+    public void deleteGoInstance(
+        SimpleInstance goInstance,
+        ObsoleteGoTerm obsoleteGoTerm,
+        SimpleInstance replacementGoInstance,
+        Collection<NamedReferrerList> referrerLists
+    ) throws Exception {
         if (obsoleteGoTerm.hasReplacedBy()) {
             if (replacementGoInstance != null) {
-                pointAllReferrersToOtherInstance(goInstance, replacementGoInstance);
+                pointAllReferrersToOtherInstance(goInstance, replacementGoInstance, referrerLists);
             }
 
             deleteGOInstance(goInstance);
-        } else if (!hasNonGoReferrers(goInstance, getCuratorToolAPI())) {
+        } else if (!hasNonGoReferrers(referrerLists)) {
             // But... we still need to clear GO Entity *references* to this.goInstance before deleting THIS
             // instance.
-            this.clearAttributesFromReferringGOEntities(goInstance);
+            this.clearAttributesFromReferringGOEntities(goInstance, referrerLists);
             deleteGOInstance(goInstance);
         } else {
             logger.info("GO:{} ({}) is marked as obsolete but there is no replacement value specified! " +
@@ -65,7 +70,8 @@ public class GOInstanceDeleter {
 
     public void deleteSecondaryGOInstance(SimpleInstance altGoInst, SimpleInstance primaryGOTerm) {
         try {
-            pointAllReferrersToOtherInstance(altGoInst, primaryGOTerm);
+            pointAllReferrersToOtherInstance(
+                altGoInst, primaryGOTerm, getCuratorToolAPI().getReferrers(altGoInst));
 
             deleteGOInstance(altGoInst);
         } catch (Exception e) {
@@ -88,17 +94,23 @@ public class GOInstanceDeleter {
         Map<SimpleInstance, Collection<SimpleInstance>> undeletable = new HashMap<>();
 
         for (SimpleInstance instanceForDeletion : instancesForDeletion) {
-            if (!isGoTermDeleteable(instanceForDeletion)) {
-                undeletable.put(instanceForDeletion, getReferrersForGoTerm(instanceForDeletion) );
+            // Read once per instance. Deciding whether the instance can be deleted, describing the action taken
+            // and then redirecting or clearing the referrers all work from these same lists; reading them for
+            // each of those in turn was four or five reads of the same thing.
+            Collection<NamedReferrerList> referrerLists = getCuratorToolAPI().getReferrers(instanceForDeletion);
+
+            List<SimpleInstance> goTermReferrers = getReferrersForGoTerm(instanceForDeletion, referrerLists);
+            if (!goTermReferrers.isEmpty()) {
+                undeletable.put(instanceForDeletion, goTermReferrers);
                 continue;
             }
 
             obsoleteAccessionReport.printObsoleteAccessionRecord(
                 instanceForDeletion,
-                getAction(instanceForDeletion),
+                getAction(referrerLists),
                 obsoleteGoTerm.getReplacedByOrConsiderString()
             );
-            deleteGoInstance(instanceForDeletion, obsoleteGoTerm, replacementGoInstance);
+            deleteGoInstance(instanceForDeletion, obsoleteGoTerm, replacementGoInstance, referrerLists);
 
         }
         return undeletable;
@@ -122,9 +134,12 @@ public class GOInstanceDeleter {
         }
     }
 
-    private void pointAllReferrersToOtherInstance(SimpleInstance originalGOInstance, SimpleInstance replacementGOInstance)
-        throws Exception {
-        for (NamedReferrerList referrerList : getCuratorToolAPI().getReferrers(originalGOInstance)) {
+    private void pointAllReferrersToOtherInstance(
+        SimpleInstance originalGOInstance,
+        SimpleInstance replacementGOInstance,
+        Collection<NamedReferrerList> referrerLists
+    ) throws Exception {
+        for (NamedReferrerList referrerList : referrerLists) {
             String attributeName = referrerList.getAttributeName();
 
             for (SimpleInstance referrer : referrerList.getReferrers()) {
@@ -161,42 +176,28 @@ public class GOInstanceDeleter {
                 .stream()
                 .filter(attributeValue -> !attributeValue.getDbId().equals(originalGOInstance.getDbId()))
                 .collect(Collectors.toList());
-            referrerAttributeValues.add(replacementGOInstance);
+            // A shell of the replacement, not the replacement itself: it comes from the map of all GO instances,
+            // whose entries refer to each other, and a cycle among them makes the commit's search for new
+            // instances to store recurse until the stack runs out.
+            referrerAttributeValues.add(toShell(replacementGOInstance));
             referrer.setAttribute(attributeName, referrerAttributeValues);
         } else {
-            referrer.setAttribute(attributeName, replacementGOInstance);
+            referrer.setAttribute(attributeName, toShell(replacementGOInstance));
         }
     }
 
-
-    /**
-     * If a GO Term has certain referrers, it is not deletable. The rules (from Peter D.) are:<br/><br/><br/>
-     * IF an GO biological process term has NOT been used as a goBiologicalProcess slot value for any event instance in
-     * gk_central, the obsolete GO term instance can be deleted from gk_central.<br/><br/>
-     * IF a GO cellular component term has NOT been used as a compartment slot value for any physical entity or event
-     * instance in gk_central, the obsolete GO term instance can be deleted from gk_central.<br/><br/>
-     * IF a GO molecular function term has NOT been used as the activity slot value for any catalystActivity instance
-     * in gk_central, the obsolete GO term instance can be deleted from gk_central.
-     * @param instance - an instance to check.
-     * @return true or false, if <code>instance</code> is deleteable, as per the above rules.
-     * @throws Exception
-     */
-    private boolean isGoTermDeleteable(SimpleInstance instance) throws Exception {
-
-        Collection<SimpleInstance> referrers = getReferrersForGoTerm(instance);
-
-        return referrers == null || referrers.isEmpty();
-    }
 
     /*
      * Clears reference attributes that point TO *this* goInstance FROM other GO entities. To be used when an
      * instance is being deleted.
      */
-    private void clearAttributesFromReferringGOEntities(SimpleInstance originalGOInstance) throws Exception {
+    private void clearAttributesFromReferringGOEntities(
+        SimpleInstance originalGOInstance, Collection<NamedReferrerList> referrerLists) throws Exception {
+
         // From a few tests, it seems that 55 is a good target length to abbreviate to.
         final int abbrevLength = 55;
 
-        for (NamedReferrerList referrerList : getCuratorToolAPI().getReferrers(originalGOInstance)) {
+        for (NamedReferrerList referrerList : referrerLists) {
             String attributeName = referrerList.getAttributeName();
 
             for (SimpleInstance referrer : referrerList.getReferrers()) {
@@ -253,17 +254,22 @@ public class GOInstanceDeleter {
 
 
     /**
-     * Gets a collection of GKInstances the refer to a Go Term.
+     * Gets the instances that refer to a GO Term through the attribute that decides whether it can be deleted.
+     * The rules (from Peter D.) are:<br/><br/>
+     * IF a GO biological process term has NOT been used as a goBiologicalProcess slot value for any event instance
+     * in gk_central, the obsolete GO term instance can be deleted from gk_central.<br/><br/>
+     * IF a GO cellular component term has NOT been used as a compartment slot value for any physical entity or
+     * event instance in gk_central, the obsolete GO term instance can be deleted from gk_central.<br/><br/>
+     * IF a GO molecular function term has NOT been used as the activity slot value for any catalystActivity
+     * instance in gk_central, the obsolete GO term instance can be deleted from gk_central.
      * @param instance - the instance to get referrers for.
-     * @return A collection:<br/>
-     * If the instance is a BiologicalProcess,
-     * all instances that refer to it via goBiologicalProcess will be returned.<br/>
-     * If the instances is a CellularComponent then all instances that refer via compartment will be returned.<br/>
-     * If the instance is a MolecularFunction, all instances that refer via activity will be returned.<br/>
-     * NULL will be returned if there are no referrers.
-     * @throws Exception
+     * @param referrerLists - the referrers of <code>instance</code>, by the attribute they refer to it through.
+     * @return the referrers through that attribute, or an empty list if there are none -- in which case the
+     *         instance is deletable, as per the above rules.
      */
-    private List<SimpleInstance> getReferrersForGoTerm(SimpleInstance instance) throws Exception {
+    private List<SimpleInstance> getReferrersForGoTerm(
+        SimpleInstance instance, Collection<NamedReferrerList> referrerLists) {
+
         Map<String, String> schemaClassToReferrerAttribute = Map.of(
             ReactomeJavaConstants.GO_BiologicalProcess, ReactomeJavaConstants.goBiologicalProcess,
             ReactomeJavaConstants.GO_CellularComponent, ReactomeJavaConstants.compartment,
@@ -275,11 +281,16 @@ public class GOInstanceDeleter {
             throw new RuntimeException("Unable to get referrer attribute for " + instance.getSchemaClassName());
         }
 
-        return getCuratorToolAPI().getReferrers(instance, referrerAttribute);
+        return referrerLists
+            .stream()
+            .filter(referrerList -> referrerAttribute.equals(referrerList.getAttributeName()))
+            .findFirst()
+            .map(NamedReferrerList::getReferrers)
+            .orElse(Collections.emptyList());
     }
 
-    private String getAction(SimpleInstance instance) throws Exception {
-        return hasNonGoReferrers(instance, getCuratorToolAPI()) ?
+    private String getAction(Collection<NamedReferrerList> referrerLists) {
+        return hasNonGoReferrers(referrerLists) ?
             "Automatic Deletion (referrers will be redirected)" :
             "Automatic Deletion (no referrers)";
     }
