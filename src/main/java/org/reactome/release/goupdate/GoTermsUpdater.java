@@ -2,7 +2,6 @@ package org.reactome.release.goupdate;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -10,8 +9,6 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.gk.model.ReactomeJavaConstants;
-import org.gk.schema.GKSchemaAttribute;
-import org.reactome.curation.model.NamedReferrerList;
 import org.reactome.curation.model.SimpleInstance;
 import org.reactome.release.goupdate.editor.GOInstanceCreator;
 import org.reactome.release.goupdate.editor.GOInstanceDeleter;
@@ -39,6 +36,7 @@ class GoTermsUpdater {
 	private CuratorToolAPI curatorToolAPI;
 	private List<String> goLines;
 	private List<String> ec2GoLines;
+	private Map<String, List<SimpleInstance>> allGoInstances;
 
 	private CategoryMismatchReport categoryMismatchReport;
 	private NewGOTermsReport newGOTermsReport;
@@ -52,24 +50,34 @@ class GoTermsUpdater {
 	 * @param goLines - The lines from the GO file, probably it was named "gene_ontology_ext.obo". They <em>must</em>
 	 *                  be in the same sequences as they were in the original file!!
 	 * @param ec2GoLines - The lines from the EC-to-GO mapping file, probably named "ec2go".
+	 * @param allGoInstances - The GO instances currently in the database, keyed by GO accession. The update
+	 *                         changes this map as it goes, adding the instances it creates and dropping the ones
+	 *                         it deletes, and then <em>empties</em> it once the update is done so that the
+	 *                         instances can be collected while reconciliation reads them back. A caller must
+	 *                         therefore not use this map again after {@link #updateGoTerms()}.
 	 */
-	public GoTermsUpdater(CuratorToolAPI curatorToolAPI, List<String> goLines, List<String> ec2GoLines) {
+	public GoTermsUpdater(
+		CuratorToolAPI curatorToolAPI,
+		List<String> goLines,
+		List<String> ec2GoLines,
+		Map<String, List<SimpleInstance>> allGoInstances
+	) {
 		this.curatorToolAPI = curatorToolAPI;
 
 		this.goLines = goLines;
 		this.ec2GoLines = ec2GoLines;
+		this.allGoInstances = allGoInstances;
 
 		initReports();
 	}
 
 	/**
-	 * Executes the GO Terms updates. Returns a StringBuilder, which contains a report about what happened.
-	 * @return
+	 * Executes the GO Terms updates, and then reconciles the database against the GO file.
+	 *
+	 * @return the GO instances as reconciliation read them back from the database, keyed by GO accession, so
+	 *         that a caller reporting on the state after the update does not have to read them all again.
 	 */
-	public void updateGoTerms() throws Exception {
-		// This map is keyed by the GO Accession number (GO ID).
-		Map<String, List<SimpleInstance>> allGoInstances = getAccessionToGOInstancesMap();
-
+	public Map<String, List<SimpleInstance>> updateGoTerms() throws Exception {
 		// Maps GO IDs to EC Numbers.
 		Map<String,List<String>> goToECNumbers = new HashMap<>();
 		ec2GoLines.stream().filter(line -> !line.startsWith("!")).forEach(
@@ -77,13 +85,24 @@ class GoTermsUpdater {
 		);
 
 		GoTermParser goTermParser = new GoTermParser(this.goLines, goToECNumbers);
-		processGOTerms(goTermParser, allGoInstances);
+		processGOTerms(goTermParser, this.allGoInstances);
+
+		// Emptied rather than just dropped: the caller passed this map in and its own reference to it stays
+		// live for as long as this call, so clearing the entries is what actually lets the instances be
+		// collected before the ones read below are held alongside them.
+		logger.info("Releasing the {} GO accessions read before the update.", this.allGoInstances.size());
+		this.allGoInstances.clear();
 
 		logger.info("Reconciling GO database instances with go obo file...");
-		GoTermsReconciler reconciler = new GoTermsReconciler(getCuratorToolAPI());
-		reconciler.reconcile(goTermParser);
+		// Read again rather than reconciling against the map the update has been changing: reconciliation's job
+		// is to check what actually ended up in the database.
+		Map<String, List<SimpleInstance>> goInstancesAfterUpdate =
+			getCuratorToolAPI().fetchGOInstancesByAccession();
+		new GoTermsReconciler(goInstancesAfterUpdate).reconcile(goTermParser);
 
 		closeReports();
+
+		return goInstancesAfterUpdate;
 	}
 
 	private void initReports() {
@@ -106,7 +125,7 @@ class GoTermsUpdater {
 	}
 
 	private void processGOTerm(GoTerm goTerm, Map<String, List<SimpleInstance>> allGoInstances) throws Exception {
-		logger.debug("Processing GO Term " + goTerm.getId());
+		logger.info("Processing GO Term " + goTerm.getId());
 
 		GOInstanceCreator goInstanceCreator = new GOInstanceCreator(getCuratorToolAPI());
 		GOInstanceDeleter goInstanceDeleter = new GOInstanceDeleter(getCuratorToolAPI(), obsoleteAccessionReport);
@@ -256,14 +275,6 @@ class GoTermsUpdater {
 
 	private boolean isMolecularFunction(GoTerm goTerm) {
 		return goTerm.getNamespace().getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction);
-	}
-
-	private Map<String, List<SimpleInstance>> getAccessionToGOInstancesMap() throws Exception {
-		return getCuratorToolAPI().fetchGOInstances()
-			.stream()
-			.collect(
-				Collectors.groupingBy(Utils::getAccession)
-			);
 	}
 
 	/**

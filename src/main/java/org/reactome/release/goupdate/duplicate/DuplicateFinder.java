@@ -25,14 +25,21 @@ public class DuplicateFinder {
 
 	private CuratorToolAPI curatorToolAPI;
 
-	// The GO instances in the database keyed by GO accession, read on first use and kept for the lifetime of
-	// this finder. The instances of a duplicated accession are then taken from here rather than queried for
-	// again, once per GO class, for every duplicate found -- and both calls belong to the same report, so they
-	// need to see the same instances in any case.
-	private Map<String, List<SimpleInstance>> accessionToGOInstances;
+	// The GO instances in the database keyed by GO accession. The instances of a duplicated accession are taken
+	// from here rather than queried for again, once per GO class, for every duplicate found.
+	private final Map<String, List<SimpleInstance>> accessionToGOInstances;
 
-	public DuplicateFinder(CuratorToolAPI curatorToolAPI) {
+	/**
+	 * Creates a finder over a set of GO instances.
+	 *
+	 * @param curatorToolAPI - the API used to count the referrers of a duplicated accession's instances.
+	 * @param accessionToGOInstances - the GO instances in the database keyed by GO accession.
+	 */
+	public DuplicateFinder(
+		CuratorToolAPI curatorToolAPI, Map<String, List<SimpleInstance>> accessionToGOInstances) {
+
 		this.curatorToolAPI = curatorToolAPI;
+		this.accessionToGOInstances = accessionToGOInstances;
 	}
 
 	/**
@@ -40,7 +47,7 @@ public class DuplicateFinder {
 	 * @return A map of accessions, and number of times they appear in the database.
 	 */
 	public Map<String, Integer> getDuplicateAccessions() {
-		return getAccessionToGOInstances()
+		return this.accessionToGOInstances
 			.entrySet()
 			.stream()
 			// Filter to allow only duplicated accessions (many GO instances)
@@ -103,20 +110,13 @@ public class DuplicateFinder {
 		return refCount;
 	}
 
-	private List<SimpleInstance> getInstancesByAccession(String accession) {
-		return getAccessionToGOInstances().getOrDefault(accession, Collections.emptyList());
-	}
-
-	private Map<String, List<SimpleInstance>> getAccessionToGOInstances() {
-		if (this.accessionToGOInstances == null) {
-			this.accessionToGOInstances = getCuratorToolAPI().fetchGOInstances()
-				.stream()
-				.collect(
-					groupingBy(Utils::getAccession)
-				);
-		}
-
-		return this.accessionToGOInstances;
+	/**
+	 * Gets the GO instances that have an accession.
+	 * @param accession - the accession to look up.
+	 * @return the instances with that accession, or an empty list if there are none.
+	 */
+	public List<SimpleInstance> getInstancesByAccession(String accession) {
+		return this.accessionToGOInstances.getOrDefault(accession, Collections.emptyList());
 	}
 
 	private boolean shouldIncludeReferrer(SimpleInstance referrer, String ...classesToIgnore) {

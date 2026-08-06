@@ -75,9 +75,15 @@ public class GoUpdateStep extends ReleaseStep {
 
 		this.duplicatesReport = new DuplicatesReport();
 
-		reportOnDuplicateAccessions("BEFORE GO Update");
-		performUpdate(goFiles);
-		reportOnDuplicateAccessions("AFTER GO Update");
+		// Reading every GO instance costs a query per instance, so the "before" duplicate report and the update
+		// itself share the one reading of them. The update changes the instances in this map as it goes and
+		// empties it when it is finished, so it must not be used again below; the "after" report works from what
+		// reconciliation read back instead.
+		Map<String, List<SimpleInstance>> goInstancesBeforeUpdate = curatorToolAPI.fetchGOInstancesByAccession();
+
+		reportOnDuplicateAccessions("BEFORE GO Update", goInstancesBeforeUpdate);
+		Map<String, List<SimpleInstance>> goInstancesAfterUpdate = performUpdate(goFiles, goInstancesBeforeUpdate);
+		reportOnDuplicateAccessions("AFTER GO Update", goInstancesAfterUpdate);
 	}
 
 	private void validateFilesExist(String pathToGOFile, String pathToEC2GOFile) throws IOException {
@@ -99,13 +105,18 @@ public class GoUpdateStep extends ReleaseStep {
 //		}
 //	}
 
-	private void performUpdate(GoFiles goFiles) throws Exception {
-		GoTermsUpdater goTermsUpdator = new GoTermsUpdater(curatorToolAPI, goFiles.goLines, goFiles.ec2GoLines);
-		goTermsUpdator.updateGoTerms();
+	private Map<String, List<SimpleInstance>> performUpdate(
+		GoFiles goFiles, Map<String, List<SimpleInstance>> goInstancesBeforeUpdate) throws Exception {
+
+		GoTermsUpdater goTermsUpdator = new GoTermsUpdater(
+			curatorToolAPI, goFiles.goLines, goFiles.ec2GoLines, goInstancesBeforeUpdate);
+		return goTermsUpdator.updateGoTerms();
 	}
 
-	private void reportOnDuplicateAccessions(String when) throws Exception {
-		DuplicateFinder duplicateReporter = new DuplicateFinder(curatorToolAPI);
+	private void reportOnDuplicateAccessions(
+		String when, Map<String, List<SimpleInstance>> goInstancesByAccession) throws Exception {
+
+		DuplicateFinder duplicateReporter = new DuplicateFinder(curatorToolAPI, goInstancesByAccession);
 		Map<String, Integer> duplicatedAccessions = duplicateReporter.getDuplicateAccessions();
 
 		if (duplicatedAccessions == null || duplicatedAccessions.isEmpty()) {
@@ -121,11 +132,12 @@ public class GoUpdateStep extends ReleaseStep {
 	                                       String when) throws Exception {
 		for (String accession : duplicatedAccessions.keySet()) {
 			Map<Long, Integer> referrerCounts = duplicateFinder.getReferrerCountForAccession(accession);
-			for (Map.Entry<Long, Integer> entry : referrerCounts.entrySet()) {
-				SimpleInstance inst = curatorToolAPI.findByDbId(entry.getKey());
+			// The instances come from the finder's own GO instances rather than being read back one dbId at a
+			// time; the displayName and schema class the report needs are already on them.
+			for (SimpleInstance goInstance : duplicateFinder.getInstancesByAccession(accession)) {
 				this.duplicatesReport.printDuplicateRecord(
-					entry.getKey(), inst.getDisplayName(), accession,
-					inst.getSchemaClassName(), when, entry.getValue()
+					goInstance.getDbId(), goInstance.getDisplayName(), accession,
+					goInstance.getSchemaClassName(), when, referrerCounts.get(goInstance.getDbId())
 				);
 			}
 		}

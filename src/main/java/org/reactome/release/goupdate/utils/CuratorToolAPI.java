@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -210,6 +211,27 @@ public class CuratorToolAPI {
         return goShellInstances.parallelStream().map(this::inflate).collect(Collectors.toList());
     }
 
+    /**
+     * Returns every GO instance in the database, keyed by its GO accession.
+     *
+     * Reading them costs a query per instance, so a caller that needs this more than once for the same state
+     * of the database should hold on to the result rather than asking again.
+     *
+     * @return the GO instances by accession. An accession with more than one instance -- a duplicate -- maps
+     *         to all of them.
+     */
+    public Map<String, List<SimpleInstance>> fetchGOInstancesByAccession() {
+        logger.info("Reading GO instances from the database...");
+
+        Map<String, List<SimpleInstance>> goInstancesByAccession = fetchGOInstances()
+            .stream()
+            .collect(Collectors.groupingBy(Utils::getAccession));
+
+        logger.info("Read GO instances for {} GO accessions.", goInstancesByAccession.size());
+
+        return goInstancesByAccession;
+    }
+
     public SimpleInstance findByDbId(long dbId) {
         DatabaseObject databaseObject = controller.findByDdId(dbId);
         if (databaseObject == null) {
@@ -224,11 +246,17 @@ public class CuratorToolAPI {
     }
 
     public SimpleInstance findByDisplayName(String className, String displayName) {
-        return controller.findByDisplayName(className, displayName);
+        // NB: the controller takes the display name first and a comma-separated list of class names second.
+        return controller.findByDisplayName(displayName, className);
     }
 
     public SimpleInstance fetchGOReferenceDatabase() {
-        return findByDisplayName(ReactomeJavaConstants.ReferenceDatabase, "GO");
+        SimpleInstance goReferenceDatabase = findByDisplayName(ReactomeJavaConstants.ReferenceDatabase, "GO");
+        if (goReferenceDatabase == null) {
+            throw new IllegalStateException("No " + ReactomeJavaConstants.ReferenceDatabase +
+                " instance with the display name 'GO' exists in the database");
+        }
+        return goReferenceDatabase;
     }
 
     public void deleteInstance(SimpleInstance instance) {

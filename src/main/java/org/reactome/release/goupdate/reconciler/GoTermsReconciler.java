@@ -10,7 +10,6 @@ import org.reactome.curation.model.SimpleInstance;
 import org.reactome.release.goupdate.GONamespace;
 import org.reactome.release.goupdate.model.GoTerm;
 import org.reactome.release.goupdate.model.parser.GoTermParser;
-import org.reactome.release.goupdate.utils.CuratorToolAPI;
 import org.reactome.release.goupdate.utils.Utils;
 
 import static org.reactome.release.goupdate.model.ObsoleteGoTerm.isObsolete;
@@ -30,20 +29,32 @@ public class GoTermsReconciler {
 	private static final Logger logger = LogManager.getLogger();
 	private static final Logger reconciliationLogger = LogManager.getLogger("reconciliationLog");
 
-	private CuratorToolAPI curatorToolAPI;
+	// The GO instances in the database, keyed by GO accession. Reconciliation runs after the update has
+	// finished, so nothing changes these instances while it is working, and a lookup in this map takes the
+	// place of a database query for every term in the GO file.
+	private final Map<String, List<SimpleInstance>> accessionToGOInstances;
 
-	// The GO instances in the database, read once when reconciliation starts and keyed by GO accession.
-	// Reconciliation runs after the update has finished, so nothing changes these instances while it is
-	// working, and a lookup in this map takes the place of a database query for every term in the GO file.
-	private Map<String, List<SimpleInstance>> accessionToGOInstances = Collections.emptyMap();
+	// The GO accession of each of those instances, by dbId. A relationship value arrives as a shell instance
+	// that carries no attributes, so its accession is resolved through this map rather than by reading the
+	// instance back from the database.
+	private final Map<Long, String> dbIdToAccession;
 
-	// The GO accession of each instance in the snapshot, by dbId. A relationship value arrives as a shell
-	// instance that carries no attributes, so its accession is resolved through this map rather than by
-	// reading the instance back from the database.
-	private Map<Long, String> dbIdToAccession = Collections.emptyMap();
-
-	public GoTermsReconciler(CuratorToolAPI curatorToolAPI) {
-		this.curatorToolAPI = curatorToolAPI;
+	/**
+	 * Creates a reconciler for a set of GO instances.
+	 *
+	 * @param accessionToGOInstances - the GO instances in the database keyed by GO accession, as they stand
+	 *                                 after the update. Nothing may change them while reconciliation runs.
+	 */
+	public GoTermsReconciler(Map<String, List<SimpleInstance>> accessionToGOInstances) {
+		this.accessionToGOInstances = accessionToGOInstances;
+		this.dbIdToAccession = accessionToGOInstances.values()
+			.stream()
+			.flatMap(List::stream)
+			.collect(Collectors.toMap(
+				SimpleInstance::getDbId,
+				Utils::getAccession,
+				(accession, duplicateAccession) -> accession
+			));
 	}
 
 	/**
@@ -53,8 +64,6 @@ public class GoTermsReconciler {
 	 * @throws Exception
 	 */
 	public void reconcile(GoTermParser goTermParser) throws Exception {
-		readGOInstances();
-
 		Iterator<? extends GoTerm> goTermIterator = goTermParser.getGoTermIterator();
 		while (goTermIterator.hasNext()) {
 			GoTerm goTerm = goTermIterator.next();
@@ -86,30 +95,6 @@ public class GoTermsReconciler {
 				reconcileECNumbers(goInstance, goTerm);
 			}
 		}
-	}
-
-	/**
-	 * Reads every GO instance in the database into the snapshot that the rest of reconciliation works from.
-	 */
-	private void readGOInstances() {
-		logger.info("Reading GO instances from the database to reconcile against...");
-
-		List<SimpleInstance> goInstances = getCuratorToolAPI().fetchGOInstances();
-
-		this.accessionToGOInstances = goInstances
-			.stream()
-			.collect(Collectors.groupingBy(Utils::getAccession));
-
-		this.dbIdToAccession = goInstances
-			.stream()
-			.collect(Collectors.toMap(
-				SimpleInstance::getDbId,
-				Utils::getAccession,
-				(accession, duplicateAccession) -> accession
-			));
-
-		logger.info("Read {} GO instances covering {} GO accessions.",
-			goInstances.size(), this.accessionToGOInstances.size());
 	}
 
 	private void reconcileDefinition(SimpleInstance goInstance, GoTerm goTerm) {
@@ -300,9 +285,5 @@ public class GoTermsReconciler {
 		return attributeValue instanceof List ?
 			(List<String>) attributeValue :
 			Collections.singletonList((String) attributeValue);
-	}
-
-	private CuratorToolAPI getCuratorToolAPI() {
-		return this.curatorToolAPI;
 	}
 }
