@@ -51,7 +51,7 @@
 
 		<byte-buddy.version>1.12.18</byte-buddy.version>
 		<curator-tool-ws.version>0.0.1-SNAPSHOT</curator-tool-ws.version>
-		<graph-core.version>3.0.3.CT</graph-core.version>
+		<graph-core.version>3.0.1.CT</graph-core.version>
 		<httpclient.version>4.5.14</httpclient.version>
 		<mockito.version>2.18.3</mockito.version>
 		<powermock.version>2.0.0</powermock.version>
