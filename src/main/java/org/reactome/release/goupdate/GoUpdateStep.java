@@ -86,6 +86,7 @@ public class GoUpdateStep extends ReleaseStep {
 		reportOnDuplicateAccessions("BEFORE GO Update", goInstancesBeforeUpdate);
 		Map<String, List<SimpleInstance>> goInstancesAfterUpdate = performUpdate(goFiles, goInstancesBeforeUpdate);
 		reportOnDuplicateAccessions("AFTER GO Update", goInstancesAfterUpdate);
+		duplicatesReport.close();
 	}
 
 	private void validateFilesExist(String pathToGOFile, String pathToEC2GOFile) throws IOException {
