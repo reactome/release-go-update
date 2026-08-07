@@ -216,14 +216,12 @@ public class GoTermsReconciler {
 	private void reconcileECNumbers(SimpleInstance instance, GoTerm goTerm) {
 		if (goTerm.getNamespace().getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction)) {
 			// An instance with no EC number at all has no value for the attribute.
-			Set<String> ecNumbersFromDB = new HashSet<>(getStringValues(instance, ReactomeJavaConstants.ecNumber));
-			for (String ecNumberFromTerm : goTerm.getEcNumbers()) {
-				if (!ecNumbersFromDB.contains(ecNumberFromTerm)) {
-					reconciliationLogger.error(
-						"EC Number {} is in the file for GO Accession {} but is not in the db for that accession.",
-						ecNumberFromTerm, getAccession(instance)
-					);
-				}
+			String oldEcNumber = (String) instance.getAttribute(ReactomeJavaConstants.ecNumber);
+			if (!goTerm.getEcNumber().equals(oldEcNumber)) {
+				reconciliationLogger.error(
+					"EC Number {} is in the file for GO Accession {} but is not in the db for that accession.",
+					goTerm.getEcNumber(), getAccession(instance)
+				);
 			}
 		}
 	}

@@ -14,7 +14,7 @@ public class GoTerm {
     private List<String> isA;
     private List<String> partOf;
     private List<String> hasPart;
-    private List<String> ecNumbers;
+    private String ecNumber;
 
     public String getId() {
         return this.id;
@@ -52,8 +52,8 @@ public class GoTerm {
         return this.hasPart;
     }
 
-    public List<String> getEcNumbers() {
-        return this.ecNumbers;
+    public String getEcNumber() {
+        return this.ecNumber;
     }
 
     public static class Builder<T extends Builder<T>> {
@@ -66,7 +66,7 @@ public class GoTerm {
         private List<String> isA;
         private List<String> partOf;
         private List<String> hasPart;
-        private List<String> ecNumbers;
+        private String ecNumber;
 
         public Builder(String id, String name, GONamespace namespace, String def) {
             this.id = id;
@@ -100,8 +100,8 @@ public class GoTerm {
             return self();
         }
 
-        public T withEcNumbers(List<String> ecNumbers) {
-            this.ecNumbers = ecNumbers;
+        public T withEcNumber(String ecNumber) {
+            this.ecNumber = ecNumber;
             return self();
         }
 
@@ -124,6 +124,6 @@ public class GoTerm {
         this.isA = builder.isA;
         this.partOf = builder.partOf;
         this.hasPart = builder.hasPart;
-        this.ecNumbers = builder.ecNumbers;
+        this.ecNumber = builder.ecNumber;
     }
 }

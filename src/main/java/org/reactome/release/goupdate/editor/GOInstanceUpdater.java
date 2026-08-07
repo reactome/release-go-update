@@ -31,7 +31,7 @@ public class GOInstanceUpdater {
     public void updateGOInstance(SimpleInstance existingGOInstance, GoTerm goTerm) throws Exception {
         boolean nameUpdated = stageNameUpdateIfChanged(existingGOInstance, goTerm.getName());
         boolean definitionUpdated = stageDefinitionUpdateIfChanged(existingGOInstance, goTerm.getDef());
-        boolean ecNumbersUpdated = stageECNumbersUpdateIfMolecularFunction(existingGOInstance, goTerm.getEcNumbers());
+        boolean ecNumbersUpdated = stageECNumbersUpdateIfMolecularFunction(existingGOInstance, goTerm.getEcNumber());
 
         if (nameUpdated) {
             existingGOInstance.setDisplayName(goTerm.getName());
@@ -231,34 +231,24 @@ public class GOInstanceUpdater {
         return false;
     }
 
-    private boolean stageECNumbersUpdateIfMolecularFunction(SimpleInstance existingGOInstance, List<String> ecNumbers) {
+    private boolean stageECNumbersUpdateIfMolecularFunction(SimpleInstance existingGOInstance, String ecNumber) {
 
-        if (!isMolecularFunction(existingGOInstance) || ecNumbers == null || ecNumbers.isEmpty()) {
+        if (!isMolecularFunction(existingGOInstance) || ecNumber == null || ecNumber.isEmpty()) {
             return false;
         }
 
-        // Compared as sets: the stored order is whichever order an earlier run happened to write, so comparing
-        // the lists would report a term whose EC numbers differ only in order as changed on every run -- and
-        // commit that term, and every referrer of it, each time.
-        if (new HashSet<>(ecNumbers).equals(new HashSet<>(getECNumbers(existingGOInstance)))) {
+        if (ecNumber.equals(getECNumber(existingGOInstance))) {
             return false;
         }
 
-        existingGOInstance.setAttribute(ReactomeJavaConstants.ecNumber, ecNumbers);
+        existingGOInstance.setAttribute(ReactomeJavaConstants.ecNumber, ecNumber);
         return true;
     }
 
-    private List<String> getECNumbers(SimpleInstance existingGOInstance) {
+    private String getECNumber(SimpleInstance existingGOInstance) {
         Object ecNumberValue = existingGOInstance.getAttribute(ReactomeJavaConstants.ecNumber);
-        if (ecNumberValue == null) {
-            return Collections.emptyList();
-        }
 
-        // "ecNumber" is multi-valued in the data model, but an instance stored while the graph model still
-        // declared it single-valued comes back as a lone String.
-        return ecNumberValue instanceof List ?
-            (List<String>) ecNumberValue :
-            Collections.singletonList((String) ecNumberValue);
+        return ecNumberValue != null ? ecNumberValue.toString() : "";
     }
 
     private boolean isCellularComponent(SimpleInstance existingGOInstance) {

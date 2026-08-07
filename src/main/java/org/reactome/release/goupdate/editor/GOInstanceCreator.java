@@ -33,9 +33,9 @@ public class GOInstanceCreator {
         newGOInstance.setAttribute(ReactomeJavaConstants.definition, goTerm.getDef());
         newGOInstance.setAttribute(ReactomeJavaConstants.referenceDatabase, toShell(getGOReferenceDatabase()));
         if (schemaClassName.equals(ReactomeJavaConstants.GO_MolecularFunction)) {
-            List<String> ecNumbers = goTerm.getEcNumbers();
-            if (ecNumbers != null) {
-                newGOInstance.setAttribute(ReactomeJavaConstants.ecNumber, ecNumbers);
+            String ecNumber = goTerm.getEcNumber();
+            if (ecNumber != null) {
+                newGOInstance.setAttribute(ReactomeJavaConstants.ecNumber, ecNumber);
             }
         }
         newGOInstance.setDisplayName(goTerm.getName());
