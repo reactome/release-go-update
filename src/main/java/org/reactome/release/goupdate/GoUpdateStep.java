@@ -29,6 +29,7 @@ public class GoUpdateStep extends ReleaseStep {
 			initialize(props);
 			processGoUpdate(props);
 		} finally {
+			duplicatesReport.close();
 			// The Spring context holds the H2 connection pool open, so it must be closed even when the update
 			// fails part way through; otherwise the JVM lingers and the next run finds the database file locked.
 			if (curatorToolAPI != null) {
@@ -86,7 +87,6 @@ public class GoUpdateStep extends ReleaseStep {
 		reportOnDuplicateAccessions("BEFORE GO Update", goInstancesBeforeUpdate);
 		Map<String, List<SimpleInstance>> goInstancesAfterUpdate = performUpdate(goFiles, goInstancesBeforeUpdate);
 		reportOnDuplicateAccessions("AFTER GO Update", goInstancesAfterUpdate);
-		duplicatesReport.close();
 	}
 
 	private void validateFilesExist(String pathToGOFile, String pathToEC2GOFile) throws IOException {
