@@ -216,7 +216,8 @@ public class GoTermsReconciler {
 	private void reconcileECNumbers(SimpleInstance instance, GoTerm goTerm) {
 		if (goTerm.getNamespace().getReactomeName().equals(ReactomeJavaConstants.GO_MolecularFunction)) {
 			// An instance with no EC number at all has no value for the attribute.
-			String oldEcNumber = (String) instance.getAttribute(ReactomeJavaConstants.ecNumber);
+			String oldEcNumber = getECNumber(instance);
+
 			if (!goTerm.getEcNumber().equals(oldEcNumber)) {
 				reconciliationLogger.error(
 					"EC Number {} is in the file for GO Accession {} but is not in the db for that accession.",
@@ -283,5 +284,10 @@ public class GoTermsReconciler {
 		return attributeValue instanceof List ?
 			(List<String>) attributeValue :
 			Collections.singletonList((String) attributeValue);
+	}
+
+	private String getECNumber(SimpleInstance instance) {
+		String ecNumber = (String) instance.getAttribute(ReactomeJavaConstants.ecNumber);
+		return ecNumber != null ? ecNumber : "";
 	}
 }

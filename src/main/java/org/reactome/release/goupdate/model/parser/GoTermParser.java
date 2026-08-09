@@ -97,7 +97,7 @@ public class GoTermParser {
             .withIsA(parseIsA(entryLines))
             .withPartOf(parsePartOf(entryLines))
             .withHasPart(parseHasPart(entryLines))
-            .withEcNumber(getECNumbers(id))
+            .withEcNumber(getECNumber(id))
             .withConsider(parseConsider(entryLines))
             .withReplacedBy(parseReplacedBy(entryLines))
             .build();
@@ -115,7 +115,7 @@ public class GoTermParser {
             .withIsA(parseIsA(entryLines))
             .withPartOf(parsePartOf(entryLines))
             .withHasPart(parseHasPart(entryLines))
-            .withEcNumber(getECNumbers(id))
+            .withEcNumber(getECNumber(id))
             .build();
     }
 
@@ -207,7 +207,7 @@ public class GoTermParser {
             .collect(Collectors.toList());
     }
 
-    private String getECNumbers(String goId) {
+    private String getECNumber(String goId) {
         List<String> ecNumbers = this.goAccession2ECNumbers.computeIfAbsent(goId, k -> new ArrayList<>());
         return !ecNumbers.isEmpty() ? ecNumbers.get(0) : "";
     }

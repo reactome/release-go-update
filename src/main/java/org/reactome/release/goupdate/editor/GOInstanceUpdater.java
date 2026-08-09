@@ -233,11 +233,7 @@ public class GOInstanceUpdater {
 
     private boolean stageECNumbersUpdateIfMolecularFunction(SimpleInstance existingGOInstance, String ecNumber) {
 
-        if (!isMolecularFunction(existingGOInstance) || ecNumber == null || ecNumber.isEmpty()) {
-            return false;
-        }
-
-        if (ecNumber.equals(getECNumber(existingGOInstance))) {
+        if (!isMolecularFunction(existingGOInstance) || ecNumber.equals(getECNumber(existingGOInstance))) {
             return false;
         }
 
