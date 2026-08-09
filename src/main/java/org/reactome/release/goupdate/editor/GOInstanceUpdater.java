@@ -37,12 +37,6 @@ public class GOInstanceUpdater {
             existingGOInstance.setDisplayName(goTerm.getName());
         }
 
-        if (nameUpdated || definitionUpdated) {
-            if (isCellularComponent(existingGOInstance)) {
-                clearRelationshipsAbsentFromGOFile(existingGOInstance, goTerm);
-            }
-        }
-
         if (nameUpdated || definitionUpdated || ecNumbersUpdated) {
             getCuratorToolAPI().commit(existingGOInstance);
 
@@ -94,7 +88,8 @@ public class GOInstanceUpdater {
      * Updates the relationships between GO terms in the database.
      * @param goInstance - The GO instance for which to update the relationship
      * @param allGoInstances - Map of all GO instances in the database.
-     * @param relationshipAccessions - The GO accessions for the relationship
+     * @param relationshipAccessions - The GO accessions for the relationship. An empty list means the GO file
+     *                                 gives the relationship no value, which clears any value the database holds.
      * @param reactomeRelationshipName - The name of the relationship can be one of "is_a", "has_part", "part_of",
      *                                   "component_of", "regulates", "positively_regulates", "negatively_regulates".
      * @return true if the relationship's value in the database needs to change, false otherwise.
@@ -105,12 +100,11 @@ public class GOInstanceUpdater {
         List<String> relationshipAccessions,
         String reactomeRelationshipName
     ) {
-        if (relationshipAccessions.isEmpty()) {
-            return false;
-        }
-
         Set<Long> originalRelationshipDbIds = getRelationshipDbIds(goInstance, reactomeRelationshipName);
 
+        // Cleared before the file's value is applied, and deliberately left cleared when the file gives no value
+        // at all: a relationship the file has stopped listing must lose whatever a previous release stored for
+        // it, rather than keeping that value indefinitely.
         setRelationshipToNull(goInstance, reactomeRelationshipName);
 
         List<SimpleInstance> allRelationshipGOInstances = new ArrayList<>();
@@ -132,10 +126,17 @@ public class GOInstanceUpdater {
             allRelationshipGOInstances.addAll(relationshipGOInstances);
         }
 
+        // Only set when there is a value to set, so that having nothing to store leaves the attribute cleared:
+        // clearAttribute removes the attribute outright, which is what a commit needs in order to remove the
+        // stored value, and setting it to an empty list would put it back with a value the converter has no use
+        // for.
+        //
         // Shells, not the instances themselves: the instances come from the map of all GO instances, whose
         // entries refer to each other, and a cycle among them makes the commit's search for new instances to
         // store recurse until the stack runs out.
-        goInstance.setAttribute(reactomeRelationshipName, toShells(allRelationshipGOInstances));
+        if (!allRelationshipGOInstances.isEmpty()) {
+            goInstance.setAttribute(reactomeRelationshipName, toShells(allRelationshipGOInstances));
+        }
 
         // Committing an unchanged instance would add an InstanceEdit to its "modified" slot for a change that
         // never happened, so the relationship is only reported as updated when its value actually differs.
@@ -256,27 +257,6 @@ public class GOInstanceUpdater {
         return existingGOInstance.getSchemaClassName().equals(ReactomeJavaConstants.GO_MolecularFunction);
     }
 
-    /**
-     * Clears the relationships that the GO file gives no value for, so that a value stored by a previous release
-     * does not stay in the database once the file has stopped listing it.
-     *
-     * The relationships the file *does* give a value for are deliberately left alone: updateRelationships sets
-     * those from the file later in this run, so clearing them here would only make both this commit and that one
-     * write the attribute -- committing the instance twice -- even when the file's value has not changed at all.
-     *
-     * @param existingGOInstance - the GO instance to clear the relationships on.
-     * @param goTerm - the GO term from the file, whose relationships decide what is cleared.
-     */
-    private void clearRelationshipsAbsentFromGOFile(SimpleInstance existingGOInstance, GoTerm goTerm) {
-        if (goTerm.getIsA().isEmpty()) {
-            setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.instanceOf);
-        }
-
-        if (goTerm.getPartOf().isEmpty()) {
-            setRelationshipToNull(existingGOInstance, ReactomeJavaConstants.componentOf);
-        }
-    }
-
     private void setRelationshipToNull(SimpleInstance goInstance, String reactomeRelationshipName) {
         clearAttribute(goInstance, reactomeRelationshipName);
     }
@@ -299,6 +279,16 @@ public class GOInstanceUpdater {
         String reactomeRelationshipName,
         List<SimpleInstance> relationshipGOInstances
     ) {
+        if (relationshipGOInstances.isEmpty()) {
+            updatedGOTermLogger.info("GO:{} ({}) no longer has relationship \"{}\", which the GO file gives no " +
+                    "value for",
+                getAccession(goInstance),
+                goInstance.toString(),
+                reactomeRelationshipName
+            );
+            return;
+        }
+
         updatedGOTermLogger.info("GO:{} ({}) now has relationship \"{}\" referring to {}",
             getAccession(goInstance),
             goInstance.toString(),
