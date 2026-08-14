@@ -37,6 +37,14 @@
 #     NEO4J_PASSWORD  (default root)
 #     NEO4J_DATABASE  (default graph.db)
 #
+# The cypher-shell binary itself is configurable, for hosts where it is not on PATH or where a
+# particular Neo4j installation's copy has to be used:
+#
+#     CYPHER_SHELL      (default cypher-shell, resolved on PATH)
+#     --cypher-shell PATH   overrides CYPHER_SHELL for this run
+#
+# e.g. scripts/create-dbid-indexes.sh --cypher-shell /var/lib/neo4j/bin/cypher-shell --apply
+#
 # Labels with fewer than --min-nodes nodes are skipped: scanning a few hundred nodes costs less than
 # maintaining an index on them. Every label that is skipped, and why, is printed.
 
@@ -46,6 +54,8 @@ export NEO4J_ADDRESS="${NEO4J_ADDRESS:-bolt://localhost:7687}"
 export NEO4J_USERNAME="${NEO4J_USERNAME:-neo4j}"
 export NEO4J_PASSWORD="${NEO4J_PASSWORD:-root}"
 export NEO4J_DATABASE="${NEO4J_DATABASE:-graph.db}"
+
+CYPHER_SHELL="${CYPHER_SHELL:-cypher-shell}"
 
 MIN_NODES=1000
 AWAIT_SECONDS=1800
@@ -62,6 +72,14 @@ while [[ $# -gt 0 ]]; do
         --profile) MODE=profile; shift ;;
         --list)    MODE=list;    shift ;;
         --drop)    MODE=drop;    shift ;;
+        --cypher-shell)
+            CYPHER_SHELL="${2:-}"
+            if [[ -z "$CYPHER_SHELL" ]]; then
+                echo "error: --cypher-shell needs a path to the cypher-shell binary" >&2
+                exit 2
+            fi
+            shift 2
+            ;;
         --min-nodes)
             MIN_NODES="${2:-}"
             if ! [[ "$MIN_NODES" =~ ^[0-9]+$ ]]; then
@@ -75,13 +93,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if ! command -v cypher-shell >/dev/null 2>&1; then
-    echo "error: cypher-shell not found on PATH" >&2
+# command -v covers both forms: a bare name is looked up on PATH, a path is accepted only if it is
+# executable.
+if ! command -v "$CYPHER_SHELL" >/dev/null 2>&1; then
+    if [[ "$CYPHER_SHELL" == */* ]]; then
+        echo "error: '$CYPHER_SHELL' is not an executable file" >&2
+    else
+        echo "error: '$CYPHER_SHELL' not found on PATH; set CYPHER_SHELL or pass --cypher-shell PATH" >&2
+    fi
     exit 1
 fi
 
 cypher() {
-    cypher-shell --format plain "$@"
+    "$CYPHER_SHELL" --format plain "$@"
+}
+
+cypher_verbose() {
+    "$CYPHER_SHELL" --format verbose "$@"
 }
 
 # cypher-shell's plain format quotes string values; strip the quotes and drop the header row.
@@ -99,7 +127,7 @@ require_connection() {
 
 list_indexes() {
     echo "== dbId indexes currently in $NEO4J_DATABASE"
-    cypher-shell --format verbose \
+    cypher_verbose \
         "SHOW INDEXES YIELD name, labelsOrTypes, properties, state, populationPercent
          WHERE 'dbId' IN properties
          RETURN name, labelsOrTypes, state, populationPercent ORDER BY name;"
@@ -222,7 +250,7 @@ profile_lookup() {
     echo "   NodeByLabelScan  => this label has no usable dbId index (run with --apply)"
     echo "   NodeIndexSeek    => the index is in place and being used"
     echo
-    cypher-shell --format verbose "PROFILE MATCH (n:\`$label\` {dbId: $dbid}) RETURN n.displayName;"
+    cypher_verbose "PROFILE MATCH (n:\`$label\` {dbId: $dbid}) RETURN n.displayName;"
 }
 
 require_connection
@@ -250,7 +278,7 @@ case "$MODE" in
         echo "== dropping $(echo "$drop_ddl" | wc -l) index(es) created by this script from $NEO4J_DATABASE"
         echo "$drop_ddl"
         echo
-        echo "$drop_ddl" | cypher-shell --format plain
+        echo "$drop_ddl" | cypher
         echo
         list_indexes
         exit 0
@@ -283,7 +311,7 @@ echo
 
 # One cypher-shell invocation for every statement, then block until they finish populating, so that a
 # run started straight afterwards does not race an index that is still coming online.
-echo "$ddl" | cypher-shell --format plain
+echo "$ddl" | cypher
 
 await_status=0
 await_dbid_indexes || await_status=$?
