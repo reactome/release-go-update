@@ -145,18 +145,27 @@ class GoTermsUpdater {
 				allGoInstances.computeIfAbsent(goTerm.getId(), k -> new ArrayList<>()).add(newGOInstance);
 			}
 		} else {
-			for (SimpleInstance existingGOInstance : existingGOInstances) {
+			// This list *is* the map's list for this accession, so the instances replacing the ones whose class
+			// does not match are collected and added once the loop is done -- adding them as they are created is
+			// a concurrent modification of the list being iterated. The instance each one replaces is dropped
+			// from the list as it is deleted, so that the rest of this update works from the live instances only.
+			List<SimpleInstance> replacementGOInstances = new ArrayList<>();
+			Iterator<SimpleInstance> existingGOInstanceIterator = existingGOInstances.iterator();
+			while (existingGOInstanceIterator.hasNext()) {
+				SimpleInstance existingGOInstance = existingGOInstanceIterator.next();
 				if (hasClassForNamespace(existingGOInstance, goTerm.getNamespace())) {
 					goInstanceUpdater.updateGOInstance(existingGOInstance, goTerm);
 				} else {
 					categoryMismatchReport.printCategoryMismatchRecord(existingGOInstance, goTerm);
 					goInstanceDeleter.deleteGOInstance(existingGOInstance);
+					existingGOInstanceIterator.remove();
 
 					SimpleInstance newGOInstance = goInstanceCreator.createNewGOInstance(goTerm);
 					reportNewGOInstance(newGOInstance.getDbId(), goTerm);
-					allGoInstances.computeIfAbsent(goTerm.getId(), k -> new ArrayList<>()).add(newGOInstance);
+					replacementGOInstances.add(newGOInstance);
 				}
 			}
+			existingGOInstances.addAll(replacementGOInstances);
 		}
 		processAlternateIds(goTerm, allGoInstances);
 
