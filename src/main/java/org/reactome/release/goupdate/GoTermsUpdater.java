@@ -227,7 +227,10 @@ class GoTermsUpdater {
 		ObsoleteGoTerm goTerm, Map<String, List<SimpleInstance>> allGoInstances) {
 
 		String replacedByAccession = goTerm.getReplacedBy().replace("GO:","");
-		return allGoInstances.computeIfAbsent(replacedByAccession, k -> new ArrayList<>())
+		// Looked up rather than created if absent: an entry inserted here for an accession the database has no
+		// instances of makes the term that accession belongs to look, when its turn comes, like one whose
+		// instances are already in hand, so no instance would be created for it.
+		return allGoInstances.getOrDefault(replacedByAccession, Collections.emptyList())
 			.stream()
 			.findFirst()
 			.orElse(null);
