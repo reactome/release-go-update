@@ -8,7 +8,6 @@ old-logs
 report
 .clover
 .eclipse-pmd
-reports
 
 target/
 
