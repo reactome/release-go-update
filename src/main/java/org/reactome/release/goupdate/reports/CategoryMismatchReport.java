@@ -17,10 +17,10 @@ public class CategoryMismatchReport extends Report {
 
         long dbId = existingGOInstance.getDbId();
         String accession = goTerm.getId();
-        String name = goTerm.getName();
-        GONamespace currentCategory = goTerm.getNamespace();
+        String categoryInDb = existingGOInstance.getSchemaClassName();
+        GONamespace categoryInFile = goTerm.getNamespace();
 
-        getCSVPrinter().printRecord(dbId, accession, name, currentCategory);
+        getCSVPrinter().printRecord(dbId, accession, categoryInDb, categoryInFile);
     }
 
     @Override
