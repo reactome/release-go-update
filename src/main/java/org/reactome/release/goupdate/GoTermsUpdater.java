@@ -19,7 +19,6 @@ import org.reactome.release.goupdate.model.parser.GoTermParser;
 import org.reactome.release.goupdate.reconciler.GoTermsReconciler;
 import org.reactome.release.goupdate.reports.*;
 import org.reactome.release.goupdate.utils.CuratorToolAPI;
-import org.reactome.release.goupdate.utils.Utils;
 import org.reactome.server.graph.domain.model.DatabaseObject;
 
 import static org.reactome.release.goupdate.model.ObsoleteGoTerm.isObsolete;
@@ -42,6 +41,7 @@ class GoTermsUpdater {
 	private NewGOTermsReport newGOTermsReport;
 	private NewMolecularFunctionReport newMolecularFunctionReport;
 	private ObsoleteAccessionReport obsoleteAccessionReport;
+	private PlantObsoleteAccessionReport plantObsoleteAccessionReport;
 	private ReplacedGOTermsReport replacedGOTermsReport;
 
 	/**
@@ -110,6 +110,7 @@ class GoTermsUpdater {
 		this.newGOTermsReport = new NewGOTermsReport();
 		this.newMolecularFunctionReport = new NewMolecularFunctionReport();
 		this.obsoleteAccessionReport = new ObsoleteAccessionReport();
+		this.plantObsoleteAccessionReport = new PlantObsoleteAccessionReport();
 		this.replacedGOTermsReport = new ReplacedGOTermsReport();
 	}
 
@@ -210,11 +211,21 @@ class GoTermsUpdater {
 		// safely deleted because nothing will be affected.
 		for (SimpleInstance goInstance : goInstances) {
 			if (hasNonGoReferrers(goInstance, getCuratorToolAPI())) {
-				this.obsoleteAccessionReport.printObsoleteAccessionRecord(
-					goInstance,
-					"Manual cleanup (referrers exist)",
-					goTerm.getReplacedByOrConsiderString()
-				);
+				if (!isPlantOnlyGOTerm(goInstance)) {
+					this.obsoleteAccessionReport.printObsoleteAccessionRecord(
+						goInstance,
+						"Manual cleanup (referrers exist)",
+						goTerm.getReplacedByOrConsiderString()
+					);
+				} else {
+					this.plantObsoleteAccessionReport.printObsoleteAccessionRecord(
+						goInstance,
+						"Manual cleanup (referrers exist)",
+						goTerm.getReplacedByOrConsiderString()
+					);
+				}
+
+
 			} else {
 				instancesForDeletion.add(goInstance);
 			}
@@ -316,5 +327,69 @@ class GoTermsUpdater {
 
 	private CuratorToolAPI getCuratorToolAPI() {
 		return this.curatorToolAPI;
+	}
+
+	private boolean isPlantOnlyGOTerm(SimpleInstance goInstance) throws Exception {
+		List<SimpleInstance> referrers = getReferrersFilteredByClass(goInstance, getCuratorToolAPI(), isNotGOEntity);
+		return referrers
+			.stream()
+			.map(referrer -> getCuratorToolAPI().inflate(referrer))
+			.allMatch(this::isPlantOnlyInstance);
+	}
+
+	private boolean isPlantOnlyInstance(SimpleInstance instance) {
+		if (instance.getSchemaClassName().equals(ReactomeJavaConstants.CatalystActivity)) {
+			return getReactionLikeEventReferrers(instance)
+				.stream()
+				.map(referrer -> getCuratorToolAPI().inflate(referrer))
+				.allMatch(this::isPlantOnlyInstance);
+		}
+
+		return getSpeciesInstances(instance)
+			.stream()
+			.allMatch(speciesInstance -> getPlantSpeciesDisplayNames().contains(speciesInstance.getDisplayName()));
+	}
+
+	private List<SimpleInstance> getReactionLikeEventReferrers(SimpleInstance catalystActivityInstance) {
+		Collection<SimpleInstance> referrers;
+		try {
+			referrers =
+				getCuratorToolAPI().getReferrers(catalystActivityInstance, ReactomeJavaConstants.catalystActivity);
+		} catch (Exception e) {
+			throw new RuntimeException("Unable to get referrers for CatalystActivity " + catalystActivityInstance, e);
+		}
+
+		if (referrers == null) {
+			return Collections.emptyList();
+		}
+
+		return referrers
+			.stream()
+			.filter(referrer -> isReactionLikeEvent(referrer))
+			.collect(Collectors.toList());
+	}
+
+	private List<SimpleInstance> getSpeciesInstances(SimpleInstance instance) {
+		return (List<SimpleInstance>) instance.getAttribute(ReactomeJavaConstants.species);
+	}
+
+	private boolean isReactionLikeEvent(SimpleInstance instance) {
+		List<String> reactionLikeEventClasses = Arrays.asList(
+			"BlackBoxEvent",
+			"CellDevelopmentStep",
+			"Depolymerisation",
+			"FailedReaction",
+			"Polymerisation",
+			"Reaction"
+		);
+
+		return reactionLikeEventClasses.contains(instance.getSchemaClassName());
+	}
+
+	private List<String> getPlantSpeciesDisplayNames() {
+		return Arrays.asList(
+			"Arabidopsis thaliana",
+			"Oryza sativa"
+		);
 	}
 }
