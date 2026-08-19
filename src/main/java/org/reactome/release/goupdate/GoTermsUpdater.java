@@ -322,6 +322,7 @@ class GoTermsUpdater {
 		this.newGOTermsReport.close();
 		this.newMolecularFunctionReport.close();
 		this.obsoleteAccessionReport.close();
+		this.plantObsoleteAccessionReport.close();
 		this.replacedGOTermsReport.close();
 	}
 
