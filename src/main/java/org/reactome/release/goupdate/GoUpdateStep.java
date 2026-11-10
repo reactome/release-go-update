@@ -29,7 +29,9 @@ public class GoUpdateStep extends ReleaseStep {
 			initialize(props);
 			processGoUpdate(props);
 		} finally {
-			duplicatesReport.close();
+			if (duplicatesReport != null) {
+				duplicatesReport.close();
+			}
 			// The Spring context holds the H2 connection pool open, so it must be closed even when the update
 			// fails part way through; otherwise the JVM lingers and the next run finds the database file locked.
 			if (curatorToolAPI != null) {
