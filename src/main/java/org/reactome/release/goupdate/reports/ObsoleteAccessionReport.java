@@ -16,7 +16,13 @@ public class ObsoleteAccessionReport extends Report {
         String goClassName = goInstance.getSchemaClassName();
         String accession = (String) goInstance.getAttribute(ReactomeJavaConstants.identifier);
 
-        getCSVPrinter().printRecord(dbId, goClassName, accession, action, replacementGOTermAccession);
+        getCSVPrinter().printRecord(
+            hyperLinkToCuratorTool(dbId),
+            goClassName,
+            hyperLinkToQuickGO(accession),
+            action,
+            hyperLinkToQuickGO(replacementGOTermAccession)
+        );
     }
 
 

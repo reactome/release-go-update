@@ -34,6 +34,16 @@ public abstract class Report {
         return this.csvPrinter;
     }
 
+    String hyperLinkToCuratorTool(long dbId) {
+        return String.format(
+            "=hyperlink(\"https://curator.reactome.org/curatortool/schema_view/instance/%d\",\"%d\")", dbId, dbId
+        );
+    }
+
+    String hyperLinkToQuickGO(String goAccession) {
+        return String.format("=hyperlink(\"ebi.ac.uk/QuickGO/term/GO:%s\",\"%s\")", goAccession, goAccession);
+    }
+
     private void initReport() {
         try {
             createReportsDirectory();

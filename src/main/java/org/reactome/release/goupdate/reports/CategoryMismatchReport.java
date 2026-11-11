@@ -20,7 +20,9 @@ public class CategoryMismatchReport extends Report {
         String categoryInDb = existingGOInstance.getSchemaClassName();
         GONamespace categoryInFile = goTerm.getNamespace();
 
-        getCSVPrinter().printRecord(dbId, accession, categoryInDb, categoryInFile);
+        getCSVPrinter().printRecord(
+            hyperLinkToCuratorTool(dbId), hyperLinkToQuickGO(accession), categoryInDb, categoryInFile
+        );
     }
 
     @Override

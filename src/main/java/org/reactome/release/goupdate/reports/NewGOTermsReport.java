@@ -15,7 +15,9 @@ public class NewGOTermsReport extends Report {
         String namespace = goTerm.getNamespace().getReactomeName();
         String definition = goTerm.getDef();
 
-        getCSVPrinter().printRecord(dbID, name, accession, namespace, definition);
+        getCSVPrinter().printRecord(
+            hyperLinkToCuratorTool(dbID), name, hyperLinkToQuickGO(accession), namespace, definition
+        );
     }
 
     @Override

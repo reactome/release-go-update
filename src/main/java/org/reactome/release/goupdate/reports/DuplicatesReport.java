@@ -9,7 +9,9 @@ public class DuplicatesReport extends Report {
     public void printDuplicateRecord(
         long dbId, String displayName, String accession, String goClassName, String when, int numOfReferrers
     ) throws IOException {
-        getCSVPrinter().printRecord(dbId, displayName, accession, goClassName, when, numOfReferrers);
+        getCSVPrinter().printRecord(
+            hyperLinkToCuratorTool(dbId), displayName, hyperLinkToQuickGO(accession), goClassName, when, numOfReferrers
+        );
     }
 
     @Override

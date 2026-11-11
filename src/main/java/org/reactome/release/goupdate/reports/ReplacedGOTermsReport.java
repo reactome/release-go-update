@@ -10,8 +10,15 @@ public class ReplacedGOTermsReport extends Report {
         long primaryDbId, String primaryDisplayName, String primaryAccession, String primaryGOClassName,
         long secondaryDbId, String secondaryAccession, String secondaryGOClassName, String referrers
     ) throws IOException {
-        getCSVPrinter().printRecord(primaryDbId, primaryDisplayName, primaryAccession, primaryGOClassName,
-            secondaryDbId, secondaryAccession, secondaryGOClassName, referrers);
+        getCSVPrinter().printRecord(
+            hyperLinkToCuratorTool(primaryDbId),
+            primaryDisplayName,
+            hyperLinkToQuickGO(primaryAccession),
+            primaryGOClassName,
+            hyperLinkToCuratorTool(secondaryDbId),
+            hyperLinkToQuickGO(secondaryAccession),
+            secondaryGOClassName, referrers
+        );
     }
 
     @Override

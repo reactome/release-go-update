@@ -13,7 +13,7 @@ public class NewMolecularFunctionReport extends Report {
         String name = goTerm.getName();
         String definition = goTerm.getDef();
 
-        getCSVPrinter().printRecord(dbID, accession, name, definition);
+        getCSVPrinter().printRecord(hyperLinkToCuratorTool(dbID), hyperLinkToQuickGO(accession), name, definition);
     }
 
     @Override
