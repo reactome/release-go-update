@@ -41,7 +41,7 @@ public abstract class Report {
     }
 
     String hyperLinkToQuickGO(String goAccession) {
-        return String.format("=hyperlink(\"ebi.ac.uk/QuickGO/term/GO:%s\",\"%s\")", goAccession, goAccession);
+        return String.format("=hyperlink(\"https://ebi.ac.uk/QuickGO/term/GO:%s\",\"%s\")", goAccession, goAccession);
     }
 
     private void initReport() {
