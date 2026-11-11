@@ -24,16 +24,6 @@ public class ObsoleteGoTerm extends GoTerm {
         return this.replacedBy;
     }
 
-    public String getReplacedByOrConsiderString() {
-        String replaceBy = !getReplacedBy().isEmpty() ?
-            "Replace by: " + getReplacedBy() : "";
-        String consider = !getConsider().isEmpty() ?
-            "Consider: " + String.join(", ", getConsider()) : "";
-
-        String replacementTermString = replaceBy + consider;
-        return !replacementTermString.isEmpty() ? replacementTermString : "N/A";
-    }
-
     public static class Builder extends GoTerm.Builder<Builder> {
         private List<String> consider;
         private String replacedBy;
