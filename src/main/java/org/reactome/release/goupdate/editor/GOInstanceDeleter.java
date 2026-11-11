@@ -108,7 +108,7 @@ public class GOInstanceDeleter {
             obsoleteAccessionReport.printObsoleteAccessionRecord(
                 instanceForDeletion,
                 getAction(referrerLists),
-                obsoleteGoTerm.getReplacedByOrConsiderString()
+                obsoleteGoTerm
             );
             deleteGoInstance(instanceForDeletion, obsoleteGoTerm, replacementGoInstance, referrerLists);
 

@@ -215,13 +215,13 @@ class GoTermsUpdater {
 					this.obsoleteAccessionReport.printObsoleteAccessionRecord(
 						goInstance,
 						"Manual cleanup (referrers exist)",
-						goTerm.getReplacedByOrConsiderString()
+						goTerm
 					);
 				} else {
 					this.plantObsoleteAccessionReport.printObsoleteAccessionRecord(
 						goInstance,
 						"Manual cleanup (referrers exist)",
-						goTerm.getReplacedByOrConsiderString()
+						goTerm
 					);
 				}
 
